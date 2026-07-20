@@ -249,8 +249,24 @@ function renderSidebar(sessions) {
   });
 }
 
+async function toggleSidebar() {
+  const app = $(".app");
+  const isOpen = app.classList.toggle("sidebar-open");
+  if (window.innerWidth > 768) {
+    localStorage.setItem("sidebarCollapsed", !isOpen);
+  }
+}
+
+function closeSidebar() {
+  $(".app").classList.remove("sidebar-open");
+}
+
 async function loadSession(file) {
   state.currentSessionFile = file;
+  // Mobile: close sidebar on selection
+  if (window.innerWidth <= 768) {
+    closeSidebar();
+  }
   // pull transcript from REST then connect a fresh WS pointed at this session
   const res = await fetch(`${API}/api/session?file=${encodeURIComponent(file)}`);
   const data = await res.json();
@@ -785,6 +801,7 @@ function init() {
   state.cwd = document.body.dataset.cwd || "";
 
   // event listeners
+  // event listeners
   $("#btnNew").addEventListener("click", () => {
     if (state.streaming) {
       if (!confirm("正在生成中，新建会话会终止当前操作，确定吗？")) return;
@@ -795,8 +812,8 @@ function init() {
     connectWs({}); // no session -> pi creates a new one
     $("#topSessionName").textContent = "新对话";
     state.currentSessionFile = null;
-    // Pull the updated sidebar immediately so the just-opened session
-    // appears as soon as pi reports back (and on subsequent resolves).
+    // Mobile: close sidebar on new session
+    if (window.innerWidth <= 768) closeSidebar();
     refreshSessions();
   });
 
@@ -831,6 +848,9 @@ function init() {
     });
   });
 
+  $("#btnToggleSidebar").addEventListener("click", toggleSidebar);
+  $("#sidebarOverlay").addEventListener("click", closeSidebar);
+
   // sidebar search (client side filter)
   $("#sidebarSearch").addEventListener("input", (e) => {
     const q = e.target.value.toLowerCase();
@@ -838,6 +858,11 @@ function init() {
       it.style.display = it.textContent.toLowerCase().includes(q) ? "" : "none";
     });
   });
+
+  // Restore sidebar state for desktop
+  if (window.innerWidth > 768 && localStorage.getItem("sidebarCollapsed") === "true") {
+    $(".app").classList.remove("sidebar-open");
+  }
 
   refreshSessions();
   // start in the disconnected state; connectWs will flip to green on open.

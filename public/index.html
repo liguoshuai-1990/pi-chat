@@ -8,7 +8,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ctext y='20' font-size='20'%3Eπ%3C/text%3E%3C/svg%3E">
 </head>
 <body data-cwd="">
-  <div class="app">
+  <div class="app sidebar-open">
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-top">
@@ -27,9 +27,19 @@
       </div>
     </aside>
 
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <!-- Main -->
     <main class="main">
       <div class="topbar">
+        <button class="btn-toggle-sidebar" id="btnToggleSidebar" title="切换侧边栏">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
         <div class="session-name" id="topSessionName">新对话</div>
         <button class="btn-ghost" id="modelPillWrap" title="工作目录">
           <span id="cwdPill">~</span>
