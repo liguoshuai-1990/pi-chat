@@ -859,8 +859,12 @@ function init() {
     });
   });
 
-  // Restore sidebar state for desktop
-  if (window.innerWidth > 768 && localStorage.getItem("sidebarCollapsed") === "true") {
+  // Restore sidebar state for desktop, collapse by default on mobile
+  if (window.innerWidth > 768) {
+    if (localStorage.getItem("sidebarCollapsed") === "true") {
+      $(".app").classList.remove("sidebar-open");
+    }
+  } else {
     $(".app").classList.remove("sidebar-open");
   }
 
