@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-07-26
+
+### Added
+- **运行时实时插入/拦截指令 (Steer Instructions During Agent Turns)**：
+  - AI 正在思考、读取文件或执行命令（`streaming`）时，可以在输入框输入补充或修正要求。
+  - 输入框右侧会自动展示 **`🧭 插入指令`** 按钮，按 Enter 或点击按钮可实时将指令发送给 `pi` 代理进程（发送 `steer` 消息）。
+  - 聊天界面中插入的指令会展示带 **`🧭 指导指令`** 徽章的突出气泡，`pi` 接收后能在当前轮次中即时调整执行方向。
+  - 未输入内容时，按钮保持原有的 `■` 停止按钮功能。
+
+---
+
 ## [1.2.0] - 2026-07-26
 
 ### Added

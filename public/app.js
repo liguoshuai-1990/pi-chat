@@ -518,9 +518,13 @@ function showEmptyState(show) {
 
 function appendMessageNode(role, m) {
   if (role === "user") {
-    const node = el("div", { class: "msg user" }, [
-      el("div", { class: "bubble", text: m.text }),
+    const isSteer = m.isSteer || false;
+    const steerBadge = isSteer ? el("span", { class: "steer-badge", text: "🧭 指导指令" }) : null;
+    const bubble = el("div", { class: "bubble" + (isSteer ? " steer" : "") }, [
+      steerBadge,
+      document.createTextNode(m.text || "")
     ]);
+    const node = el("div", { class: "msg user" }, [bubble]);
     $("#chat-inner").appendChild(node);
     scrollBottom();
     return node;
@@ -1242,17 +1246,69 @@ function baseName(p) {
 }
 
 // ---- Composer ----
-function setComposerAborting(yes) {
-  const btn = $("#sendBtn");
-  if (yes) {
-    btn.classList.add("stop");
-    btn.disabled = false;
-    btn.textContent = "■";
+function updateComposerUI() {
+  const ta = $("#composer");
+  const text = ta ? ta.value.trim() : "";
+  const sendBtn = $("#sendBtn");
+  const steerBtn = $("#steerBtn");
+
+  if (state.streaming) {
+    if (sendBtn) {
+      sendBtn.classList.add("stop");
+      sendBtn.disabled = !state.wsConnected;
+      sendBtn.textContent = "■";
+      sendBtn.title = "中止当前生成";
+    }
+    if (steerBtn) {
+      if (text.length > 0) {
+        steerBtn.style.display = "inline-flex";
+        steerBtn.disabled = !state.wsConnected;
+      } else {
+        steerBtn.style.display = "none";
+      }
+    }
+    if (ta) ta.placeholder = "AI 正在运行中… 可在此输入补充/指导指令，按 Enter 或点击【插入指令】实时调整";
   } else {
-    btn.classList.remove("stop");
-    btn.disabled = false;
-    btn.textContent = "↑";
+    if (sendBtn) {
+      sendBtn.classList.remove("stop");
+      sendBtn.disabled = !state.wsConnected;
+      sendBtn.textContent = "↑";
+      sendBtn.title = "发送消息";
+    }
+    if (steerBtn) {
+      steerBtn.style.display = "none";
+    }
+    if (ta) ta.placeholder = "给 pi 发消息…  (Enter 发送，Shift+Enter 换行)";
   }
+}
+
+function setComposerAborting(yes) {
+  updateComposerUI();
+}
+
+function submitSteer() {
+  const ta = $("#composer");
+  const text = ta.value.trim();
+  const hint = $(".composer-hint");
+  if (!text) return;
+
+  if (!state.wsConnected) {
+    if (hint) hint.textContent = "发送失败：WebSocket 未连接。正在尝试重连…";
+    scheduleReconnect(0);
+    return;
+  }
+
+  appendMessageNode("user", { text, isSteer: true });
+  ta.value = "";
+  autoResize();
+  updateComposerUI();
+
+  if (hint) hint.textContent = "已插入指导指令！pi 将在当前轮次中实时接收并调整方向。";
+  setTimeout(() => {
+    if (hint) hint.textContent = "pi 会执行命令与读写你的文件 —— 请注意操作内容。";
+  }, 4000);
+
+  sendWs({ type: "steer", message: text });
 }
 
 function submitPrompt() {
@@ -1268,6 +1324,10 @@ function submitPrompt() {
     return;
   }
   if (state.streaming) {
+    if (text) {
+      submitSteer();
+      return;
+    }
     if (hint) hint.textContent = "中止当前生成中…";
     sendWs({ type: "abort" });
     return;
@@ -1319,13 +1379,39 @@ function init() {
     refreshSessions();
   });
 
-  $("#sendBtn").addEventListener("click", submitPrompt);
+  $("#sendBtn").addEventListener("click", () => {
+    if (state.streaming) {
+      const ta = $("#composer");
+      if (ta && ta.value.trim()) {
+        submitSteer();
+      } else {
+        submitPrompt();
+      }
+    } else {
+      submitPrompt();
+    }
+  });
+
+  const steerBtnEl = $("#steerBtn");
+  if (steerBtnEl) {
+    steerBtnEl.addEventListener("click", submitSteer);
+  }
+
   const ta = $("#composer");
-  ta.addEventListener("input", autoResize);
+  ta.addEventListener("input", () => {
+    autoResize();
+    updateComposerUI();
+  });
   ta.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
-      submitPrompt();
+      if (state.streaming) {
+        if (ta.value.trim()) {
+          submitSteer();
+        }
+      } else {
+        submitPrompt();
+      }
     }
   });
 

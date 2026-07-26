@@ -68,6 +68,10 @@
       <div class="composer">
         <div class="composer-inner" id="composerInner">
           <textarea id="composer" rows="1" placeholder="给 pi 发消息…  (Enter 发送，Shift+Enter 换行)"></textarea>
+          <button class="steer-btn" id="steerBtn" title="在 AI 运行过程中插入指导指令" style="display:none;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+            <span>插入指令</span>
+          </button>
           <button class="send-btn" id="sendBtn" title="发送">↑</button>
         </div>
         <div class="composer-hint">pi 会执行命令与读写你的文件 —— 请注意操作内容。</div>
