@@ -868,6 +868,22 @@ function init() {
     $(".app").classList.remove("sidebar-open");
   }
 
+  // Keep sidebar state consistent across viewport resizes.
+  // Desktop uses an inline sidebar; mobile uses a drawer with an overlay.
+  // If the user resizes across the 768px breakpoint, a stale `sidebar-open`
+  // class would either show a stray inline sidebar on a collapsed desktop
+  // layout, or worse, leave the full-screen overlay covering the main area
+  // on mobile — making the whole UI unclickable. Sync on every resize.
+  let lastIsMobile = window.innerWidth <= 768;
+  window.addEventListener("resize", () => {
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile !== lastIsMobile) {
+      lastIsMobile = isMobile;
+      // Crossing the breakpoint: always close the drawer to reach a known state.
+      $(".app").classList.remove("sidebar-open");
+    }
+  });
+
   refreshSessions();
   // start in the disconnected state; connectWs will flip to green on open.
   const initDot = $("#connDot");
