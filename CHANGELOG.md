@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.0] - 2026-07-26
+
+### Added
+- **Idle timeout & concurrency control (内存保护增强)**：
+  - 新增 `IDLE_TIMEOUT_MS` 环境变量，可配置浏览器断开后保留 pi RPC 子进程的时间（默认 300000ms = 5 分钟，设为 0 即关闭自动清理）。
+  - 新增 `MAX_CONCURRENT_AGENTS` 环境变量，限制并发 pi 代理进程数（默认 0 = 无限制）。超限时新 WebSocket 连接返回 1013 (capacity) 并在控制台警告，防止多标签页把小内存机器挤爆。
+  - 新增 `IDLE_DROP_HEAP=1` 环境变量，空闲时尝试调用 `global.gc()` 主动释放 V8 堆，配合 `--expose-gc` 让内存更快回收到 OS，而非被动 swap。
+
+### Changed
+- `bin/pi-web-chat.js` 启动 server 时加入 `--expose-gc` 标志，支持上述主动内存释放。
+
+---
+
 ## [1.4.2] - 2026-07-26
 
 ### Fixed
@@ -84,27 +97,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **工具调用参数显示不全**：新增 `toolcall_delta` / `toolcall_end` 处理，用 `toolcall_end` 的最终 `toolCall.arguments` 刷新头部 args 显示。
 - **同一 agent 多轮 agent message 互相污染**：`message_start`(assistant) 重置本块的 text/thinking 累加器，避免上一轮工具调用与下一轮文本串到一起。
 
-### Added
-- 会话切换时右侧完整历史恢复（通过 REST `/api/session` 重建 parent 链）
-- 模型切换器（顶栏 pill，支持所有 pi 配置的模型）
-- Tool-call 折叠块（实时输出、可展开/折叠）
-- Thinking 折叠块
-- 发送按钮双态（发送/停止）+ 红色停止态
-- 新会话后侧边栏在 `agent_settled` 立即刷新（无需手动刷新页面）
-
-### Changed
-- 侧边栏会话项去除无意义的 `●` 圆点，改为 tooltip 显示完整 jsonl 路径
-- 发送按钮禁用逻辑：仅在 wsConnected=false 时禁用，而非 streaming 时
-
 ---
 
 ## [0.2.0] - 2026-07-19
 
 ### Added
-- **新建会话流程修复**：`btnNew` 点击后刷新侧边栏、清理流式状态、生成新 ws 代次
-- **WebSocket 代次机制**：`wsGen` 防止旧 socket 消息污染新上下文
-- **输入框红边提示**：ws 未连时提交会有 350ms 红色 flash
-- **连接状态文本动态更新**：「连接中…」→「已连接」/「已断开」
+- **新建会话流程修复**：`btnNew` 点击后刷新侧边栏、清理流式状态、生成新 ws 代次。
+- **WebSocket 代次机制**：`wsGen` 防止旧 socket 消息污染新上下文。
+- **输入框红边提示**：ws 未连时提交会有 350ms 红色 flash。
+- **连接状态文本动态更新**：「连接中…」→「已连接」/「已断开」。
 - **提交**：`5a8f036` "Fix new-session flow: ws generation guard + sidebar refresh + drop input"
 
 ### Fixed

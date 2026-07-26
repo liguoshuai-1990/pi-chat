@@ -42,6 +42,41 @@ function normalizeCwd(dir) {
 const SESSIONS_DIR = process.env.PI_SESSIONS_DIR || path.join(home(), ".pi", "agent", "sessions");
 const PORT = process.env.PORT || 3000;
 
+// Idle timeout (ms) before a detached (browser closed) pi RPC subprocess is killed.
+// Replaces the previous hardcoded 5-minute timeout. Lower values free memory faster
+// on memory-constrained hosts; set IDLE_TIMEOUT_MS=0 to disable cleanup entirely.
+const IDLE_TIMEOUT_MS = (() => {
+  const raw = process.env.IDLE_TIMEOUT_MS;
+  if (raw === undefined || raw === "") return 5 * 60 * 1000;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    console.warn(`[pi-web-chat] Invalid IDLE_TIMEOUT_MS="${raw}", falling back to 300000`);
+    return 5 * 60 * 1000;
+  }
+  return n;
+})();
+
+// Maximum number of concurrently-pooled pi RPC subprocesses. New WebSocket
+// connections beyond the cap are rejected with a clear message instead of
+// silently exhausting memory. Set MAX_CONCURRENT_AGENTS=0 to disable.
+const MAX_CONCURRENT_AGENTS = (() => {
+  const raw = process.env.MAX_CONCURRENT_AGENTS;
+  if (raw === undefined || raw === "") return 0; // 0 = unlimited (back-compat)
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) {
+    console.warn(`[pi-web-chat] Invalid MAX_CONCURRENT_AGENTS="${raw}", falling back to 0 (unlimited)`);
+    return 0;
+  }
+  return n;
+})();
+
+// If true, when pi becomes idle (no WebSocket attached) we attempt to give the
+// OS an early hint that this agent's memory is reclaimable. Node has no direct
+// API for this, but --expose-gc + global.gc() drops the V8 heap lazily. When
+// enabled, idle agents will voluntarily release heap before being killed by the
+// idle timer, reducing pressure on small-memory hosts. Default: false.
+const IDLE_DROP_HEAP = process.env.IDLE_DROP_HEAP === "1" || process.env.IDLE_DROP_HEAP === "true";
+
 // Active pi RPC processes pooled by session key (`${cwd}:${resolvedSessionPath}`)
 const activeAgents = new Map();
 
@@ -66,8 +101,16 @@ class PiAgent {
   detachWs(ws) {
     this.sockets.delete(ws);
     if (this.sockets.size === 0) {
-      // Keep process alive for 5 minutes in case all browsers disconnect
-      this.scheduleCleanup(5 * 60 * 1000);
+      // Keep process alive for IDLE_TIMEOUT_MS so a browser refresh/reconnect
+      // can re-attach to the same pi RPC subprocess. If IDLE_TIMEOUT_MS is 0,
+      // scheduleCleanup still runs but stops the process immediately.
+      const idleMs = IDLE_TIMEOUT_MS === 0 ? 0 : IDLE_TIMEOUT_MS;
+      this.scheduleCleanup(idleMs);
+      if (IDLE_DROP_HEAP && idleMs > 0) {
+        // Give the OS a hint that this process is a candidate for early
+        // reclamation before the idle timer fires. Cheaper than swap pressure.
+        try { if (typeof global.gc === "function") global.gc(); } catch {}
+      }
     }
   }
 
@@ -84,8 +127,19 @@ class PiAgent {
 
   scheduleCleanup(delayMs = 300000) {
     this.cancelCleanup();
+    // delayMs === 0 means "kill the subprocess right now" — used when an
+    // explicit teardown is requested without bypassing the cleanup pipeline.
+    if (delayMs === 0) {
+      console.log(`Cleaning up pi agent immediately (key=${this.sessionKey || "unkeyed"})`);
+      this.stop();
+      return;
+    }
     this.cleanupTimer = setTimeout(() => {
-      console.log(`Cleaning up inactive pi agent (key=${this.sessionKey || "unkeyed"})`);
+      console.log(`Cleaning up inactive pi agent after ${Math.round(delayMs / 1000)}s idle (key=${this.sessionKey || "unkeyed"})`);
+      // One final heap drop just before we kill the subprocess.
+      if (IDLE_DROP_HEAP) {
+        try { if (typeof global.gc === "function") global.gc(); } catch {}
+      }
       this.stop();
     }, delayMs);
   }
@@ -433,6 +487,23 @@ wss.on("connection", (ws, req) => {
     console.log(`ws re-attaching to existing pi process for key=${key}`);
     agent.attachWs(ws);
   } else {
+    // Enforce concurrent-agent cap before spawn. We count *all* live agents,
+    // not just this key, because each represents one pi RPC subprocess in
+    // memory. The cap protects small-memory hosts from runaway browser tabs.
+    if (MAX_CONCURRENT_AGENTS > 0) {
+      let live = 0;
+      for (const a of activeAgents.values()) if (a.alive) live++;
+      if (live >= MAX_CONCURRENT_AGENTS) {
+        const msg = `Server is at capacity (${live}/${MAX_CONCURRENT_AGENTS} pi agents). ` +
+                    `Close another tab or raise MAX_CONCURRENT_AGENTS.`;
+        console.warn(`[pi-web-chat] refusing new ws: ${msg}`);
+        try {
+          ws.send(JSON.stringify({ type: "error", code: "capacity", message: msg }));
+        } catch {}
+        try { ws.close(1013, "capacity"); } catch {} // 1013 = "try again later"
+        return;
+      }
+    }
     agent = new PiAgent(cwd);
     agent.start();
     agent.attachWs(ws);

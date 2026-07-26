@@ -52,7 +52,8 @@ function parseArgs(argv) {
 const opts = parseArgs(process.argv.slice(2));
 
 // Spawn server.js as a child so we can forward signals cleanly.
-const child = spawn("node", [SERVER], {
+// Use --expose-gc so idle agents can call global.gc() to release heap (IDLE_DROP_HEAP=1).
+const child = spawn("node", ["--expose-gc", SERVER], {
   cwd: opts.cwd,
   env: { ...process.env, PORT: String(opts.port) },
   stdio: "inherit",
