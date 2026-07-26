@@ -746,6 +746,37 @@ body {
   transform: translateX(-50%) translateY(0);
 }
 
+/* Mobile toolbar reveal / scroll-to-top FAB */
+.mobile-toolbar-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 90px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  cursor: pointer;
+  z-index: 50;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease;
+}
+.mobile-toolbar-fab.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.mobile-toolbar-fab:active {
+  background: var(--bg-hover);
+}
+
 /* Model selector dropdown */
 .model-menu {
   position: absolute; top: 52px; right: 16px;
@@ -807,33 +838,52 @@ body {
     opacity: 1;
   }
 
-  /* Topbar Mobile Adjustments */
+  /* Topbar Mobile Adjustments — fixed, taller, shadowed so it is always findable */
   .topbar {
-    height: 50px;
-    padding: 0 8px;
-    gap: 6px;
-    flex-shrink: 0;
-    position: sticky;
+    height: 54px;
+    padding: 0 12px;
+    gap: 8px;
+    position: fixed;
     top: 0;
-    z-index: 20;
+    left: 0;
+    right: 0;
+    z-index: 101;
     background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  }
+
+  .main {
+    padding-top: 54px;
   }
 
   .topbar .session-name {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     min-width: 0;
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding: 0 2px;
+    padding: 0 4px;
+  }
+
+  .btn-toggle-sidebar {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    color: var(--text);
+    background: var(--bg-hover);
+  }
+  .btn-toggle-sidebar svg {
+    width: 22px;
+    height: 22px;
   }
 
   #cwdPillWrap {
-    padding: 4px 8px;
+    padding: 5px 9px;
     font-size: 11px;
-    max-width: 95px;
+    max-width: 90px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -841,22 +891,28 @@ body {
   }
 
   .model-pill {
-    padding: 4px 8px;
+    padding: 5px 10px;
     font-size: 11px;
-    max-width: 105px;
+    max-width: 100px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     flex-shrink: 0;
   }
 
-  /* Model Dropdown Menu Mobile Adjustments */
+  /* Model Dropdown Menu Mobile Adjustments — fixed so it never detaches from topbar */
   .model-menu {
-    width: calc(100vw - 16px);
-    right: 8px;
+    position: fixed;
+    top: 54px;
     left: 8px;
-    top: 46px;
-    max-height: 280px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100dvh - 70px);
+    border-radius: 12px;
+  }
+
+  .mobile-toolbar-fab {
+    display: flex;
   }
 
   /* Chat area mobile adjustments */

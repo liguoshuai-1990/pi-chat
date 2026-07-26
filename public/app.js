@@ -431,6 +431,26 @@ function closeSidebar() {
   $(".app").classList.remove("sidebar-open");
 }
 
+function initMobileToolbarFab() {
+  const chat = $("#chat");
+  const fab = $("#mobileToolbarFab");
+  if (!chat || !fab) return;
+
+  const onScroll = () => {
+    if (chat.scrollTop > 250) {
+      fab.classList.add("visible");
+    } else {
+      fab.classList.remove("visible");
+    }
+  };
+
+  chat.addEventListener("scroll", onScroll);
+  fab.addEventListener("click", () => {
+    chat.scrollTo({ top: 0, behavior: "smooth" });
+    fab.classList.remove("visible");
+  });
+}
+
 async function loadSession(file) {
   state.currentSessionFile = file;
   try {
@@ -1592,6 +1612,9 @@ function init() {
       showToast("复制失败");
     }
   });
+
+  // Mobile: floating button to jump back to the toolbar after long scrolls
+  initMobileToolbarFab();
 
   refreshSessions();
   // start in the disconnected state; connectWs will flip to green on open.
