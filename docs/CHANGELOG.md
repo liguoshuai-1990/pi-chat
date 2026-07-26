@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.0] - 2026-07-26
+
+### Added
+- **前端流式渲染防抖节流 (rAF UI Throttling)**：使用 `requestAnimationFrame` 节流高频 Token/Delta 事件，消除倒水式输出时的 DOM 频繁销毁与全量重塑，大幅提升高频打字时的流畅帧率，显著降低 CPU 和发热消耗。
+- **后端 Session 列表 mtime 内存缓存 (Session Metadata Caching)**：`/api/sessions` 引入基于文件修改时间（`mtimeMs`）的元数据内存缓存。对无改动的历史 Session 文件跳过磁盘读取与全量 JSON 逐行解析，大幅提升侧边栏列表加载响应速度。
+- **离线事件 Buffer 算法优化 (Ring Buffer O(1) Push)**：将 `PiAgent.bufferEvent` 从 $O(N)$ 复杂度的 `Array.shift()` 改为 $O(1)$ 的指针环形队列，消除无客户端连接时的数组平移消耗。
+- **WebSocket 垃圾连接自动回收 (Dead Socket Cleanup)**：在 `wsSend` 广播消息时动态检测并自动剔除已处于关闭状态（`CLOSING`/`CLOSED`）的垃圾 Socket 引用，避免泄露。
+
+---
+
 ## [1.6.0] - 2026-07-26
 
 ### Added

@@ -129,6 +129,7 @@ class PiAgent {
     // ring buffer of pi->browser events while no socket is attached, so a
     // reconnecting client can replay what happened in the background.
     this.eventBuffer = [];
+    this.bufferHead = 0;
     // lightweight summary of the task currently running in background, for
     // the /api/agents dashboard and reconnecting clients.
     this.lastUserPrompt = null;
@@ -303,18 +304,24 @@ class PiAgent {
 
   bufferEvent(obj) {
     if (EVENT_BUFFER_SIZE <= 0) return;
-    this.eventBuffer.push(obj);
-    if (this.eventBuffer.length > EVENT_BUFFER_SIZE) {
-      this.eventBuffer.shift();
+    if (this.eventBuffer.length < EVENT_BUFFER_SIZE) {
+      this.eventBuffer.push(obj);
+    } else {
+      this.eventBuffer[this.bufferHead] = obj;
+      this.bufferHead = (this.bufferHead + 1) % EVENT_BUFFER_SIZE;
     }
   }
 
   replayBuffered(ws) {
     if (this.eventBuffer.length === 0) return;
     if (ws.readyState !== 1) return;
+    const count = this.eventBuffer.length;
     // Send a marker so the client knows the next burst is backfill, not live.
-    try { ws.send(JSON.stringify({ type: "backfill_start", count: this.eventBuffer.length })); } catch {}
-    for (const ev of this.eventBuffer) {
+    try { ws.send(JSON.stringify({ type: "backfill_start", count })); } catch {}
+    const start = count === EVENT_BUFFER_SIZE ? this.bufferHead : 0;
+    for (let i = 0; i < count; i++) {
+      const idx = (start + i) % EVENT_BUFFER_SIZE;
+      const ev = this.eventBuffer[idx];
       try { ws.send(JSON.stringify(ev)); } catch {}
     }
     try { ws.send(JSON.stringify({ type: "backfill_end", streaming: this.isBusy, state: this.state })); } catch {}
@@ -347,12 +354,17 @@ class PiAgent {
 
   wsSend(obj, excludeSocket = null) {
     const payload = typeof obj === "string" ? obj : JSON.stringify(obj);
-    for (const ws of this.sockets) {
+    for (const ws of [...this.sockets]) {
+      if (ws.readyState > 1) { // CLOSING or CLOSED
+        this.sockets.delete(ws);
+        continue;
+      }
       if (ws !== excludeSocket && ws.readyState === 1) {
         try {
           ws.send(payload);
         } catch (e) {
           console.error("wsSend error", e);
+          this.sockets.delete(ws);
         }
       }
     }
@@ -462,6 +474,47 @@ async function listAllSessionFiles() {
   return files;
 }
 
+// Memory metadata cache keyed by file path -> { mtimeMs, cwd, sessionInfo }
+const sessionMetadataCache = new Map();
+
+async function getSessionMetadata(file) {
+  const fileStat = await stat(file);
+  const cached = sessionMetadataCache.get(file);
+  if (cached && cached.mtimeMs === fileStat.mtimeMs) {
+    return cached;
+  }
+
+  const content = await readFile(file, "utf8");
+  const lines = content.split("\n").filter(Boolean);
+  let header = null, title = null, msgCount = 0;
+  for (const line of lines) {
+    let o;
+    try { o = JSON.parse(line); } catch { continue; }
+    if (o.type === "session") header = o;
+    if (o.type === "message" && o.message && o.message.role === "user" && !title) {
+      title = extractText(o.message.content).slice(0, 80);
+    }
+    if (o.type === "message") msgCount++;
+  }
+
+  if (!header) return null;
+
+  const result = {
+    mtimeMs: fileStat.mtimeMs,
+    cwd: normalizeCwd(header.cwd),
+    sessionInfo: {
+      file,
+      name: path.basename(file),
+      id: header.id,
+      timestamp: header.timestamp,
+      firstUser: title,
+      messageCount: msgCount,
+    },
+  };
+  sessionMetadataCache.set(file, result);
+  return result;
+}
+
 app.get("/api/sessions", async (req, res) => {
   try {
     const cwd = normalizeCwd(req.query.cwd);
@@ -469,27 +522,10 @@ app.get("/api/sessions", async (req, res) => {
     const sessions = [];
     for (const full of all) {
       try {
-        const content = await readFile(full, "utf8");
-        const lines = content.split("\n").filter(Boolean);
-        let header = null, title = null, msgCount = 0;
-        for (const line of lines) {
-          let o;
-          try { o = JSON.parse(line); } catch { continue; }
-          if (o.type === "session") header = o;
-          if (o.type === "message" && o.message && o.message.role === "user" && !title) {
-            title = extractText(o.message.content).slice(0, 80);
-          }
-          if (o.type === "message") msgCount++;
+        const meta = await getSessionMetadata(full);
+        if (meta && meta.cwd === cwd) {
+          sessions.push(meta.sessionInfo);
         }
-        if (!header || normalizeCwd(header.cwd) !== cwd) continue;
-        sessions.push({
-          file: full,
-          name: path.basename(full),
-          id: header.id,
-          timestamp: header.timestamp,
-          firstUser: title,
-          messageCount: msgCount,
-        });
       } catch {}
     }
     sessions.sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));

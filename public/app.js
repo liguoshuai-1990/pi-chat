@@ -773,6 +773,16 @@ function ensureStreamingMsg() {
   return node;
 }
 
+let isRefreshScheduled = false;
+function refreshStreamingContentDebounced() {
+  if (isRefreshScheduled) return;
+  isRefreshScheduled = true;
+  requestAnimationFrame(() => {
+    isRefreshScheduled = false;
+    refreshStreamingContent();
+  });
+}
+
 function refreshStreamingContent() {
   const node = state.streamingMsg;
   if (!node) return;
@@ -1142,7 +1152,7 @@ function handlePiMessage(obj) {
       if (!ev) break;
       if (ev.type === "text_delta") {
         state.streamingText += ev.delta;
-        refreshStreamingContent();
+        refreshStreamingContentDebounced();
       } else if (ev.type === "text_end") {
         // Authoritative final text for this content slot. Overwrite any
         // accumulated/delta text so we display exactly what the model
@@ -1156,7 +1166,7 @@ function handlePiMessage(obj) {
         if (ev.type === "thinking_delta") {
           state.streamingThinking += ev.delta || "";
         }
-        refreshStreamingContent();
+        refreshStreamingContentDebounced();
       } else if (ev.type === "toolcall_start") {
         ensureStreamingMsg();
         const call = ev.toolCall || { id: obj.toolCallId || ev.id, name: obj.toolName, arguments: obj.args };
@@ -1222,7 +1232,7 @@ function handlePiMessage(obj) {
 function ensureToolBlock(toolCallId, name, args) {
   if (state.activeToolCalls.has(toolCallId)) return state.activeToolCalls.get(toolCallId);
   makeToolBlockFromCall({ id: toolCallId, name, arguments: args });
-  refreshStreamingContent();
+  refreshStreamingContentDebounced();
   return state.activeToolCalls.get(toolCallId);
 }
 
