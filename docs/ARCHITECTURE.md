@@ -1,6 +1,6 @@
 # 架构设计文档
 
-> pi-web-chat 的技术架构、数据流、关键设计决策与扩展点说明（对应 v1.6.0 版本）。
+> pi-web-chat 的技术架构、数据流、关键设计决策与扩展点说明（对应 v1.7.0 版本）。
 
 ---
 
@@ -42,6 +42,7 @@
 - **离线事件环形缓存与回放（Ring Buffer & Backfill）**：无客户端连接时，pi 输出的事件自动存入环形 Buffer（默认 2000 条）。客户端重连时通过 `backfill_start` → 离线事件 → `backfill_end` 进行增量补齐。
 - **真正空闲回收（True-Idle Timeout）**：仅在“无 WebSocket 连接”且“进程彻底进入 idle（非 streaming、无挂起 RPC）”时，才启动 `IDLE_TIMEOUT_MS` 空闲回收倒计时。
 - **磁盘 JSONL 为唯一真理（Single Source of Truth）**：会话历史与树状分支全由 pi 本身维护在磁盘 `.jsonl` 文件中，Web 端通过 REST 接口与 RPC 消息与文件保持同步。
+- **`pi` 可执行文件自动探查与派生**：服务端通过 `resolvePiBin()` 自动定位全局安装的 `pi` 可执行文件（优先使用 `PI_BIN` 环境变量 -> 检查 `~/.npm-global/bin/pi` -> `/usr/local/bin/pi` -> `/usr/bin/pi` -> 系统 `PATH`），派生 `pi --mode rpc --session-dir ...` 子进程。
 
 ---
 

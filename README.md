@@ -25,14 +25,102 @@
 
 ## 🚀 快速开始
 
+### 1. 环境准备
+- **Node.js**: `>= 18.0.0`
+- **操作系统**: Linux / macOS / WSL (Windows)
+
+---
+
+### 2. 安装 pi 编程代理 (pi agent)
+
+`pi-web-chat` 通过 RPC 模式 (`pi --mode rpc`) 与底层 `pi` 命令行 Agent 子进程通信。若系统中尚未安装 `pi`，请选择以下任一方式进行全局安装：
+
+#### 方式 A：通过 npm / pnpm 全局安装（推荐）
+
 ```bash
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+```
+> 💡 `--ignore-scripts` 可跳过依赖包中的生命周期脚本，安装更干净高效。
+
+#### 方式 B：通过 Shell 官方安装脚本
+
+```bash
+curl -fsSL https://pi.dev/install.sh | sh
+```
+
+#### 验证安装
+安装完成后，在终端运行以下命令验证：
+
+```bash
+pi --version
+# 输出版本号（例如 0.82.1）即表示安装成功
+```
+
+---
+
+### 3. 配置模型 Provider 与 API Key
+
+`pi` 支持 Anthropic、OpenAI、OpenRouter、DeepSeek、SiliconFlow 等多种 LLM 模型 Provider。在使用前需配置好 API Key 或授权凭证：
+
+#### 方法 A：设置环境变量（推荐）
+在终端或 Shell 配置文件（如 `~/.bashrc` 或 `~/.zshrc`）中导出对应的 API Key：
+
+```bash
+# 使用 Anthropic (Claude)
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# 使用 OpenRouter
+export OPENROUTER_API_KEY="sk-or-v1-..."
+
+# 使用 OpenAI / DeepSeek / 其它 OpenAI 兼容 API
+export OPENAI_API_KEY="sk-..."
+```
+
+#### 方法 B：使用 pi CLI 交互式登录
+在终端输入 `pi` 命令启动交互模式，然后输入 `/login` 按照提示选择 Provider 并绑定账号或密钥：
+
+```bash
+pi
+# 进入交互界面后输入：
+/login
+# 按照提示选择 Provider 并输入 Key，配置完成后输入 /quit 退出
+```
+
+---
+
+### 4. 克隆与启动 pi-web-chat
+
+#### 克隆仓库与安装依赖
+
+```bash
+git clone https://github.com/liguoshuai-1990/pi-web-chat.git
 cd pi-web-chat
 npm install
+```
 
-# 确保 pi 已安装并已配置好至少一个 provider：
-#   pi         （交互模式 → 运行 /login 选择 provider，或设置 API key）
+#### 启动 Web 服务
+
+```bash
 npm start
-# → http://localhost:3000
+```
+
+#### 打开浏览器体验
+在浏览器中访问：
+👉 **http://localhost:3000**
+
+---
+
+### 5. 命令行启动选项与全局 CLI（可选）
+
+你也可以通过 `bin/pi-web-chat.js` 指定工作目录或监听端口：
+
+```bash
+# 指定端口和工作目录 (cwd)
+node bin/pi-web-chat.js --port 8080 --cwd /path/to/your/project
+
+# 或通过 npm 全局安装后在任意目录下启动
+npm install -g .
+pi-web-chat --port 8080
 ```
 
 ---
@@ -42,7 +130,7 @@ npm start
 | 变量 | 默认值 | 说明 |
 | ---- | ------ | ---- |
 | `PORT` | `3000` | Web 服务监听端口 |
-| `PI_BIN` | 自动探测（`~/.npm-global/bin/pi` 等） | 显式指定 pi 可执行文件绝对路径 |
+| `PI_BIN` | 自动探测（`~/.npm-global/bin/pi`、`/usr/local/bin/pi` 或 `PATH`） | 显式指定 pi 可执行文件绝对路径 |
 | `PI_SESSIONS_DIR` | `~/.pi/agent/sessions` | pi 的 session 存储目录 |
 | `IDLE_TIMEOUT_MS` | `300000` (5分钟) | 真正空闲（无连接+非流式）后的进程回收超时（0 为禁用回收） |
 | `MAX_AGENT_LIFETIME_MS` | `1800000` (30分钟) | 单个 Agent 进程后台生存硬上限（0 为无上限） |
