@@ -61,6 +61,12 @@ class PiAgent {
       env: { ...process.env, PI_SKIP_VERSION_CHECK: "1" },
     });
     this.alive = true;
+    this.proc.on("error", (err) => {
+      this.alive = false;
+      console.error(`[pi spawn error]`, err);
+      this.wsSend({ type: "pi_exit", error: err.message });
+      try { this.ws.close(); } catch {}
+    });
     this.proc.stdout.on("data", (d) => this.onStdout(d));
     this.proc.stderr.on("data", (d) => {
       process.stderr.write(`[pi stderr] ${d}`);
@@ -244,7 +250,15 @@ app.get("/api/session", async (req, res) => {
   try {
     const file = req.query.file;
     if (!file || !file.endsWith(".jsonl")) return res.status(400).json({ error: "bad file" });
-    const content = await readFile(file, "utf8");
+    
+    // Security check: ensure the file path is within SESSIONS_DIR
+    const resolvedFile = path.resolve(file);
+    const resolvedSessionsDir = path.resolve(SESSIONS_DIR);
+    if (!resolvedFile.startsWith(resolvedSessionsDir)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const content = await readFile(resolvedFile, "utf8");
     const lines = content.split("\n").filter(Boolean);
     const entries = [];
     let header = null;
