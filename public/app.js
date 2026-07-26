@@ -444,6 +444,12 @@ async function loadSession(file) {
   // pull transcript from REST then connect a fresh WS pointed at this session
   const res = await fetch(`${API}/api/session?file=${encodeURIComponent(file)}`);
   const data = await res.json();
+
+  if (data.model) {
+    state.currentModel = data.model;
+    renderModelPill();
+  }
+
   clearChat();
   document.querySelector("#emptyState").style.display = "none";
   const chat = $("#chat-inner");
@@ -1025,6 +1031,13 @@ function handlePiMessage(obj) {
   }
   // Events from pi.
   switch (obj.type) {
+    case "model_select":
+      if (obj.model) {
+        state.currentModel = obj.model;
+        renderModelPill();
+        renderModelMenu();
+      }
+      break;
     case "remote_user_prompt":
       appendMessageNode("user", { text: obj.message, isSteer: obj.isSteer });
       break;
@@ -1207,6 +1220,7 @@ function updateState(d) {
 function updateModels(models) {
   state.models = models;
   renderModelMenu();
+  renderModelPill();
 }
 
 function renderModelPill() {
@@ -1214,7 +1228,14 @@ function renderModelPill() {
   const pill = $("#modelPill");
   if (!m) { pill.textContent = "选择模型"; return; }
   const provider = m.provider || "?";
-  const name = m.name || m.id;
+  let name = m.name || m.id;
+  if (state.models && state.models.length > 0) {
+    const found = state.models.find(item => item.id === m.id && item.provider === m.provider) ||
+                  state.models.find(item => item.id === m.id);
+    if (found && found.name) {
+      name = found.name;
+    }
+  }
   pill.textContent = `${provider} / ${name}`;
   pill.title = `当前模型: ${provider} / ${name} (${m.id})`;
 }

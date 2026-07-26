@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.1] - 2026-07-26
+
+### Fixed
+- **切换/加载历史会话模型精准显示**：
+  - 修复加载历史会话时由于后台进程启动时与 `get_state` 异步竞态导致右上角模型 Pill 显示不准确的问题。
+  - REST `/api/session` 接口现在自动从该会话的 JSONL 历史链中精确提取最后使用的模型 (`model`)。
+  - 切换会话时，前端能够零延迟（Instant）同步并渲染该会话对应的正确模型，同时支持 `model_select` 事件实时联动。
+
+---
+
 ## [1.4.0] - 2026-07-26
 
 ### Added

@@ -360,7 +360,30 @@ app.get("/api/session", async (req, res) => {
       entryChain.unshift(e);
       cur = e.parentId;
     }
-    res.json({ header, entries: entryChain });
+
+    // Extract the active model used in this session chain
+    let sessionModel = null;
+    for (let i = entryChain.length - 1; i >= 0; i--) {
+      const e = entryChain[i];
+      if (e.type === "model_change" && (e.modelId || e.model)) {
+        sessionModel = {
+          provider: e.provider || "",
+          id: e.modelId || e.model,
+          name: e.modelId || e.model
+        };
+        break;
+      }
+      if (e.type === "message" && e.message && e.message.role === "assistant" && e.message.model) {
+        sessionModel = {
+          provider: e.message.provider || e.provider || "",
+          id: e.message.model,
+          name: e.message.model
+        };
+        break;
+      }
+    }
+
+    res.json({ header, entries: entryChain, model: sessionModel });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: String(e) });
