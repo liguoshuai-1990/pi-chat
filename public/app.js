@@ -40,6 +40,7 @@ const state = {
   currentModel: null,
   thinkingLevel: "medium",
   sessionId: null,
+  isBackfilling: false,
 };
 
 let toastTimer = null;
@@ -728,6 +729,8 @@ function summaryArgs(name, args) {
 }
 
 function scrollBottom() {
+  // Don't fight the user during a background-event replay (backfill).
+  if (state.isBackfilling) return;
   const chat = $("#chat");
   chat.scrollTop = chat.scrollHeight;
 }
@@ -1016,6 +1019,25 @@ function sendWs(obj) {
 }
 
 function handlePiMessage(obj) {
+  // Backfill markers emitted by the server when it replays buffered events
+  // that happened in the background while no browser was attached.
+  if (obj.type === "backfill_start") {
+    state.isBackfilling = true;
+    return;
+  }
+  if (obj.type === "backfill_end") {
+    state.isBackfilling = false;
+    // After replay, sync the composer / streaming state to what the server thinks.
+    if (obj.streaming) {
+      state.streaming = true;
+      setComposerAborting(true);
+      ensureStreamingMsg();
+      refreshStreamingContent();
+    }
+    // jump to the latest content once the replay is done
+    requestAnimationFrame(scrollBottom);
+    return;
+  }
   // Responses to commands we issued (get_state etc.) come back with success+data.
   if (obj.type === "response") {
     if (obj.command === "get_state" && obj.success) updateState(obj.data);

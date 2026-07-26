@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.0] - 2026-07-26
+
+### Added
+- **后台任务继续运行 (Background Task Persistence)**：
+  - 关闭浏览器/标签页不再强制中止正在生成的 pi 任务：后台 pi RPC 子进程保持**跑完当前这一轮**；重连后可看到完整结果。
+  - `PiAgent` 跟踪 `state`（`idle`/`streaming`）与 `pending` 请求。只有在“**无 WebSocket 且真正空闲**”（无 streaming 也无未响应请求）时才启动空闲回收计时。
+  - 时长型缓冲区：在后台期间渲染器产出的事件会被**离线缓存**到 `EVENT_BUFFER_SIZE`（默认 2000 条）的环形 buffer。新连接上来时自动 **回放**为 `backfill_start` → N 条原始事件 → `backfill_end` 三个阶段包裹的消息，便于前端精确“追到哪儿”。
+  - 新增 REST 端点 `GET /api/agents`：查看所有存活后台 pi 代理（`state`, `alive`, `busy`, `hasClients`, `uptimeMs`, `bufferedEvents`, 最近一条用户提示等）。常驻 npm 下载、上传、调试或后台 面板都可以利用。
+  - 新增环境变量：`MAX_AGENT_LIFETIME_MS`（默认 1800000 = 30分钟，硬上限超出强制 `SIGTERM`；设为 0 禁用）。防止后台代理失控常驻。
+
+### Changed
+- **`IDLE_TIMEOUT_MS` 语义重要变更**：从“**断开后多久**杀进程”变为“**真正空闲后多久**才回收”（默认还是 5min）。如果断开后还在 streaming 或有余未完成的 RPC 请求，定时器不会触发，任务不会被中断。
+- 首页顶栏重连后会同步服务器状态：收到 `backfill_end` 后会自动滚动到底，并恢复 `streaming` 状态（如仍在后台继续）。
+- 首页增加优雅关闭：`SIGINT`/`SIGTERM` 会“逐个停止所有后台 pi 进程”后再退出，防止 server 重启时留下 zombie 进程。
+- 不再支持“`IDLE_TIMEOUT_MS=0` 断开即杀”告诉——该环境变量现在表示“**禁用空闲回收**”。需要立刻释放内存，请改为正数（如 `5000`）或重启 server。
+
+### 技术说明
+- `PiAgent` 生命周期事件：`agent_start → state=streaming`；`agent_end/agent_settled → state=idle`；`pi_exit → state=idle`。这是“背景继续跑完”的关键开关。
+
+---
+
 ## [1.5.0] - 2026-07-26
 
 ### Added
