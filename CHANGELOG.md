@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] - 2026-07-26
+
+### Added
+- **多端与多浏览器同步协同 (Multi-Device & Multi-Browser Session Sharing)**：
+  - **WebSocket 多连接池**：服务端 `PiAgent` 进程升级为多连接池（`Set<WebSocket>`），电脑、手机、平板可同时挂载到同一个正在运行的会话，所有端实时同步接收 AI 流式回答。
+  - **多端消息双向广播**：手机端发送 Prompt 或插入指导指令（Steer）时，电脑端无需刷新即可实时呈现用户消息并同步流式输出 AI 答复。
+  - **URL 参数关联与一键分享**：选择会话时自动更新浏览器 URL 参数（`?session=...`），分享 URL 或在手机侧边栏选中同个会话即可直接加入同一会话同步协同。
+
+---
+
 ## [1.3.0] - 2026-07-26
 
 ### Added

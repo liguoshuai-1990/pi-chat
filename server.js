@@ -47,7 +47,7 @@ const activeAgents = new Map();
 
 class PiAgent {
   constructor(cwd) {
-    this.ws = null;
+    this.sockets = new Set();
     this.cwd = normalizeCwd(cwd);
     this.sessionKey = null;
     this.reqId = 0;
@@ -59,14 +59,14 @@ class PiAgent {
   }
 
   attachWs(ws) {
-    this.ws = ws;
+    this.sockets.add(ws);
     this.cancelCleanup();
   }
 
   detachWs(ws) {
-    if (this.ws === ws) {
-      this.ws = null;
-      // Keep process alive for 5 minutes in case browser refreshes or reconnects
+    this.sockets.delete(ws);
+    if (this.sockets.size === 0) {
+      // Keep process alive for 5 minutes in case all browsers disconnect
       this.scheduleCleanup(5 * 60 * 1000);
     }
   }
@@ -108,7 +108,8 @@ class PiAgent {
       this.alive = false;
       console.error(`[pi spawn error]`, err);
       this.wsSend({ type: "pi_exit", error: err.message });
-      try { this.ws && this.ws.close(); } catch {}
+      for (const s of this.sockets) { try { s.close(); } catch {} }
+      this.sockets.clear();
     });
     this.proc.stdout.on("data", (d) => this.onStdout(d));
     this.proc.stderr.on("data", (d) => {
@@ -119,7 +120,8 @@ class PiAgent {
       console.log(`pi exited (code=${code})`);
       this.wsSend({ type: "pi_exit", code });
       if (this.sessionKey) activeAgents.delete(this.sessionKey);
-      try { this.ws && this.ws.close(); } catch {}
+      for (const s of this.sockets) { try { s.close(); } catch {} }
+      this.sockets.clear();
     });
   }
 
@@ -174,12 +176,15 @@ class PiAgent {
     this.proc.stdin.write(JSON.stringify(cmd) + "\n");
   }
 
-  wsSend(obj) {
-    if (this.ws && this.ws.readyState === 1) {
-      try {
-        this.ws.send(JSON.stringify(obj));
-      } catch (e) {
-        console.error("wsSend error", e);
+  wsSend(obj, excludeSocket = null) {
+    const payload = typeof obj === "string" ? obj : JSON.stringify(obj);
+    for (const ws of this.sockets) {
+      if (ws !== excludeSocket && ws.readyState === 1) {
+        try {
+          ws.send(payload);
+        } catch (e) {
+          console.error("wsSend error", e);
+        }
       }
     }
   }
@@ -190,6 +195,8 @@ class PiAgent {
     if (this.sessionKey) {
       activeAgents.delete(this.sessionKey);
     }
+    for (const s of this.sockets) { try { s.close(); } catch {} }
+    this.sockets.clear();
     try { this.proc && this.proc.kill("SIGTERM"); } catch {}
   }
 }
@@ -423,6 +430,8 @@ wss.on("connection", (ws, req) => {
     }
     switch (msg.type) {
       case "prompt":
+        // Sync prompt to other connected clients in the same session
+        agent.wsSend({ type: "remote_user_prompt", message: msg.message, images: msg.images }, ws);
         agent.send({ type: "prompt", message: msg.message, images: msg.images });
         break;
       case "abort":
@@ -436,6 +445,8 @@ wss.on("connection", (ws, req) => {
         agent.send({ type: "switch_session", sessionPath: msg.sessionPath });
         break;
       case "steer":
+        // Sync steer instruction to other connected clients in the same session
+        agent.wsSend({ type: "remote_user_prompt", message: msg.message, isSteer: true }, ws);
         agent.send({ type: "steer", message: msg.message });
         break;
       case "set_session_name":

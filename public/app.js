@@ -433,6 +433,10 @@ function closeSidebar() {
 
 async function loadSession(file) {
   state.currentSessionFile = file;
+  try {
+    const newUrl = window.location.pathname + "?session=" + encodeURIComponent(file);
+    window.history.replaceState({ session: file }, "", newUrl);
+  } catch {}
   // Mobile: close sidebar on selection
   if (window.innerWidth <= 768) {
     closeSidebar();
@@ -1021,6 +1025,9 @@ function handlePiMessage(obj) {
   }
   // Events from pi.
   switch (obj.type) {
+    case "remote_user_prompt":
+      appendMessageNode("user", { text: obj.message, isSteer: obj.isSteer });
+      break;
     case "agent_start":
       state.streaming = true;
       setComposerAborting(true);
@@ -1372,6 +1379,9 @@ function init() {
     clearChat();
     showEmptyState(true);
     state.currentSessionFile = null;
+    try {
+      window.history.replaceState({}, "", window.location.pathname);
+    } catch {}
     connectWs({ explicitNewSession: true }); // no session -> pi creates a new one
     $("#topSessionName").textContent = "新对话";
     // Mobile: close sidebar on new session
@@ -1569,8 +1579,15 @@ function init() {
   if (initDot) initDot.style.color = "var(--danger)";
   if (initLabel) initLabel.textContent = "连接中…";
   $("#sendBtn").disabled = true;
-  connectWs({});
-  showEmptyState(true);
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialSession = urlParams.get("session") || urlParams.get("file");
+  if (initialSession) {
+    loadSession(initialSession);
+  } else {
+    connectWs({});
+    showEmptyState(true);
+  }
   // Pull the current pi state (model, session id, thinking level) once the
   // socket is open. connectWs() registers onopen asynchronously; defer long
   // enough that the writable is ready. (An earlier version wrote the `\n` as
