@@ -366,7 +366,32 @@ const httpServer = app.listen(PORT, () => {
 });
 
 const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+
+// WebSocket server heartbeat (ping/pong at protocol level)
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) {
+      console.log("Terminating unresponsive WebSocket client");
+      if (ws.piAgent) {
+        ws.piAgent.detachWs(ws);
+      }
+      return ws.terminate();
+    }
+    ws.isAlive = false;
+    try { ws.ping(); } catch {}
+  });
+}, 30000);
+
+wss.on("close", () => {
+  clearInterval(heartbeatInterval);
+});
+
 wss.on("connection", (ws, req) => {
+  ws.isAlive = true;
+  ws.on("pong", () => {
+    ws.isAlive = true;
+  });
+
   const url = new URL(req.url, "http://x");
   const cwd = normalizeCwd(url.searchParams.get("cwd"));
   const session = url.searchParams.get("session") || null;
@@ -392,6 +417,10 @@ wss.on("connection", (ws, req) => {
   ws.on("message", (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch { return; }
+    if (msg.type === "ping") {
+      try { ws.send(JSON.stringify({ type: "pong" })); } catch {}
+      return;
+    }
     switch (msg.type) {
       case "prompt":
         agent.send({ type: "prompt", message: msg.message, images: msg.images });

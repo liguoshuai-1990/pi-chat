@@ -172,7 +172,35 @@ async function confirmCwdChange() {
 
 // ---- Markdown render (small, safe renderer) ----
 function escapeHtml(s) {
-  return s.replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function copyToClipboard(text) {
+  if (!text) return false;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      console.warn("navigator.clipboard.writeText failed:", e);
+    }
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) {
+    console.error("Fallback copy error:", e);
+    return false;
+  }
 }
 
 function renderMarkdown(md) {
@@ -206,7 +234,18 @@ function renderMarkdown(md) {
   let html = "";
   for (const p of parts) {
     if (p.kind === "code") {
-      html += `<pre><code data-lang="${escapeHtml(p.lang)}">${escapeHtml(p.code)}</code></pre>`;
+      const lang = p.lang || "";
+      const displayLang = lang || "code";
+      html += `<div class="code-block-wrapper">` +
+        `<div class="code-block-header">` +
+          `<span class="code-block-lang">${escapeHtml(displayLang)}</span>` +
+          `<button class="btn-copy-code" type="button" aria-label="复制代码" title="复制代码">` +
+            `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>` +
+            `<span>复制</span>` +
+          `</button>` +
+        `</div>` +
+        `<pre><code data-lang="${escapeHtml(lang)}">${escapeHtml(p.code)}</code></pre>` +
+      `</div>`;
     } else {
       html += renderInlineMd(p.text);
     }
@@ -491,8 +530,27 @@ function appendMessageNode(role, m) {
 
 function renderAssistantBlock(m) {
   // m.content is array of {type:text|thinking|toolCall}
+  const fullText = extractContentText(m.content);
+  const copyMsgBtn = el("button", {
+    class: "btn-copy-msg",
+    type: "button",
+    title: "复制回答全文",
+    onclick: async (e) => {
+      e.stopPropagation();
+      if (await copyToClipboard(fullText)) {
+        showToast("已复制回答全文");
+      }
+    }
+  }, [
+    el("svg", { html: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>' }),
+    el("span", { text: "复制全文" })
+  ]);
+
   const node = el("div", { class: "msg assistant" }, [
-    el("div", { class: "role-tag", text: "pi" }),
+    el("div", { class: "role-tag" }, [
+      el("span", { text: "pi" }),
+      copyMsgBtn
+    ]),
     el("div", { class: "content" }),
   ]);
   const content = node.querySelector(".content");
@@ -544,6 +602,19 @@ function makeThinkingBlock(thinkingText, isActivelyThinking = false) {
   return block;
 }
 
+function getToolCommandToCopy(call) {
+  if (!call) return "";
+  const args = call.arguments;
+  if (typeof args === "string") return args;
+  if (args && typeof args === "object") {
+    if (args.command) return String(args.command);
+    if (args.cmd) return String(args.cmd);
+    if (args.path) return String(args.path);
+    if (args.code) return String(args.code);
+  }
+  return summaryArgs(call.name, call.arguments);
+}
+
 function makeToolBlockFromCall(call) {
   const block = el("div", { class: "tool-block" });
   const hasResult = Boolean(call.result);
@@ -557,10 +628,33 @@ function makeToolBlockFromCall(call) {
   const stateText = hasResult ? (isError ? "错误" : "完成") : "…";
   const stateClass = "state" + (hasResult && isError ? " error" : "");
 
+  const cmdToCopy = getToolCommandToCopy(call);
+  const copyBtn = cmdToCopy ? el("button", {
+    class: "btn-copy-tool",
+    type: "button",
+    title: "复制指令/参数",
+    onclick: async (e) => {
+      e.stopPropagation();
+      if (await copyToClipboard(cmdToCopy)) {
+        copyBtn.classList.add("copied");
+        const span = copyBtn.querySelector("span");
+        if (span) span.textContent = "已复制";
+        setTimeout(() => {
+          copyBtn.classList.remove("copied");
+          if (span) span.textContent = "复制";
+        }, 1500);
+      }
+    }
+  }, [
+    el("svg", { html: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>' }),
+    el("span", { text: "复制" })
+  ]) : null;
+
   const head = el("div", { class: "tool-head" }, [
     el("span", { class: "ic", text: "⚙" }),
     el("span", { class: "name", text: call.name }),
     el("span", { class: "args", text: summaryArgs(call.name, call.arguments) }),
+    copyBtn,
     el("span", { class: stateClass, text: stateText }),
   ]);
 
@@ -609,7 +703,26 @@ function ensureStreamingMsg() {
   if (state.streamingMsg) return state.streamingMsg;
   showEmptyState(false);
   const node = el("div", { class: "msg assistant" }, [
-    el("div", { class: "role-tag", text: "pi" }),
+    el("div", { class: "role-tag" }, [
+      el("span", { text: "pi" }),
+      el("button", {
+        class: "btn-copy-msg",
+        type: "button",
+        title: "复制回答全文",
+        onclick: async (e) => {
+          e.stopPropagation();
+          const contentEl = node.querySelector(".content");
+          if (!contentEl) return;
+          const text = contentEl.textContent || "";
+          if (await copyToClipboard(text)) {
+            showToast("已复制回答全文");
+          }
+        }
+      }, [
+        el("svg", { html: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>' }),
+        el("span", { text: "复制全文" })
+      ])
+    ]),
     el("div", { class: "content" }),
   ]);
   state.streamingMsg = node;
@@ -672,8 +785,113 @@ function finalizeStreamingMsg() {
 // Each generation of WebSocket gets its own id; late stragglers from
 // a previous-generation ws are silently dropped to keep state consistent.
 let wsGen = 0;
+let pingTimer = null;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+let lastPongTime = Date.now();
+let isConnecting = false;
+let wasDisconnected = false;
+
+function setConnStatus(status, text) {
+  // status: 'connected', 'reconnecting', 'disconnected'
+  state.wsConnected = (status === "connected");
+  const dot = $("#connDot");
+  const label = $("#connLabel");
+  const connStatus = $("#connStatus");
+
+  if (dot) {
+    if (status === "connected") {
+      dot.style.color = "var(--accent)";
+    } else if (status === "reconnecting") {
+      dot.style.color = "var(--warning)";
+    } else {
+      dot.style.color = "var(--danger)";
+    }
+  }
+
+  if (label) {
+    if (text) {
+      label.textContent = text;
+    } else if (status === "connected") {
+      label.textContent = "已连接";
+    } else if (status === "reconnecting") {
+      label.textContent = "正在重连…";
+    } else {
+      label.textContent = "已断开";
+    }
+  }
+
+  if (connStatus) {
+    connStatus.title = status === "connected" ? "WebSocket 已连接" : "连接已断开，点击尝试重连";
+    connStatus.style.cursor = status === "connected" ? "default" : "pointer";
+  }
+
+  const btn = $("#sendBtn");
+  if (btn && !state.streaming) {
+    btn.disabled = (status !== "connected");
+  }
+}
+
+function startPingInterval() {
+  stopPingInterval();
+  lastPongTime = Date.now();
+  pingTimer = setInterval(() => {
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+      if (Date.now() - lastPongTime > 45000) {
+        console.warn("WebSocket 心跳超时，尝试断开并重连…");
+        try { state.ws.close(); } catch {}
+        return;
+      }
+      try {
+        state.ws.send(JSON.stringify({ type: "ping" }));
+      } catch {}
+    }
+  }, 15000);
+}
+
+function stopPingInterval() {
+  if (pingTimer) {
+    clearInterval(pingTimer);
+    pingTimer = null;
+  }
+}
+
+function scheduleReconnect(delayMs) {
+  if (reconnectTimer) {
+    if (delayMs === 0) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    } else {
+      return;
+    }
+  }
+
+  if (delayMs === undefined) {
+    reconnectAttempts++;
+    const base = Math.min(1000 * Math.pow(1.5, reconnectAttempts - 1), 15000);
+    const jitter = Math.random() * 500;
+    delayMs = Math.round(base + jitter);
+  }
+
+  setConnStatus("reconnecting", reconnectAttempts > 0 ? `重连中 (${reconnectAttempts})` : "正在重连…");
+
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    performReconnect();
+  }, delayMs);
+}
+
+function performReconnect() {
+  if (isConnecting) return;
+  connectWs({ isReconnect: true });
+}
 
 function connectWs(opts = {}) {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
   if (state.ws) {
     try {
       // Suppress onclose so the connection indicator doesn't flicker to red
@@ -682,43 +900,78 @@ function connectWs(opts = {}) {
       state.ws.close();
     } catch {}
   }
+
+  isConnecting = true;
   const myGen = ++wsGen;
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const cwd = encodeURIComponent(state.cwd || "");
-  const sess = opts.session ? `&session=${encodeURIComponent(opts.session)}` : "";
+
+  // Preserve active session if not explicitly cleared or provided
+  let targetSession = opts.session;
+  if (opts.explicitNewSession) {
+    targetSession = null;
+  } else if (targetSession === undefined) {
+    targetSession = state.currentSessionFile;
+  }
+
+  const sess = targetSession ? `&session=${encodeURIComponent(targetSession)}` : "";
+
   // When user clicks "new session", pre-flush any "stuck streaming" state
   // from the previous connection so the new connection starts clean.
-  if (!opts.session) {
+  if (opts.explicitNewSession) {
     state.streaming = false;
     state.streamingText = "";
     state.streamingThinking = "";
     state.streamingMsg = null;
     state.activeToolCalls.clear();
   }
+
   const url = `${proto}://${location.host}/ws?cwd=${cwd}${sess}`;
   const ws = new WebSocket(url);
   state.ws = ws;
   ws._gen = myGen;
-  const setConn = (ok) => {
-    if (ws._gen !== wsGen) return; // ignore stragglers from a previous socket
-    state.wsConnected = ok;
-    const dot = $("#connDot");
-    const label = $("#connLabel");
-    if (dot) dot.style.color = ok ? "var(--accent)" : "var(--danger)";
-    if (label) label.textContent = ok ? "已连接" : "已断开";
-    const btn = $("#sendBtn");
-    if (btn && !state.streaming) btn.disabled = !ok;
+
+  ws.onopen = () => {
+    if (ws._gen !== wsGen) return;
+    isConnecting = false;
+    setConnStatus("connected");
+    startPingInterval();
+
+    if (wasDisconnected || reconnectAttempts > 0) {
+      showToast("网络连接已恢复");
+    }
+    wasDisconnected = false;
+    reconnectAttempts = 0;
+
+    setTimeout(() => sendWs({ type: "get_state" }), 300);
+    setTimeout(() => sendWs({ type: "get_available_models" }), 500);
   };
-  ws.onopen = () => setConn(true);
+
   ws.onclose = () => {
+    stopPingInterval();
+    if (ws._gen !== wsGen) return;
+    isConnecting = false;
     if (ws._suppressOnclose) return;
-    setConn(false);
+
+    wasDisconnected = true;
+    setConnStatus("disconnected");
+    scheduleReconnect();
   };
-  ws.onerror = () => setConn(false);
+
+  ws.onerror = () => {
+    stopPingInterval();
+    if (ws._gen !== wsGen) return;
+    isConnecting = false;
+    wasDisconnected = true;
+    setConnStatus("disconnected");
+  };
+
   ws.onmessage = (ev) => {
-    if (ws._gen !== wsGen) return; // drop stragglers
+    if (ws._gen !== wsGen) return;
+    lastPongTime = Date.now();
     let obj;
     try { obj = JSON.parse(ev.data); } catch { return; }
+    if (obj.type === "pong") return;
     handlePiMessage(obj);
   };
 }
@@ -919,6 +1172,25 @@ function updateState(d) {
   if (d?.model) { state.currentModel = d.model; renderModelPill(); }
   if (d?.thinkingLevel) state.thinkingLevel = d.thinkingLevel;
   $("#topSessionName").textContent = d?.sessionName || (d?.sessionFile ? baseName(d.sessionFile) : "新对话");
+
+  // Sync streaming state upon state updates (e.g. after reconnect)
+  if (d && typeof d.isStreaming === "boolean") {
+    if (d.isStreaming) {
+      if (!state.streaming) {
+        state.streaming = true;
+        setComposerAborting(true);
+        ensureStreamingMsg();
+      }
+    } else if (state.streaming) {
+      finalizeStreamingMsg();
+      state.streaming = false;
+      setComposerAborting(false);
+      if (state.currentSessionFile) {
+        loadSession(state.currentSessionFile);
+      }
+      refreshSessions();
+    }
+  }
 }
 
 function updateModels(models) {
@@ -990,6 +1262,7 @@ function submitPrompt() {
   if (!text) return;
   if (!state.wsConnected) {
     if (hint) hint.textContent = "发送失败：WebSocket 未连接。正在尝试重连…";
+    scheduleReconnect(0);
     const box = $("#composerInner");
     if (box) { box.style.boxShadow = "0 0 0 2px var(--danger)"; setTimeout(() => { box.style.boxShadow = ""; }, 350); }
     return;
@@ -1038,9 +1311,9 @@ function init() {
     }
     clearChat();
     showEmptyState(true);
-    connectWs({}); // no session -> pi creates a new one
-    $("#topSessionName").textContent = "新对话";
     state.currentSessionFile = null;
+    connectWs({ explicitNewSession: true }); // no session -> pi creates a new one
+    $("#topSessionName").textContent = "新对话";
     // Mobile: close sidebar on new session
     if (window.innerWidth <= 768) closeSidebar();
     refreshSessions();
@@ -1145,6 +1418,63 @@ function init() {
 
   // Load server config & restore saved CWD
   loadServerConfig();
+
+  // Status badge click to reconnect
+  const connStatusEl = $("#connStatus");
+  if (connStatusEl) {
+    connStatusEl.addEventListener("click", () => {
+      if (!state.wsConnected) {
+        showToast("正在尝试重新连接…");
+        reconnectAttempts = 0;
+        scheduleReconnect(0);
+      }
+    });
+  }
+
+  // Auto reconnect on network status / visibility change
+  window.addEventListener("online", () => {
+    if (!state.wsConnected) {
+      reconnectAttempts = 0;
+      scheduleReconnect(0);
+    }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      if (!state.wsConnected) {
+        reconnectAttempts = 0;
+        scheduleReconnect(0);
+      } else {
+        try { state.ws.send(JSON.stringify({ type: "ping" })); } catch {}
+      }
+    }
+  });
+
+  // Global event delegation for code block copy buttons
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".btn-copy-code");
+    if (!btn) return;
+    e.stopPropagation();
+
+    const wrapper = btn.closest(".code-block-wrapper");
+    if (!wrapper) return;
+
+    const codeEl = wrapper.querySelector("pre code");
+    if (!codeEl) return;
+
+    const codeText = codeEl.textContent;
+    if (await copyToClipboard(codeText)) {
+      btn.classList.add("copied");
+      const span = btn.querySelector("span");
+      if (span) span.textContent = "已复制!";
+      setTimeout(() => {
+        btn.classList.remove("copied");
+        if (span) span.textContent = "复制";
+      }, 1500);
+    } else {
+      showToast("复制失败");
+    }
+  });
 
   refreshSessions();
   // start in the disconnected state; connectWs will flip to green on open.

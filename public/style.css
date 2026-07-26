@@ -17,6 +17,7 @@
   --thinking-bg: #1c1c1c;
   --thinking-border: #444;
   --danger: #ef4444;
+  --warning: #f59e0b;
   --radius: 14px;
 }
 
@@ -139,6 +140,15 @@ body {
 }
 .sidebar-bottom a { color: var(--text-muted); text-decoration: none; }
 .sidebar-bottom a:hover { color: var(--text); }
+.conn-status {
+  display: inline-flex;
+  align-items: center;
+  user-select: none;
+  transition: opacity 0.15s ease;
+}
+.conn-status[style*="cursor: pointer"]:hover {
+  opacity: 0.85;
+}
 
 /* ---------- Sidebar Overlay (mobile-only drawer backdrop) ---------- */
 .sidebar-overlay {
@@ -278,6 +288,73 @@ body {
   background: #2a2a2a; padding: 2px 6px; border-radius: 4px;
 }
 .msg.assistant .content pre code { background: transparent; padding: 0; }
+
+/* Code block wrapper and copy button */
+.code-block-wrapper {
+  position: relative;
+  background: #0d0d0d;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 12px 0;
+  overflow: hidden;
+}
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #181818;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-dim);
+  user-select: none;
+}
+.code-block-lang {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  text-transform: lowercase;
+  color: var(--text-muted);
+}
+.code-block-wrapper pre {
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+
+.btn-copy-code, .btn-copy-msg, .btn-copy-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.btn-copy-msg, .btn-copy-tool {
+  color: var(--text-dim);
+}
+.btn-copy-msg {
+  margin-left: auto;
+}
+.btn-copy-code:hover, .btn-copy-msg:hover, .btn-copy-tool:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.btn-copy-code.copied, .btn-copy-msg.copied, .btn-copy-tool.copied {
+  color: var(--accent);
+}
+.btn-copy-code svg, .btn-copy-msg svg, .btn-copy-tool svg {
+  width: 12px;
+  height: 12px;
+}
 .msg.assistant .content ul, .msg.assistant .content ol { margin: 8px 0 12px 24px; }
 .msg.assistant .content li { margin: 4px 0; }
 .msg.assistant .content h1, .msg.assistant .content h2, .msg.assistant .content h3 {
