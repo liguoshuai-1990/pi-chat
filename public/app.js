@@ -417,7 +417,17 @@ async function loadSession(file) {
 }
 
 function reconstructFromEntries(entries) {
-  // entries contains message + message_summary + model_change etc., in path order.
+  // Map toolResults by toolCallId so we can attach them to their toolCall in the assistant message
+  const toolResults = new Map();
+  for (const e of entries) {
+    if (e.type === "message" && e.message?.role === "toolResult") {
+      const m = e.message;
+      if (m.toolCallId) {
+        toolResults.set(m.toolCallId, m);
+      }
+    }
+  }
+
   const out = [];
   for (const e of entries) {
     if (e.type !== "message") continue;
@@ -427,10 +437,17 @@ function reconstructFromEntries(entries) {
       // skip "bash execution" pseudo-users (those have role user but content type special)
       out.push({ role: "user", text: extractContentText(m.content), ts: m.timestamp });
     } else if (m.role === "assistant") {
-      out.push({ role: "assistant", content: m.content, ts: m.timestamp, usage: m.usage });
-    } else if (m.role === "toolResult") {
-      out.push({ role: "toolResult", toolCallId: m.toolCallId, toolName: m.toolName, content: m.content, isError: m.isError, ts: m.timestamp });
+      const rawContent = Array.isArray(m.content) ? m.content : (m.content ? [{ type: "text", text: String(m.content) }] : []);
+      const content = rawContent.map(part => {
+        if (part && part.type === "toolCall") {
+          const res = toolResults.get(part.id);
+          return { ...part, result: res || null };
+        }
+        return part;
+      });
+      out.push({ role: "assistant", content, ts: m.timestamp, usage: m.usage });
     }
+    // toolResult entries are attached directly to assistant toolCall parts, so they don't produce standalone messages
   }
   return out;
 }
@@ -529,21 +546,42 @@ function makeThinkingBlock(thinkingText, isActivelyThinking = false) {
 
 function makeToolBlockFromCall(call) {
   const block = el("div", { class: "tool-block" });
+  const hasResult = Boolean(call.result);
+  const isError = call.result ? Boolean(call.result.isError) : false;
+
+  let resultText = "";
+  if (hasResult) {
+    resultText = extractContentText(call.result.content);
+  }
+
+  const stateText = hasResult ? (isError ? "错误" : "完成") : "…";
+  const stateClass = "state" + (hasResult && isError ? " error" : "");
+
   const head = el("div", { class: "tool-head" }, [
     el("span", { class: "ic", text: "⚙" }),
     el("span", { class: "name", text: call.name }),
     el("span", { class: "args", text: summaryArgs(call.name, call.arguments) }),
-    el("span", { class: "state", text: "…" }),
+    el("span", { class: stateClass, text: stateText }),
   ]);
-  const body = el("div", { class: "tool-body", html: "执行中…" });
+
+  const bodyText = hasResult ? (resultText || "(无输出)") : "执行中…";
+  const body = el("div", { class: "tool-body", html: escapeHtml(bodyText) });
   body.style.display = "none";
-  head.addEventListener("click", () => body.style.display = body.style.display === "none" ? "block" : "none");
+
+  head.addEventListener("click", () => {
+    body.style.display = body.style.display === "none" ? "block" : "none";
+  });
+
   block.appendChild(head);
   block.appendChild(body);
   block._head = head;
   block._body = body;
   block._callId = call.id;
-  state.activeToolCalls.set(call.id, { block, body, head });
+
+  if (!hasResult && call.id) {
+    state.activeToolCalls.set(call.id, { block, body, head });
+  }
+
   return block;
 }
 

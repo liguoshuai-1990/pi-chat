@@ -42,16 +42,59 @@ function normalizeCwd(dir) {
 const SESSIONS_DIR = process.env.PI_SESSIONS_DIR || path.join(home(), ".pi", "agent", "sessions");
 const PORT = process.env.PORT || 3000;
 
-// One pi RPC process per browser WebSocket connection.
+// Active pi RPC processes pooled by session key (`${cwd}:${resolvedSessionPath}`)
+const activeAgents = new Map();
+
 class PiAgent {
-  constructor(ws, cwd) {
-    this.ws = ws;
+  constructor(cwd) {
+    this.ws = null;
     this.cwd = normalizeCwd(cwd);
+    this.sessionKey = null;
     this.reqId = 0;
     this.pending = new Map();      // reqId -> resolve()
     this.proc = null;
     this.buffer = "";
     this.alive = false;
+    this.cleanupTimer = null;
+  }
+
+  attachWs(ws) {
+    this.ws = ws;
+    this.cancelCleanup();
+  }
+
+  detachWs(ws) {
+    if (this.ws === ws) {
+      this.ws = null;
+      // Keep process alive for 5 minutes in case browser refreshes or reconnects
+      this.scheduleCleanup(5 * 60 * 1000);
+    }
+  }
+
+  setSessionKey(cwd, sessionPath) {
+    if (!sessionPath) return;
+    const resolved = path.resolve(sessionPath);
+    const key = `${cwd}:${resolved}`;
+    if (this.sessionKey && this.sessionKey !== key) {
+      activeAgents.delete(this.sessionKey);
+    }
+    this.sessionKey = key;
+    activeAgents.set(key, this);
+  }
+
+  scheduleCleanup(delayMs = 300000) {
+    this.cancelCleanup();
+    this.cleanupTimer = setTimeout(() => {
+      console.log(`Cleaning up inactive pi agent (key=${this.sessionKey || "unkeyed"})`);
+      this.stop();
+    }, delayMs);
+  }
+
+  cancelCleanup() {
+    if (this.cleanupTimer) {
+      clearTimeout(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
   }
 
   start() {
@@ -65,7 +108,7 @@ class PiAgent {
       this.alive = false;
       console.error(`[pi spawn error]`, err);
       this.wsSend({ type: "pi_exit", error: err.message });
-      try { this.ws.close(); } catch {}
+      try { this.ws && this.ws.close(); } catch {}
     });
     this.proc.stdout.on("data", (d) => this.onStdout(d));
     this.proc.stderr.on("data", (d) => {
@@ -75,7 +118,8 @@ class PiAgent {
       this.alive = false;
       console.log(`pi exited (code=${code})`);
       this.wsSend({ type: "pi_exit", code });
-      try { this.ws.close(); } catch {}
+      if (this.sessionKey) activeAgents.delete(this.sessionKey);
+      try { this.ws && this.ws.close(); } catch {}
     });
   }
 
@@ -95,6 +139,10 @@ class PiAgent {
   }
 
   onPiMessage(obj) {
+    // Automatically register sessionKey if sessionFile is present in RPC response/event
+    if (obj.data?.sessionFile) {
+      this.setSessionKey(this.cwd, obj.data.sessionFile);
+    }
     // RPC responses carry `id`; events do not.
     if (obj.type === "response" && obj.id) {
       const res = this.pending.get(obj.id);
@@ -127,11 +175,21 @@ class PiAgent {
   }
 
   wsSend(obj) {
-    if (this.ws.readyState === 1) this.ws.send(JSON.stringify(obj));
+    if (this.ws && this.ws.readyState === 1) {
+      try {
+        this.ws.send(JSON.stringify(obj));
+      } catch (e) {
+        console.error("wsSend error", e);
+      }
+    }
   }
 
   stop() {
     this.alive = false;
+    this.cancelCleanup();
+    if (this.sessionKey) {
+      activeAgents.delete(this.sessionKey);
+    }
     try { this.proc && this.proc.kill("SIGTERM"); } catch {}
   }
 }
@@ -302,7 +360,7 @@ app.get("/api/session", async (req, res) => {
   }
 });
 
-// ---- WebSocket: 1 browser conn = 1 pi RPC conn ----
+// ---- WebSocket: 1 browser conn = 1 pi RPC conn (with process persistence) ----
 const httpServer = app.listen(PORT, () => {
   console.log(`pi-web-chat on http://localhost:${PORT}`);
 });
@@ -312,13 +370,24 @@ wss.on("connection", (ws, req) => {
   const url = new URL(req.url, "http://x");
   const cwd = normalizeCwd(url.searchParams.get("cwd"));
   const session = url.searchParams.get("session") || null;
-  const agent = new PiAgent(ws, cwd);
-  agent.start();
+  const key = session ? `${cwd}:${path.resolve(session)}` : null;
+
+  let agent = null;
+  if (key && activeAgents.has(key) && activeAgents.get(key).alive) {
+    agent = activeAgents.get(key);
+    console.log(`ws re-attaching to existing pi process for key=${key}`);
+    agent.attachWs(ws);
+  } else {
+    agent = new PiAgent(cwd);
+    agent.start();
+    agent.attachWs(ws);
+    if (session) {
+      agent.setSessionKey(cwd, session);
+      agent.sendNoReply({ type: "switch_session", sessionPath: session });
+    }
+  }
   ws.piAgent = agent;
   console.log(`ws connected (cwd=${cwd}, session=${session || "new"})`);
-
-  // Open a specific session, or start fresh.
-  if (session) agent.sendNoReply({ type: "switch_session", sessionPath: session });
 
   ws.on("message", (raw) => {
     let msg;
@@ -334,6 +403,7 @@ wss.on("connection", (ws, req) => {
         agent.send({ type: "new_session" });
         break;
       case "switch_session":
+        if (msg.sessionPath) agent.setSessionKey(cwd, msg.sessionPath);
         agent.send({ type: "switch_session", sessionPath: msg.sessionPath });
         break;
       case "steer":
@@ -361,8 +431,14 @@ wss.on("connection", (ws, req) => {
   });
 
   ws.on("close", () => {
-    console.log("ws closed, stopping pi");
-    agent.stop();
+    console.log("ws connection closed, detaching agent");
+    if (ws.piAgent) {
+      ws.piAgent.detachWs(ws);
+    }
   });
-  ws.on("error", () => agent.stop());
+  ws.on("error", () => {
+    if (ws.piAgent) {
+      ws.piAgent.detachWs(ws);
+    }
+  });
 });
