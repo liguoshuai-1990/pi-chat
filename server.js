@@ -343,17 +343,17 @@ app.get("/api/session", async (req, res) => {
       if (e.id && !childCount.has(e.id)) leafId = e.id;
     }
     // Walk parent chain from leaf to root.
-    const path = [];
+    const entryChain = [];
     let cur = leafId;
     const guard = new Set();
     while (cur && !guard.has(cur)) {
       guard.add(cur);
       const e = byId.get(cur);
       if (!e) break;
-      path.unshift(e);
+      entryChain.unshift(e);
       cur = e.parentId;
     }
-    res.json({ header, entries: path });
+    res.json({ header, entries: entryChain });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: String(e) });
