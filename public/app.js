@@ -609,11 +609,11 @@ function refreshStreamingContent() {
     const isActivelyThinking = state.streaming && !hasText && !hasTools;
     content.appendChild(makeThinkingBlock(state.streamingThinking, isActivelyThinking));
   }
-  if (state.streamingText) {
-    content.appendChild(el("div", { html: renderMarkdown(state.streamingText) + (state.streaming ? '<span class="typing-cursor"></span>' : "") }));
-  }
   for (const v of state.activeToolCalls.values()) {
     content.appendChild(v.block);
+  }
+  if (state.streamingText) {
+    content.appendChild(el("div", { html: renderMarkdown(state.streamingText) + (state.streaming ? '<span class="typing-cursor"></span>' : "") }));
   }
   scrollBottom();
 }
@@ -1058,6 +1058,15 @@ function init() {
   } else {
     $(".app").classList.remove("sidebar-open");
   }
+
+  // Warn user if navigating/refreshing while a response is streaming
+  window.addEventListener("beforeunload", (e) => {
+    if (state.streaming) {
+      e.preventDefault();
+      e.returnValue = "任务正在运行中，刷新或离开页面将中断当前任务。";
+      return e.returnValue;
+    }
+  });
 
   // Keep sidebar state consistent across viewport resizes.
   // Desktop uses an inline sidebar; mobile uses a drawer with an overlay.
