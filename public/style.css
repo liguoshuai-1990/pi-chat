@@ -35,6 +35,7 @@ body {
   display: flex;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   position: relative;
   background: var(--bg);
@@ -173,8 +174,10 @@ body {
   padding: 0 16px;
   gap: 12px;
   background: var(--bg);
-  z-index: 2;
-  position: relative;
+  z-index: 20;
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
 }
 .topbar .session-name {
   font-size: 15px;
@@ -806,40 +809,53 @@ body {
 
   /* Topbar Mobile Adjustments */
   .topbar {
-    height: 52px;
-    padding: 0 12px;
-    gap: 8px;
+    height: 50px;
+    padding: 0 8px;
+    gap: 6px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--bg);
   }
 
   .topbar .session-name {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 2px;
   }
 
   #cwdPillWrap {
-    padding: 5px 8px;
+    padding: 4px 8px;
     font-size: 11px;
-    max-width: 110px;
+    max-width: 95px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .model-pill {
-    padding: 5px 10px;
+    padding: 4px 8px;
     font-size: 11px;
-    max-width: 100px;
+    max-width: 105px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
   /* Model Dropdown Menu Mobile Adjustments */
   .model-menu {
-    width: calc(100vw - 24px);
-    right: 12px;
-    left: 12px;
-    top: 48px;
+    width: calc(100vw - 16px);
+    right: 8px;
+    left: 8px;
+    top: 46px;
     max-height: 280px;
   }
 

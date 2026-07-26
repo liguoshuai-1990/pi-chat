@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.2] - 2026-07-26
+
+### Fixed
+- **移动端顶栏常驻与布局优化 (Sticky Topbar & Mobile Layout)**：
+  - 顶栏 `.topbar` 设置 `position: sticky; top: 0; flex-shrink: 0; z-index: 20;`，确保在手机端滚动聊天、弹起软键盘或屏高变化时**始终常驻固定在屏幕最上方**，绝不随聊天区域滚动或被挤压。
+  - 采用 Dynamic Viewport Height（`100dvh`），解决 iOS Safari 与 Android 移动浏览器地址栏/底部导航栏显示隐藏时的页面抖动与错位。
+  - 优化移动端工作目录胶囊（CWD Pill）、模型胶囊（Model Pill）与会话标题的宽度挤压与弹性截断（`text-overflow: ellipsis`），小屏手机下依然精致美观。
+
+---
+
 ## [1.4.1] - 2026-07-26
 
 ### Fixed
