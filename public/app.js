@@ -31,8 +31,9 @@ const state = {
   streamingMsg: null,   // DOM node for the in-progress assistant message
   streamingText: "",    // accumulated text deltas
   streamingThinking: "",
+  thinkingOpen: true,
+  thinkingUserToggled: false,
   activeToolCalls: new Map(), // toolCallId -> { node, body, state }
-  thinkingOpen: false,
   queuedAssistantTextId: null,
   streaming: false,
   models: [],
@@ -450,6 +451,8 @@ function clearChat() {
   state.streamingMsg = null;
   state.streamingText = "";
   state.streamingThinking = "";
+  state.thinkingOpen = true;
+  state.thinkingUserToggled = false;
   state.activeToolCalls.clear();
 }
 
@@ -495,14 +498,30 @@ function renderAssistantBlock(m) {
   return node;
 }
 
-function makeThinkingBlock(thinkingText) {
-  const block = el("div", { class: "thinking-block" });
-  const head = el("div", { class: "thinking-head", onclick: () => body.style.display = body.style.display === "none" ? "block" : "none" }, [
-    el("span", { text: "💭 思考过程" }),
-    el("span", { text: "(点击展开/收起)" }),
+function makeThinkingBlock(thinkingText, isActivelyThinking = false) {
+  const block = el("div", { class: "thinking-block" + (isActivelyThinking ? " active" : "") });
+  const head = el("div", {
+    class: "thinking-head",
+    onclick: () => {
+      const isHidden = body.style.display === "none";
+      body.style.display = isHidden ? "block" : "none";
+      state.thinkingOpen = isHidden;
+      state.thinkingUserToggled = true;
+    }
+  }, [
+    el("span", { class: "thinking-title", text: isActivelyThinking ? "💭 正在思考中…" : "💭 思考过程" }),
+    isActivelyThinking ? el("span", { class: "thinking-pulse" }) : null,
+    el("span", { class: "thinking-toggle-hint", text: "(点击展开/收起)" }),
   ]);
+  
   const body = el("div", { class: "thinking-body", html: escapeHtml(thinkingText) });
-  body.style.display = "none";
+  
+  if (state.thinkingUserToggled) {
+    body.style.display = state.thinkingOpen ? "block" : "none";
+  } else {
+    body.style.display = isActivelyThinking ? "block" : "none";
+  }
+  
   block.appendChild(head);
   block.appendChild(body);
   return block;
@@ -558,6 +577,8 @@ function ensureStreamingMsg() {
   state.streamingMsg = node;
   state.streamingText = "";
   state.streamingThinking = "";
+  state.thinkingOpen = true;
+  state.thinkingUserToggled = false;
   state.activeToolCalls.clear();
   $("#chat-inner").appendChild(node);
   scrollBottom();
@@ -568,18 +589,29 @@ function refreshStreamingContent() {
   const node = state.streamingMsg;
   if (!node) return;
   const content = node.querySelector(".content");
-  // Build the current content html again from scratch.
-  // Order: text then thinking then tool calls. We keep it simple — append in
-  // arrival order using permanent child slots keyed by index.
-  // Easiest: rebuild.
   content.innerHTML = "";
+
+  const hasThinking = Boolean(state.streamingThinking);
+  const hasText = Boolean(state.streamingText);
+  const hasTools = state.activeToolCalls.size > 0;
+
+  // Immediate visual feedback placeholder while waiting for LLM first token
+  if (state.streaming && !hasThinking && !hasText && !hasTools) {
+    content.appendChild(el("div", { class: "thinking-placeholder" }, [
+      el("span", { class: "thinking-spinner" }),
+      el("span", { class: "thinking-label", text: "正在思考中…" })
+    ]));
+    scrollBottom();
+    return;
+  }
+
   if (state.streamingThinking) {
-    content.appendChild(makeThinkingBlock(state.streamingThinking));
+    const isActivelyThinking = state.streaming && !hasText && !hasTools;
+    content.appendChild(makeThinkingBlock(state.streamingThinking, isActivelyThinking));
   }
   if (state.streamingText) {
     content.appendChild(el("div", { html: renderMarkdown(state.streamingText) + (state.streaming ? '<span class="typing-cursor"></span>' : "") }));
   }
-  // Re-append tool call blocks. Active ones are kept in a Map by insertion order.
   for (const v of state.activeToolCalls.values()) {
     content.appendChild(v.block);
   }
@@ -587,9 +619,15 @@ function refreshStreamingContent() {
 }
 
 function finalizeStreamingMsg() {
+  state.streaming = false;
+  if (state.streamingMsg) {
+    refreshStreamingContent();
+  }
   state.streamingMsg = null;
   state.streamingText = "";
   state.streamingThinking = "";
+  state.thinkingOpen = true;
+  state.thinkingUserToggled = false;
   state.activeToolCalls.clear();
 }
 
@@ -691,17 +729,15 @@ function handlePiMessage(obj) {
     case "agent_start":
       state.streaming = true;
       setComposerAborting(true);
-      // Refresh opportunistically; pi's session file may not be fsync'd yet
-      // at agent_start (in which case this refresh is a no-op), but the
-      // later agent_settled branch refreshes too — so a new conversation
-      // shows up in the sidebar as soon as the reply finishes, without
-      // needing a manual page reload.
+      ensureStreamingMsg();
+      refreshStreamingContent();
       refreshSessions();
       break;
     case "agent_end":
       finalizeStreamingMsg();
       break;
     case "agent_settled":
+      finalizeStreamingMsg();
       state.streaming = false;
       setComposerAborting(false);
       refreshSessions(); // titles may have changed
@@ -815,6 +851,7 @@ function handlePiMessage(obj) {
       break;
     }
     case "pi_exit":
+      finalizeStreamingMsg();
       state.streaming = false;
       setComposerAborting(false);
       $("#connDot").style.color = "var(--danger)";
@@ -930,6 +967,12 @@ function submitPrompt() {
   appendMessageNode("user", { text });
   ta.value = "";
   autoResize();
+
+  state.streaming = true;
+  setComposerAborting(true);
+  ensureStreamingMsg();
+  refreshStreamingContent();
+
   // Set session name from the first prompt of a brand-new session.
   if (state.currentSessionFile == null) {
     sendWs({ type: "set_session_name", name: text.slice(0, 60).replace(/\s+/g, " ") });
