@@ -153,14 +153,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 多模型切换（pi 配置的所有 provider/model）
 - 响应式深色主题（ChatGPT/Gemini 风格）
 
-### Technical Debt (已知)
-- 图片上传未接
-- 多 cwd / 项目切换器未做
-- fork / tree / clone 浏览未接
-- 浅/深主题切换未做
-- 双端实时同步未做
-- 鉴权未做
-
 ---
 
 ## Legend

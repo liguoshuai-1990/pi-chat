@@ -11,8 +11,8 @@
     "server.js",
     "bin/",
     "public/",
+    "docs/",
     "README.md",
-    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
