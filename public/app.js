@@ -24,6 +24,8 @@ const state = {
   ws: null,
   wsConnected: false,
   cwd: null,
+  homeDir: "",
+  serverCwd: "",
   currentSessionFile: null,
   // entriesByCallId: for live assistant messages we accumulate tool calls + text
   streamingMsg: null,   // DOM node for the in-progress assistant message
@@ -38,6 +40,134 @@ const state = {
   thinkingLevel: "medium",
   sessionId: null,
 };
+
+let toastTimer = null;
+function showToast(msg) {
+  const toast = $("#toast");
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2500);
+}
+
+function formatCwdDisplay(p) {
+  if (!p) return "~";
+  const home = state.homeDir;
+  if (home && (p === home || p === home + "/")) return "~";
+  if (home && p.startsWith(home + "/")) return "~/" + p.slice(home.length + 1);
+  return p;
+}
+
+function updateCwdDisplay() {
+  const pill = $("#cwdPill");
+  const wrap = $("#cwdPillWrap");
+  if (pill) pill.textContent = formatCwdDisplay(state.cwd);
+  if (wrap) wrap.title = `工作目录: ${state.cwd || "~"}`;
+}
+
+function setCwd(newCwd) {
+  state.cwd = newCwd;
+  localStorage.setItem("pi_cwd", newCwd);
+  updateCwdDisplay();
+  clearChat();
+  showEmptyState(true);
+  state.currentSessionFile = null;
+  $("#topSessionName").textContent = "新对话";
+  connectWs({});
+  refreshSessions();
+}
+
+async function loadServerConfig() {
+  try {
+    const res = await fetch(`${API}/api/config`);
+    const data = await res.json();
+    if (data.home) state.homeDir = data.home;
+    if (data.serverCwd) state.serverCwd = data.serverCwd;
+  } catch {}
+  if (!state.cwd) {
+    state.cwd = localStorage.getItem("pi_cwd") || state.serverCwd || state.homeDir || "";
+  }
+  updateCwdDisplay();
+}
+
+async function openCwdModal() {
+  await loadServerConfig();
+  const modal = $("#cwdModal");
+  const input = $("#cwdInput");
+  const errorEl = $("#cwdError");
+  const chipsEl = $("#quickDirChips");
+  if (!modal || !input) return;
+
+  input.value = state.cwd || state.homeDir || "";
+  if (errorEl) { errorEl.style.display = "none"; errorEl.textContent = ""; }
+
+  if (chipsEl) {
+    chipsEl.innerHTML = "";
+    const quicks = [];
+    if (state.homeDir) quicks.push({ label: "~ (用户主页)", path: state.homeDir });
+    if (state.serverCwd && state.serverCwd !== state.homeDir) {
+      quicks.push({ label: "服务启动目录", path: state.serverCwd });
+    }
+    let recents = [];
+    try { recents = JSON.parse(localStorage.getItem("pi_recent_cwds") || "[]"); } catch {}
+    recents.forEach(r => {
+      if (r && r !== state.homeDir && r !== state.serverCwd && !quicks.some(q => q.path === r)) {
+        quicks.push({ label: formatCwdDisplay(r), path: r });
+      }
+    });
+
+    quicks.forEach(q => {
+      chipsEl.appendChild(el("div", {
+        class: "chip",
+        text: q.label,
+        onclick: () => { input.value = q.path; }
+      }));
+    });
+  }
+
+  modal.classList.add("open");
+  setTimeout(() => input.select(), 50);
+}
+
+function closeCwdModal() {
+  const modal = $("#cwdModal");
+  if (modal) modal.classList.remove("open");
+}
+
+async function confirmCwdChange() {
+  const input = $("#cwdInput");
+  const errorEl = $("#cwdError");
+  const rawPath = input.value.trim();
+  if (!rawPath) return;
+
+  try {
+    const res = await fetch(`${API}/api/validate-dir?path=${encodeURIComponent(rawPath)}`);
+    const data = await res.json();
+    if (data.ok && data.path) {
+      let recents = [];
+      try { recents = JSON.parse(localStorage.getItem("pi_recent_cwds") || "[]"); } catch {}
+      recents = [data.path, ...recents.filter(r => r !== data.path)].slice(0, 8);
+      localStorage.setItem("pi_recent_cwds", JSON.stringify(recents));
+
+      closeCwdModal();
+      setCwd(data.path);
+      showToast(`已切换工作目录: ${formatCwdDisplay(data.path)}`);
+    } else {
+      if (errorEl) {
+        errorEl.textContent = data.error || "指定路径无法访问";
+        errorEl.style.display = "block";
+      }
+    }
+  } catch (e) {
+    if (errorEl) {
+      errorEl.textContent = "网络请求失败，请重试";
+      errorEl.style.display = "block";
+    }
+  }
+}
 
 // ---- Markdown render (small, safe renderer) ----
 function escapeHtml(s) {
@@ -527,6 +657,18 @@ function handlePiMessage(obj) {
   if (obj.type === "response") {
     if (obj.command === "get_state" && obj.success) updateState(obj.data);
     else if (obj.command === "get_available_models" && obj.success) updateModels(obj.data.models || []);
+    else if (obj.command === "set_model") {
+      if (obj.success) {
+        if (obj.data) state.currentModel = obj.data;
+        renderModelPill();
+        renderModelMenu();
+        showToast(`已切换模型: ${state.currentModel?.name || state.currentModel?.id || ""}`);
+        sendWs({ type: "get_state" });
+      } else {
+        showToast(`切换模型失败: ${obj.error || "未知错误"}`);
+        renderModelPill();
+      }
+    }
     else if (obj.command === "switch_session" && obj.success) {
       // ask pi for current state so we can get session id, name
       sendWs({ type: "get_state" });
@@ -714,7 +856,9 @@ function renderModelPill() {
   const pill = $("#modelPill");
   if (!m) { pill.textContent = "选择模型"; return; }
   const provider = m.provider || "?";
-  pill.textContent = `${provider} / ${m.id || m.name}`;
+  const name = m.name || m.id;
+  pill.textContent = `${provider} / ${name}`;
+  pill.title = `当前模型: ${provider} / ${name} (${m.id})`;
 }
 
 function renderModelMenu() {
@@ -732,7 +876,11 @@ function renderModelMenu() {
       const active = state.currentModel && m.id === state.currentModel.id && m.provider === state.currentModel.provider;
       menu.appendChild(el("div", {
         class: "opt" + (active ? " active" : ""),
-        onclick: () => { sendWs({ type: "set_model", provider: m.provider, modelId: m.id }); menu.classList.remove("open"); },
+        onclick: () => {
+          $("#modelPill").textContent = "切换中…";
+          sendWs({ type: "set_model", provider: m.provider, modelId: m.id });
+          menu.classList.remove("open");
+        },
       }, [
         el("span", { class: "check", html: active ? "✓ " : "" }),
         document.createTextNode(`${m.name || m.id}`),
@@ -883,6 +1031,30 @@ function init() {
       $(".app").classList.remove("sidebar-open");
     }
   });
+
+  // CWD modal listeners
+  const cwdBtn = $("#cwdPillWrap");
+  if (cwdBtn) cwdBtn.addEventListener("click", openCwdModal);
+  const cwdCloseBtn = $("#cwdModalClose");
+  if (cwdCloseBtn) cwdCloseBtn.addEventListener("click", closeCwdModal);
+  const cwdConfirmBtn = $("#cwdConfirmBtn");
+  if (cwdConfirmBtn) cwdConfirmBtn.addEventListener("click", confirmCwdChange);
+  const cwdModalEl = $("#cwdModal");
+  if (cwdModalEl) {
+    cwdModalEl.addEventListener("click", (e) => {
+      if (e.target === cwdModalEl) closeCwdModal();
+    });
+  }
+  const cwdInputEl = $("#cwdInput");
+  if (cwdInputEl) {
+    cwdInputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); confirmCwdChange(); }
+      else if (e.key === "Escape") { e.preventDefault(); closeCwdModal(); }
+    });
+  }
+
+  // Load server config & restore saved CWD
+  loadServerConfig();
 
   refreshSessions();
   // start in the disconnected state; connectWs will flip to green on open.

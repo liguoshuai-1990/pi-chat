@@ -3,7 +3,7 @@
 // for listing sessions and reading session history from the JSONL store.
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
-import { readFile, readdir } from "fs/promises";
+import { readFile, readdir, stat } from "fs/promises";
 import { existsSync } from "fs";
 import express from "express";
 import { WebSocketServer } from "ws";
@@ -27,6 +27,17 @@ function resolvePiBin() {
   return "pi"; // hope it's on PATH of the spawned shell
 }
 const PI_BIN = resolvePiBin();
+function home() { return os.homedir(); }
+
+function normalizeCwd(dir) {
+  if (!dir) return home();
+  let resolved = dir;
+  if (dir.startsWith("~")) {
+    resolved = path.join(home(), dir.slice(1));
+  }
+  return path.resolve(resolved);
+}
+
 // Where pi stores sessions, organized by cwd-encoded subdirectory.
 const SESSIONS_DIR = process.env.PI_SESSIONS_DIR || path.join(home(), ".pi", "agent", "sessions");
 const PORT = process.env.PORT || 3000;
@@ -35,7 +46,7 @@ const PORT = process.env.PORT || 3000;
 class PiAgent {
   constructor(ws, cwd) {
     this.ws = ws;
-    this.cwd = cwd || home();
+    this.cwd = normalizeCwd(cwd);
     this.reqId = 0;
     this.pending = new Map();      // reqId -> resolve()
     this.proc = null;
@@ -132,6 +143,29 @@ app.post("/api/log-error", (req, res) => {
   res.json({ ok: true });
 });
 
+// Endpoint to get server environment config (home dir, server process cwd)
+app.get("/api/config", (req, res) => {
+  res.json({
+    home: home(),
+    serverCwd: process.cwd(),
+  });
+});
+
+// Endpoint to validate if a directory path exists on the server
+app.get("/api/validate-dir", async (req, res) => {
+  const target = normalizeCwd(req.query.path || "");
+  try {
+    const s = await stat(target);
+    if (s.isDirectory()) {
+      res.json({ ok: true, path: target });
+    } else {
+      res.json({ ok: false, error: "指定路径存在但不是一个目录" });
+    }
+  } catch (e) {
+    res.json({ ok: false, error: "目录不存在或没有访问权限" });
+  }
+});
+
 // Scan SESSIONS_DIR for .jsonl files in BOTH the root AND every subdirectory.
 // Why both? Because pi stores sessions under a cwd-encoded subdir (e.g.
 // `--home-zrlgs--`) when left to its own device, but our server passes
@@ -160,7 +194,7 @@ async function listAllSessionFiles() {
 
 app.get("/api/sessions", async (req, res) => {
   try {
-    const cwd = req.query.cwd || home();
+    const cwd = normalizeCwd(req.query.cwd);
     const all = await listAllSessionFiles();
     const sessions = [];
     for (const full of all) {
@@ -177,7 +211,7 @@ app.get("/api/sessions", async (req, res) => {
           }
           if (o.type === "message") msgCount++;
         }
-        if (!header || header.cwd !== cwd) continue;
+        if (!header || normalizeCwd(header.cwd) !== cwd) continue;
         sessions.push({
           file: full,
           name: path.basename(full),
@@ -262,7 +296,7 @@ const httpServer = app.listen(PORT, () => {
 const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 wss.on("connection", (ws, req) => {
   const url = new URL(req.url, "http://x");
-  const cwd = url.searchParams.get("cwd") || home();
+  const cwd = normalizeCwd(url.searchParams.get("cwd"));
   const session = url.searchParams.get("session") || null;
   const agent = new PiAgent(ws, cwd);
   agent.start();
@@ -318,5 +352,3 @@ wss.on("connection", (ws, req) => {
   });
   ws.on("error", () => agent.stop());
 });
-
-function home() { return os.homedir(); }
