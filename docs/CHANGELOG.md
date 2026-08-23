@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.4] - 2026-07-26
+
+### Added
+- **模型菜单实时搜索与过滤 (Model Search & Instant Filter)**：
+  - 顶栏模型下拉菜单增加置顶固定的搜索过滤输入框，支持根据 Provider 提供商名称、模型名称、模型 ID 进行多维度实时模糊过滤。
+  - 打开模型下拉框时自动聚焦并全选搜索框，支持一键清空（`×`）、按 `Escape` 快捷关闭、按 `Enter` 快捷选中。
+  - 优化模型列表项布局，同时展示友好显示名与底层 Model ID，解决模型列表过长时翻找困难的问题。
+  - 移动端与桌面端自适应滚动与粘性搜索栏布局。
+
+---
+
 ## [1.7.3] - 2026-07-26
 
 ### Fixed

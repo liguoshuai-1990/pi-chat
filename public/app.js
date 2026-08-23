@@ -1439,29 +1439,112 @@ function renderModelPill() {
   pill.title = `当前模型: ${provider} / ${name} (${m.id})`;
 }
 
+let modelSearchQuery = "";
+
 function renderModelMenu() {
   const menu = $("#modelMenu");
-  menu.innerHTML = "";
-  // group by provider
+  if (!menu) return;
+
+  let searchInput = $("#modelSearchInput", menu);
+  let listContainer = $(".model-menu-list", menu);
+
+  if (!searchInput || !listContainer) {
+    menu.innerHTML = "";
+    const searchWrap = el("div", { class: "model-search-wrap" });
+    searchInput = el("input", {
+      type: "text",
+      id: "modelSearchInput",
+      class: "model-search-input",
+      placeholder: "搜索模型 (如 claude, deepseek, 4o)…",
+      autocomplete: "off",
+      spellcheck: "false",
+      value: modelSearchQuery,
+    });
+
+    searchInput.addEventListener("click", (e) => e.stopPropagation());
+    searchInput.addEventListener("input", (e) => {
+      modelSearchQuery = e.target.value;
+      renderModelList(listContainer);
+      const clearBtn = $(".btn-clear-model-search", searchWrap);
+      if (clearBtn) clearBtn.style.display = modelSearchQuery ? "block" : "none";
+    });
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        menu.classList.remove("open");
+      } else if (e.key === "Enter") {
+        const visibleOpts = listContainer.querySelectorAll(".opt");
+        if (visibleOpts.length > 0) {
+          visibleOpts[0].click();
+        }
+      }
+    });
+
+    const clearBtn = el("button", {
+      class: "btn-clear-model-search",
+      text: "×",
+      type: "button",
+      title: "清空搜索",
+      style: `display: ${modelSearchQuery ? "block" : "none"}`,
+      onclick: (e) => {
+        e.stopPropagation();
+        modelSearchQuery = "";
+        searchInput.value = "";
+        clearBtn.style.display = "none";
+        searchInput.focus();
+        renderModelList(listContainer);
+      }
+    });
+
+    searchWrap.appendChild(searchInput);
+    searchWrap.appendChild(clearBtn);
+    menu.appendChild(searchWrap);
+
+    listContainer = el("div", { class: "model-menu-list" });
+    menu.appendChild(listContainer);
+  }
+
+  renderModelList(listContainer);
+}
+
+function renderModelList(listContainer) {
+  if (!listContainer) return;
+  listContainer.innerHTML = "";
+  const q = modelSearchQuery.trim().toLowerCase();
+
+  const filteredModels = state.models.filter(m => {
+    if (!q) return true;
+    const idMatch = (m.id || "").toLowerCase().includes(q);
+    const nameMatch = (m.name || "").toLowerCase().includes(q);
+    const providerMatch = (m.provider || "").toLowerCase().includes(q);
+    return idMatch || nameMatch || providerMatch;
+  });
+
+  if (filteredModels.length === 0) {
+    listContainer.appendChild(el("div", { class: "model-empty", text: "未找到匹配的模型" }));
+    return;
+  }
+
   const groups = {};
-  for (const m of state.models) {
+  for (const m of filteredModels) {
     const p = m.provider || "other";
     (groups[p] = groups[p] || []).push(m);
   }
+
   for (const [provider, items] of Object.entries(groups).sort()) {
-    menu.appendChild(el("div", { class: "group-label", text: provider }));
+    listContainer.appendChild(el("div", { class: "group-label", text: provider }));
     for (const m of items) {
       const active = state.currentModel && m.id === state.currentModel.id && m.provider === state.currentModel.provider;
-      menu.appendChild(el("div", {
+      listContainer.appendChild(el("div", {
         class: "opt" + (active ? " active" : ""),
         onclick: () => {
           $("#modelPill").textContent = "切换中…";
           sendWs({ type: "set_model", provider: m.provider, modelId: m.id });
-          menu.classList.remove("open");
+          $("#modelMenu").classList.remove("open");
         },
       }, [
         el("span", { class: "check", html: active ? "✓ " : "" }),
-        document.createTextNode(`${m.name || m.id}`),
+        el("span", { class: "model-name", text: `${m.name || m.id}` }),
+        (m.name && m.id && m.name !== m.id) ? el("span", { class: "model-id-sub", text: m.id }) : null,
       ]));
     }
   }
@@ -1649,7 +1732,18 @@ function init() {
   $("#modelPill").addEventListener("click", (e) => {
     e.stopPropagation();
     sendWs({ type: "get_available_models" });
-    $("#modelMenu").classList.toggle("open");
+    const menu = $("#modelMenu");
+    const willOpen = !menu.classList.contains("open");
+    menu.classList.toggle("open");
+    if (willOpen) {
+      setTimeout(() => {
+        const input = $("#modelSearchInput");
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }, 50);
+    }
   });
   document.addEventListener("click", (e) => {
     if (!e.target.closest("#modelMenu") && !e.target.closest("#modelPill")) {
