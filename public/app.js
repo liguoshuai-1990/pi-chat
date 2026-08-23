@@ -87,6 +87,11 @@ async function loadServerConfig() {
     const data = await res.json();
     if (data.home) state.homeDir = data.home;
     if (data.serverCwd) state.serverCwd = data.serverCwd;
+    if (data.version) {
+      state.version = data.version;
+      const verEl = $("#appVersion");
+      if (verEl) verEl.textContent = `v${data.version}`;
+    }
   } catch {}
   if (!state.cwd) {
     state.cwd = localStorage.getItem("pi_cwd") || state.serverCwd || state.homeDir || "";

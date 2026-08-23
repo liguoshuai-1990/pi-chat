@@ -4,7 +4,7 @@
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
 import { readFile, readdir, stat } from "fs/promises";
-import { existsSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { StringDecoder } from "string_decoder";
 import express from "express";
 import { WebSocketServer } from "ws";
@@ -14,6 +14,12 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+let PKG_VERSION = "1.0.0";
+try {
+  const pkg = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8"));
+  if (pkg.version) PKG_VERSION = pkg.version;
+} catch {}
 
 // Resolve pi binary: prefer PI_BIN env, else search PATH, else fall back to ~/.npm-global/bin/pi
 function resolvePiBin() {
@@ -456,6 +462,7 @@ app.get("/api/config", (req, res) => {
   res.json({
     home: home(),
     serverCwd: process.cwd(),
+    version: PKG_VERSION,
   });
 });
 

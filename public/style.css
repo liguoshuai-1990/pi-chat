@@ -141,6 +141,17 @@ body {
 }
 .sidebar-bottom a { color: var(--text-muted); text-decoration: none; }
 .sidebar-bottom a:hover { color: var(--text); }
+.sidebar-bottom-meta {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.app-version {
+  font-size: 11px;
+  color: var(--text-dim);
+  user-select: none;
+}
 .conn-status {
   display: inline-flex;
   align-items: center;
