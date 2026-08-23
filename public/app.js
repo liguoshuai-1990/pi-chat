@@ -1107,6 +1107,19 @@ function sendWs(obj) {
 }
 
 function handlePiMessage(obj) {
+  // Automatically bind to the session file as soon as pi allocates it on disk
+  if (obj.data?.sessionFile && obj.data.sessionFile !== state.currentSessionFile) {
+    state.currentSessionFile = obj.data.sessionFile;
+    try {
+      const newUrl = window.location.pathname + "?session=" + encodeURIComponent(obj.data.sessionFile);
+      window.history.replaceState({ session: obj.data.sessionFile }, "", newUrl);
+    } catch {}
+    if ($("#topSessionName").textContent === "新对话") {
+      $("#topSessionName").textContent = baseName(obj.data.sessionFile);
+    }
+    refreshSessions();
+  }
+
   // Backfill markers emitted by the server when it replays buffered events
   // that happened in the background while no browser was attached.
   if (obj.type === "backfill_start") {

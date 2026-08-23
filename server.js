@@ -584,7 +584,7 @@ function extractText(content) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content
-    .filter(c => c.type === "text" || typeof c === "string")
+    .filter(c => c && (c.type === "text" || typeof c === "string"))
     .map(c => typeof c === "string" ? c : c.text)
     .join("");
 }

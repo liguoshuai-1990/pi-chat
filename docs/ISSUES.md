@@ -64,3 +64,22 @@
 **修复**：
 - 以 Session Key 为粒度管理 `PiAgent` 实例。
 - 任何一个客户端发送 `prompt` 或 `steer` 指令时，通过 `agent.wsSend(..., senderWs)` 广播同步给连入该 Session 的其他客户端。
+
+---
+
+## 7. 新建会话时 URL、侧边栏高亮与会话状态未即时绑定
+
+**症状**：新建对话并发送消息后，底层已生成 session jsonl，但浏览器 URL 仍为 `/`，`state.currentSessionFile` 为空，刷新页面后丢失当前会话视图，侧边栏也无法立即高亮当前项。
+
+**根因**：前端仅在显式点击侧边栏会话或调用 `switch_session` 时才绑定 `state.currentSessionFile`，未在 `prompt` 返回包含 `sessionFile` 的 RPC 数据时即时同步。
+
+**修复**：在前端 `handlePiMessage` 入口增加对 `obj.data?.sessionFile` 的自动感知与绑定，一旦检测到新分配的 sessionFile，即时更新 `state.currentSessionFile`、通过 `history.replaceState` 同步浏览器 URL 并刷新侧边栏高亮。
+
+---
+
+## 8. 历史会话内容反序列化时潜在的 null 分片过滤崩溃
+
+**症状**：当历史会话 jsonl 中偶发由于中断或格式异常导致 content 数组中包含 `null`/`undefined` 元素时，`extractText` 会触发 `TypeError: Cannot read properties of null (reading 'type')`。
+
+**修复**：在 `server.js` 的 `extractText` 过滤器中加入判空保护 `c && (c.type === "text" || typeof c === "string")`。
+
