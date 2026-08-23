@@ -47,7 +47,7 @@ if ! loginctl show-user "$USER" 2>/dev/null | grep -q '^Linger=yes'; then
   echo "    sudo loginctl enable-linger $USER"
 fi
 
-mkdir -p "$DEST_DIR/user"
+mkdir -p "$DEST_DIR"
 
 # Concrete paths. The shipped unit uses %h for portability, but %h is only
 # resolved when the user systemd instance starts — and we want a file that
@@ -61,8 +61,8 @@ sed \
   -e "s|^WorkingDirectory=.*|WorkingDirectory=$PROJECT_DIR|" \
   -e "s|^ExecStart=.*|ExecStart=$NODE_BIN server.js|" \
   -e "s|^Environment=PORT=.*|Environment=PORT=$PORT|" \
-  -e "s|ReadWritePaths=%h/.pi|ReadWritePaths=$USER_HOME/.pi|" \
-  -e "s|ReadWritePaths=%h/.npm-global|ReadWritePaths=$USER_HOME/.npm-global|" \
+  -e "s|%h/projects/pi-web-chat|$PROJECT_DIR|g" \
+  -e "s|%h/|$USER_HOME/|g" \
   "$SRC" > "$DEST"
 
 echo "✔ wrote $DEST"

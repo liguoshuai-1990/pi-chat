@@ -5,7 +5,7 @@
 set -euo pipefail
 
 UNIT_NAME="pi-web-chat.service"
-DEST="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/$UNIT_NAME"
+DEST="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$UNIT_NAME"
 
 if ! command -v systemctl >/dev/null 2>&1; then
   echo "ERR: 'systemctl' not on PATH" >&2; exit 1

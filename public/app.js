@@ -29,8 +29,7 @@ const state = {
   currentSessionFile: null,
   // entriesByCallId: for live assistant messages we accumulate tool calls + text
   streamingMsg: null,   // DOM node for the in-progress assistant message
-  streamingText: "",    // accumulated text deltas
-  streamingThinking: "",
+  streamingItems: [],   // Array of { type: "thinking"|"text"|"tool", text?, tc? } in chronological sequence
   thinkingOpen: true,
   thinkingUserToggled: false,
   activeToolCalls: new Map(), // toolCallId -> { node, body, state }
@@ -205,6 +204,8 @@ async function copyToClipboard(text) {
 }
 
 function renderMarkdown(md) {
+  if (!md) return "";
+  if (typeof md !== "string") md = String(md);
   // Strip headings of # etc. and convert to proper elements with escaping.
   // We do a fenced-code-first approach so we don't process markdown inside code.
   const parts = [];
@@ -273,11 +274,8 @@ function renderInlineMd(text) {
     if (lines[i].includes("|") && i + 1 < lines.length && /^\s*\|?[\s\-:|]+\|?\s*$/.test(lines[i + 1]) && lines[i+1].includes("-")) {
       // collect table block
       const header = lines[i];
-      let rows = [];
-      let j = i;
-      out.push({ kind: "blockskip", range: [i, j] });
       const tblLines = [header, lines[i + 1]];
-      j = i + 2;
+      let j = i + 2;
       while (j < lines.length && lines[j].includes("|")) { tblLines.push(lines[j]); j++; }
       out.push({ kind: "table", lines: tblLines });
       i = j;
@@ -288,6 +286,17 @@ function renderInlineMd(text) {
   }
   let outHtml = "";
   let para = [];
+  let linkListOpen = null;
+  let linkListOrdered = null;
+
+  function flushList() {
+    if (linkListOpen) {
+      outHtml += linkListOpen === "ol" ? "</ol>" : "</ul>";
+      linkListOpen = null;
+      linkListOrdered = null;
+    }
+  }
+
   function flushPara() {
     if (para.length === 0) return;
     const block = para.join("\n").trim();
@@ -297,39 +306,43 @@ function renderInlineMd(text) {
   for (const seg of out) {
     if (seg.kind === "table") {
       flushPara();
+      flushList();
       outHtml += mdTable(seg.lines);
     } else if (seg.kind === "line") {
       // headings
       const m = seg.text.match(/^(#{1,6})\s+(.*)$/);
       if (m) {
         flushPara();
+        flushList();
         const level = m[1].length;
         outHtml += `<h${level}>${mdInlineBlock(m[2])}</h${level}>`;
       } else if (/^\s*$/.test(seg.text)) {
         flushPara();
+        flushList();
       } else if (/^>\s?/.test(seg.text)) {
         // blockquote line — group simple consecutive ones
         flushPara();
+        flushList();
         outHtml += `<blockquote>${mdInlineBlock(seg.text.replace(/^>\s?/, ""))}</blockquote>`;
       } else if (/^\s*[-*]\s+/.test(seg.text) || /^\s*\d+\.\s+/.test(seg.text)) {
         // list item — group consecutive into ul/ol
         // simple inline handling: wrap each list item line.
         const isOrdered = /^\s*\d+\.\s+/.test(seg.text);
-        if (!out.linkListOpen || out.linkListOrdered !== isOrdered) {
+        if (!linkListOpen || linkListOrdered !== isOrdered) {
           flushPara();
-          if (out.linkListOpen) outHtml += out.linkListOpen === "ol" ? "</ol>" : "</ul>";
-          out.linkListOpen = isOrdered ? "ol" : "ul";
-          out.linkListOrdered = isOrdered;
-          outHtml += "<" + out.linkListOpen + ">";
+          flushList();
+          linkListOpen = isOrdered ? "ol" : "ul";
+          linkListOrdered = isOrdered;
+          outHtml += "<" + linkListOpen + ">";
         }
         outHtml += `<li>${mdInlineBlock(seg.text.replace(/^\s*([-*]|\d+\.)\s+/, ""))}</li>`;
       } else {
-        if (out.linkListOpen) { outHtml += out.linkListOpen === "ol" ? "</ol>" : "</ul>"; out.linkListOpen = null; }
+        flushList();
         para.push(seg.text);
       }
     }
   }
-  if (out.linkListOpen) { outHtml += out.linkListOpen === "ol" ? "</ol>" : "</ul>"; out.linkListOpen = null; }
+  flushList();
   flushPara();
   // restore inline code
   outHtml = outHtml.replace(/\u0000CODE(\d+)\u0000/g, (_, n) => `<code>${escapeHtml(codeChunks[+n].slice(1, -1))}</code>`);
@@ -454,6 +467,11 @@ function initMobileToolbarFab() {
 
 async function loadSession(file) {
   state.currentSessionFile = file;
+  state.streaming = false;
+  state.streamingItems = [];
+  state.streamingMsg = null;
+  state.activeToolCalls.clear();
+  setComposerAborting(false);
   try {
     const newUrl = window.location.pathname + "?session=" + encodeURIComponent(file);
     window.history.replaceState({ session: file }, "", newUrl);
@@ -515,6 +533,14 @@ function reconstructFromEntries(entries) {
         }
         return part;
       });
+      if (m.stopReason === "error" && content.length === 0) {
+        let errMsg = m.errorMessage || "生成失败（模型返回错误）";
+        try {
+          const parsed = JSON.parse(errMsg);
+          if (parsed.error?.message) errMsg = parsed.error.message;
+        } catch {}
+        content.push({ type: "text", text: `⚠️ **生成失败**: ${errMsg}` });
+      }
       out.push({ role: "assistant", content, ts: m.timestamp, usage: m.usage });
     }
     // toolResult entries are attached directly to assistant toolCall parts, so they don't produce standalone messages
@@ -536,8 +562,7 @@ function clearChat() {
   const chatInner = $("#chat-inner");
   chatInner.innerHTML = "";
   state.streamingMsg = null;
-  state.streamingText = "";
-  state.streamingThinking = "";
+  state.streamingItems = [];
   state.thinkingOpen = true;
   state.thinkingUserToggled = false;
   state.activeToolCalls.clear();
@@ -650,6 +675,39 @@ function getToolCommandToCopy(call) {
   return summaryArgs(call.name, call.arguments);
 }
 
+function updateToolBlockCopyBtn(tc, call) {
+  if (!tc || !tc.head) return;
+  const cmd = getToolCommandToCopy(call);
+  if (!cmd) return;
+  let btn = tc.head.querySelector(".btn-copy-tool");
+  if (!btn) {
+    btn = el("button", {
+      class: "btn-copy-tool",
+      type: "button",
+      title: "复制指令/参数",
+      onclick: async (e) => {
+        e.stopPropagation();
+        const curCmd = tc.head._cmdToCopy || cmd;
+        if (await copyToClipboard(curCmd)) {
+          btn.classList.add("copied");
+          const span = btn.querySelector("span");
+          if (span) span.textContent = "已复制";
+          setTimeout(() => {
+            btn.classList.remove("copied");
+            if (span) span.textContent = "复制";
+          }, 1500);
+        }
+      }
+    }, [
+      el("svg", { html: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>' }),
+      el("span", { text: "复制" })
+    ]);
+    const stateEl = tc.head.querySelector(".state");
+    tc.head.insertBefore(btn, stateEl);
+  }
+  tc.head._cmdToCopy = cmd;
+}
+
 function makeToolBlockFromCall(call) {
   const block = el("div", { class: "tool-block" });
   const hasResult = Boolean(call.result);
@@ -670,7 +728,8 @@ function makeToolBlockFromCall(call) {
     title: "复制指令/参数",
     onclick: async (e) => {
       e.stopPropagation();
-      if (await copyToClipboard(cmdToCopy)) {
+      const curCmd = head._cmdToCopy || cmdToCopy;
+      if (await copyToClipboard(curCmd)) {
         copyBtn.classList.add("copied");
         const span = copyBtn.querySelector("span");
         if (span) span.textContent = "已复制";
@@ -692,6 +751,7 @@ function makeToolBlockFromCall(call) {
     copyBtn,
     el("span", { class: stateClass, text: stateText }),
   ]);
+  head._cmdToCopy = cmdToCopy;
 
   const bodyText = hasResult ? (resultText || "(无输出)") : "执行中…";
   const body = el("div", { class: "tool-body", html: escapeHtml(bodyText) });
@@ -735,6 +795,13 @@ function scrollBottom() {
   chat.scrollTop = chat.scrollHeight;
 }
 
+function getStreamingFullText() {
+  return state.streamingItems
+    .filter(it => it.type === "text" && it.text)
+    .map(it => it.text)
+    .join("\n\n");
+}
+
 // ---- Streaming: handle live assistant message ----
 function ensureStreamingMsg() {
   if (state.streamingMsg) return state.streamingMsg;
@@ -748,9 +815,7 @@ function ensureStreamingMsg() {
         title: "复制回答全文",
         onclick: async (e) => {
           e.stopPropagation();
-          const contentEl = node.querySelector(".content");
-          if (!contentEl) return;
-          const text = contentEl.textContent || "";
+          const text = getStreamingFullText();
           if (await copyToClipboard(text)) {
             showToast("已复制回答全文");
           }
@@ -763,8 +828,7 @@ function ensureStreamingMsg() {
     el("div", { class: "content" }),
   ]);
   state.streamingMsg = node;
-  state.streamingText = "";
-  state.streamingThinking = "";
+  state.streamingItems = [];
   state.thinkingOpen = true;
   state.thinkingUserToggled = false;
   state.activeToolCalls.clear();
@@ -789,29 +853,30 @@ function refreshStreamingContent() {
   const content = node.querySelector(".content");
   content.innerHTML = "";
 
-  const hasThinking = Boolean(state.streamingThinking);
-  const hasText = Boolean(state.streamingText);
-  const hasTools = state.activeToolCalls.size > 0;
-
-  // Immediate visual feedback placeholder while waiting for LLM first token
-  if (state.streaming && !hasThinking && !hasText && !hasTools) {
-    content.appendChild(el("div", { class: "thinking-placeholder" }, [
-      el("span", { class: "thinking-spinner" }),
-      el("span", { class: "thinking-label", text: "正在思考中…" })
-    ]));
+  if (state.streamingItems.length === 0) {
+    if (state.streaming) {
+      content.appendChild(el("div", { class: "thinking-placeholder" }, [
+        el("span", { class: "thinking-spinner" }),
+        el("span", { class: "thinking-label", text: "正在思考中…" })
+      ]));
+    }
     scrollBottom();
     return;
   }
 
-  if (state.streamingThinking) {
-    const isActivelyThinking = state.streaming && !hasText && !hasTools;
-    content.appendChild(makeThinkingBlock(state.streamingThinking, isActivelyThinking));
-  }
-  for (const v of state.activeToolCalls.values()) {
-    content.appendChild(v.block);
-  }
-  if (state.streamingText) {
-    content.appendChild(el("div", { html: renderMarkdown(state.streamingText) + (state.streaming ? '<span class="typing-cursor"></span>' : "") }));
+  const lastIdx = state.streamingItems.length - 1;
+  for (let i = 0; i < state.streamingItems.length; i++) {
+    const item = state.streamingItems[i];
+    const isLast = (i === lastIdx);
+    if (item.type === "thinking") {
+      const isActivelyThinking = state.streaming && isLast;
+      content.appendChild(makeThinkingBlock(item.text, isActivelyThinking));
+    } else if (item.type === "tool") {
+      if (item.tc?.block) content.appendChild(item.tc.block);
+    } else if (item.type === "text") {
+      const showCursor = state.streaming && isLast;
+      content.appendChild(el("div", { html: renderMarkdown(item.text) + (showCursor ? '<span class="typing-cursor"></span>' : "") }));
+    }
   }
   scrollBottom();
 }
@@ -820,10 +885,19 @@ function finalizeStreamingMsg() {
   state.streaming = false;
   if (state.streamingMsg) {
     refreshStreamingContent();
+    const finalFullText = getStreamingFullText();
+    const btn = state.streamingMsg.querySelector(".btn-copy-msg");
+    if (btn) {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        if (await copyToClipboard(finalFullText)) {
+          showToast("已复制回答全文");
+        }
+      };
+    }
   }
   state.streamingMsg = null;
-  state.streamingText = "";
-  state.streamingThinking = "";
+  state.streamingItems = [];
   state.thinkingOpen = true;
   state.thinkingUserToggled = false;
   state.activeToolCalls.clear();
@@ -967,8 +1041,7 @@ function connectWs(opts = {}) {
   // from the previous connection so the new connection starts clean.
   if (opts.explicitNewSession) {
     state.streaming = false;
-    state.streamingText = "";
-    state.streamingThinking = "";
+    state.streamingItems = [];
     state.streamingMsg = null;
     state.activeToolCalls.clear();
   }
@@ -1119,18 +1192,6 @@ function handlePiMessage(obj) {
       const m = obj.message;
       if (m && m.role !== "assistant") break;
       ensureStreamingMsg();
-      // Each turn within one agent reply gets its own message_start, so reset
-      // the text/thinking accumulators here so text_end's overwrite (and
-      // text_delta accumulation) only reflect THIS message, not a stale
-      // one from the previous turn. Tool-call blocks persist across the
-      // whole reply (keyed by toolCallId) and stay visible.
-      state.streamingText = "";
-      state.streamingThinking = "";
-      // NOTE: do NOT pre-fill streamingText from message.content here.
-      // pi sends the full content on message_start for assistant turns but
-      // then also streams the same text via text_delta → pre-filling would
-      // duplicate it ("WS_OKWS_OK"). We rely on text_delta for incremental
-      // display and on text_end.content for the final, authoritative text.
       break;
     }
     case "message_end": {
@@ -1141,8 +1202,13 @@ function handlePiMessage(obj) {
       // those failures explicitly so the user isn't left staring at
       // an empty reply.
       const m = obj.message;
-      if (m && m.role === "assistant" && m.stopReason === "error" && !state.streamingText) {
-        state.streamingText = "⚠️ 生成失败（模型返回错误）。可能是当前模型不可用，请从右上角切换一个模型后重试。";
+      if (m && m.role === "assistant" && m.stopReason === "error") {
+        let errMsg = m.errorMessage || "生成失败（模型返回错误）。可能是当前模型不可用，请从右上角切换一个模型后重试。";
+        try {
+          const parsed = JSON.parse(errMsg);
+          if (parsed.error?.message) errMsg = parsed.error.message;
+        } catch {}
+        state.streamingItems.push({ type: "text", text: `⚠️ **${escapeHtml(errMsg)}**` });
         refreshStreamingContent();
       }
       break;
@@ -1151,22 +1217,35 @@ function handlePiMessage(obj) {
       const ev = obj.assistantMessageEvent;
       if (!ev) break;
       if (ev.type === "text_delta") {
-        state.streamingText += ev.delta;
+        const last = state.streamingItems[state.streamingItems.length - 1];
+        if (last && last.type === "text") {
+          last.text += ev.delta;
+        } else {
+          state.streamingItems.push({ type: "text", text: ev.delta });
+        }
         refreshStreamingContentDebounced();
       } else if (ev.type === "text_end") {
-        // Authoritative final text for this content slot. Overwrite any
-        // accumulated/delta text so we display exactly what the model
-        // produced (handles non-streamed replies where deltas never come,
-        // and avoids duplicates when both message_start.content and deltas
-        // carried the same string).
-        if (typeof ev.content === "string") state.streamingText = ev.content;
+        // Authoritative final text for this content slot.
+        if (typeof ev.content === "string") {
+          const last = state.streamingItems[state.streamingItems.length - 1];
+          if (last && last.type === "text") {
+            last.text = ev.content;
+          } else if (ev.content) {
+            state.streamingItems.push({ type: "text", text: ev.content });
+          }
+        }
         refreshStreamingContent();
       } else if (ev.type === "thinking_delta" || ev.type === "thinking_start" || ev.type === "thinking_end") {
         // For thinking we accumulate deltas; thinking_delta carries .delta
-        if (ev.type === "thinking_delta") {
-          state.streamingThinking += ev.delta || "";
+        if (ev.type === "thinking_delta" && ev.delta) {
+          const last = state.streamingItems[state.streamingItems.length - 1];
+          if (last && last.type === "thinking") {
+            last.text += ev.delta;
+          } else {
+            state.streamingItems.push({ type: "thinking", text: ev.delta });
+          }
+          refreshStreamingContentDebounced();
         }
-        refreshStreamingContentDebounced();
       } else if (ev.type === "toolcall_start") {
         ensureStreamingMsg();
         const call = ev.toolCall || { id: obj.toolCallId || ev.id, name: obj.toolName, arguments: obj.args };
@@ -1189,14 +1268,17 @@ function handlePiMessage(obj) {
         if (tc) {
           const argsEl = tc.head.querySelector(".args");
           if (argsEl) argsEl.textContent = summaryArgs(call.name, call.arguments);
+          updateToolBlockCopyBtn(tc, call);
         }
       }
       break;
     }
-    case "tool_execution_start":
+    case "tool_execution_start": {
       ensureStreamingMsg();
-      ensureToolBlock(obj.toolCallId, obj.toolName, obj.args);
+      const tc = ensureToolBlock(obj.toolCallId, obj.toolName, obj.args);
+      if (tc) updateToolBlockCopyBtn(tc, { name: obj.toolName, arguments: obj.args });
       break;
+    }
     case "tool_execution_update": {
       const tc = state.activeToolCalls.get(obj.toolCallId);
       if (tc) {
@@ -1217,6 +1299,9 @@ function handlePiMessage(obj) {
       }
       break;
     }
+    case "extension_ui_request":
+      handleExtensionUiRequest(obj);
+      break;
     case "pi_exit":
       finalizeStreamingMsg();
       state.streaming = false;
@@ -1229,11 +1314,58 @@ function handlePiMessage(obj) {
   }
 }
 
+function handleExtensionUiRequest(req) {
+  const { id, method, title, message, options, placeholder, prefill, notifyType } = req;
+  if (method === "notify") {
+    showToast((notifyType === "warning" ? "⚠️ " : notifyType === "error" ? "❌ " : "ℹ️ ") + (message || ""));
+    return;
+  }
+  if (method === "confirm") {
+    const text = (title ? title + "\n" : "") + (message || "");
+    const confirmed = window.confirm(text || "是否确认？");
+    sendWs({ type: "extension_ui_response", id, confirmed });
+    return;
+  }
+  if (method === "select") {
+    const promptText = (title ? title + "\n" : "") + (options || []).map((o, idx) => `${idx + 1}. ${o}`).join("\n");
+    const res = window.prompt(promptText, "1");
+    if (res === null) {
+      sendWs({ type: "extension_ui_response", id, cancelled: true });
+    } else {
+      const idx = parseInt(res.trim(), 10) - 1;
+      const val = (options && options[idx]) ? options[idx] : res.trim();
+      sendWs({ type: "extension_ui_response", id, value: val });
+    }
+    return;
+  }
+  if (method === "input") {
+    const res = window.prompt(title || "请输入：", placeholder || "");
+    if (res === null) {
+      sendWs({ type: "extension_ui_response", id, cancelled: true });
+    } else {
+      sendWs({ type: "extension_ui_response", id, value: res });
+    }
+    return;
+  }
+  if (method === "editor") {
+    const res = window.prompt((title || "编辑内容") + " (多行内容可用 \\n 分隔)：", prefill || "");
+    if (res === null) {
+      sendWs({ type: "extension_ui_response", id, cancelled: true });
+    } else {
+      sendWs({ type: "extension_ui_response", id, value: res });
+    }
+    return;
+  }
+}
+
 function ensureToolBlock(toolCallId, name, args) {
   if (state.activeToolCalls.has(toolCallId)) return state.activeToolCalls.get(toolCallId);
-  makeToolBlockFromCall({ id: toolCallId, name, arguments: args });
+  const block = makeToolBlockFromCall({ id: toolCallId, name, arguments: args });
+  const entry = state.activeToolCalls.get(toolCallId) || { block, body: block._body, head: block._head };
+  state.activeToolCalls.set(toolCallId, entry);
+  state.streamingItems.push({ type: "tool", id: toolCallId, tc: entry });
   refreshStreamingContentDebounced();
-  return state.activeToolCalls.get(toolCallId);
+  return entry;
 }
 
 // We render incoming session entries (for live new messages we use streaming
@@ -1261,9 +1393,6 @@ function updateState(d) {
       finalizeStreamingMsg();
       state.streaming = false;
       setComposerAborting(false);
-      if (state.currentSessionFile) {
-        loadSession(state.currentSessionFile);
-      }
       refreshSessions();
     }
   }
@@ -1664,13 +1793,6 @@ function init() {
     connectWs({});
     showEmptyState(true);
   }
-  // Pull the current pi state (model, session id, thinking level) once the
-  // socket is open. connectWs() registers onopen asynchronously; defer long
-  // enough that the writable is ready. (An earlier version wrote the `\n` as
-  // literal backslash-n inside a single-line comment, so setTimeout never ran
-  // and the model pill never populated.)
-  setTimeout(() => sendWs({ type: "get_state" }), 400);
-  setTimeout(() => sendWs({ type: "get_available_models" }), 600);
 }
 
 document.addEventListener("DOMContentLoaded", init);

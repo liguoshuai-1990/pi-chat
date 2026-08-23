@@ -5,6 +5,7 @@
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { spawn } from "child_process";
+import os from "os";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -49,7 +50,16 @@ function parseArgs(argv) {
   return opts;
 }
 
+function normalizeCwd(dir) {
+  if (!dir) return os.homedir();
+  if (dir.startsWith("~")) {
+    return resolve(os.homedir(), dir.slice(1).replace(/^[/\\]/, ""));
+  }
+  return resolve(dir);
+}
+
 const opts = parseArgs(process.argv.slice(2));
+opts.cwd = normalizeCwd(opts.cwd);
 
 // Spawn server.js as a child so we can forward signals cleanly.
 // Use --expose-gc so idle agents can call global.gc() to release heap (IDLE_DROP_HEAP=1).

@@ -5,6 +5,7 @@ import { spawn } from "child_process";
 import { randomUUID } from "crypto";
 import { readFile, readdir, stat } from "fs/promises";
 import { existsSync } from "fs";
+import { StringDecoder } from "string_decoder";
 import express from "express";
 import { WebSocketServer } from "ws";
 import path from "path";
@@ -109,6 +110,8 @@ const nowMs = () => Date.now();
 
 // Active pi RPC processes pooled by session key (`${cwd}:${resolvedSessionPath}`)
 const activeAgents = new Map();
+// Master set of all live PiAgent instances (both keyed and unkeyed)
+const allAgents = new Set();
 
 class PiAgent {
   constructor(cwd) {
@@ -119,6 +122,7 @@ class PiAgent {
     this.pending = new Map();      // reqId -> resolve()
     this.proc = null;
     this.buffer = "";
+    this.decoder = new StringDecoder("utf8");
     this.alive = false;
     // lifecycle / background-task state
     this.state = "idle";            // "idle" | "streaming"
@@ -149,6 +153,9 @@ class PiAgent {
   detachWs(ws) {
     this.sockets.delete(ws);
     if (this.sockets.size === 0) {
+      // Reset event buffer so we only capture events that happen while nobody is connected
+      this.eventBuffer = [];
+      this.bufferHead = 0;
       // Browser closed. We do NOT kill the subprocess here: a background task
       // keeps running. We only arm the idle-kill, which fires once the agent
       // is truly idle (no streaming, no pending requests) for IDLE_TIMEOUT_MS.
@@ -228,6 +235,7 @@ class PiAgent {
       env: { ...process.env, PI_SKIP_VERSION_CHECK: "1" },
     });
     this.alive = true;
+    allAgents.add(this);
     this.startedAt = nowMs();
     this.lastActivityAt = this.startedAt;
     if (MAX_AGENT_LIFETIME_MS > 0) {
@@ -238,17 +246,27 @@ class PiAgent {
     }
     this.proc.on("error", (err) => {
       this.alive = false;
+      allAgents.delete(this);
+      if (this.sessionKey) activeAgents.delete(this.sessionKey);
+      this.cancelIdleKill();
+      if (this.lifetimeTimer) { clearTimeout(this.lifetimeTimer); this.lifetimeTimer = null; }
       console.error(`[pi spawn error]`, err);
       this.wsSend({ type: "pi_exit", error: err.message });
       for (const s of this.sockets) { try { s.close(); } catch {} }
       this.sockets.clear();
     });
+    if (this.proc.stdin) {
+      this.proc.stdin.on("error", (err) => {
+        console.warn(`[pi stdin error]`, err.message);
+      });
+    }
     this.proc.stdout.on("data", (d) => this.onStdout(d));
     this.proc.stderr.on("data", (d) => {
       process.stderr.write(`[pi stderr] ${d}`);
     });
     this.proc.on("exit", (code) => {
       this.alive = false;
+      allAgents.delete(this);
       console.log(`pi exited (code=${code})`);
       this.wsSend({ type: "pi_exit", code });
       if (this.sessionKey) activeAgents.delete(this.sessionKey);
@@ -260,7 +278,7 @@ class PiAgent {
   }
 
   onStdout(chunk) {
-    this.buffer += chunk.toString("utf8");
+    this.buffer += this.decoder.write(chunk);
     while (true) {
       const nl = this.buffer.indexOf("\n");
       if (nl === -1) break;
@@ -283,7 +301,11 @@ class PiAgent {
     switch (obj.type) {
       case "agent_start": this.setStreaming(true); break;
       case "agent_end": this.setStreaming(false); break;
-      case "agent_settled": this.setStreaming(false); break;
+      case "agent_settled":
+        this.setStreaming(false);
+        this.eventBuffer = [];
+        this.bufferHead = 0;
+        break;
       case "pi_exit": this.state = "idle"; break;
     }
     // Capture the most recent user prompt for the background-task dashboard.
@@ -325,16 +347,26 @@ class PiAgent {
       try { ws.send(JSON.stringify(ev)); } catch {}
     }
     try { ws.send(JSON.stringify({ type: "backfill_end", streaming: this.isBusy, state: this.state })); } catch {}
+    // Clear buffer once consumed by the reconnecting client
+    this.eventBuffer = [];
+    this.bufferHead = 0;
   }
 
   send(cmd) {
-    return new Promise((resolve, reject) => {
-      if (!this.alive) return reject(new Error("pi process not alive"));
+    return new Promise((resolve) => {
+      if (!this.alive || !this.proc || !this.proc.stdin || this.proc.stdin.destroyed) {
+        return resolve({ type: "response", id: cmd.id || "0", success: false, error: "pi process not alive" });
+      }
       const id = String(++this.reqId);
       const payload = { ...cmd, id };
       this.pending.set(id, resolve);
       this.markActivity();
-      this.proc.stdin.write(JSON.stringify(payload) + "\n");
+      try {
+        this.proc.stdin.write(JSON.stringify(payload) + "\n");
+      } catch (err) {
+        this.pending.delete(id);
+        return resolve({ type: "response", id, success: false, error: err.message });
+      }
       // Safety: timeout so a dropped response doesn't leak the promise.
       setTimeout(() => {
         if (this.pending.has(id)) {
@@ -347,9 +379,13 @@ class PiAgent {
   }
 
   sendNoReply(cmd) {
-    if (!this.alive) throw new Error("pi process not alive");
+    if (!this.alive || !this.proc || !this.proc.stdin || this.proc.stdin.destroyed) return;
     this.markActivity();
-    this.proc.stdin.write(JSON.stringify(cmd) + "\n");
+    try {
+      this.proc.stdin.write(JSON.stringify(cmd) + "\n");
+    } catch (e) {
+      console.error("[pi sendNoReply error]", e);
+    }
   }
 
   wsSend(obj, excludeSocket = null) {
@@ -390,6 +426,7 @@ class PiAgent {
 
   stop() {
     this.alive = false;
+    allAgents.delete(this);
     this.cancelIdleKill();
     if (this.lifetimeTimer) { clearTimeout(this.lifetimeTimer); this.lifetimeTimer = null; }
     if (this.sessionKey) {
@@ -441,9 +478,9 @@ app.get("/api/validate-dir", async (req, res) => {
 // Shows which sessions are still running headlessly after the browser closed.
 app.get("/api/agents", (req, res) => {
   const agents = [];
-  for (const [key, a] of activeAgents.entries()) {
+  for (const a of allAgents) {
     if (!a.alive) continue;
-    agents.push({ key, ...a.status() });
+    agents.push({ key: a.sessionKey || "unkeyed", ...a.status() });
   }
   res.json({ count: agents.length, idleTimeoutMs: IDLE_TIMEOUT_MS, maxLifetimeMs: MAX_AGENT_LIFETIME_MS, agents });
 });
@@ -554,7 +591,8 @@ app.get("/api/session", async (req, res) => {
     // Security check: ensure the file path is within SESSIONS_DIR
     const resolvedFile = path.resolve(file);
     const resolvedSessionsDir = path.resolve(SESSIONS_DIR);
-    if (!resolvedFile.startsWith(resolvedSessionsDir)) {
+    const relPath = path.relative(resolvedSessionsDir, resolvedFile);
+    if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -673,7 +711,7 @@ wss.on("connection", (ws, req) => {
     // memory. The cap protects small-memory hosts from runaway browser tabs.
     if (MAX_CONCURRENT_AGENTS > 0) {
       let live = 0;
-      for (const a of activeAgents.values()) if (a.alive) live++;
+      for (const a of allAgents) if (a.alive) live++;
       if (live >= MAX_CONCURRENT_AGENTS) {
         const msg = `Server is at capacity (${live}/${MAX_CONCURRENT_AGENTS} pi agents). ` +
                     `Close another tab or raise MAX_CONCURRENT_AGENTS.`;
@@ -714,6 +752,13 @@ wss.on("connection", (ws, req) => {
         agent.sendNoReply({ type: "abort" });
         break;
       case "new_session":
+        if (agent.sessionKey) {
+          activeAgents.delete(agent.sessionKey);
+          agent.sessionKey = null;
+        }
+        agent.lastUserPrompt = null;
+        agent.eventBuffer = [];
+        agent.bufferHead = 0;
         agent.send({ type: "new_session" });
         break;
       case "switch_session":
@@ -741,6 +786,9 @@ wss.on("connection", (ws, req) => {
       case "set_model":
         agent.send({ type: "set_model", provider: msg.provider, modelId: msg.modelId });
         break;
+      case "extension_ui_response":
+        agent.sendNoReply({ type: "extension_ui_response", ...msg });
+        break;
       default:
         // Unknown — just forward, might be a raw RPC command.
         agent.send(msg);
@@ -762,8 +810,8 @@ wss.on("connection", (ws, req) => {
 
 // ---- Graceful shutdown: stop all background pi agents on exit ----
 function shutdownAllAgents(reason) {
-  console.log(`\n[pi-web-chat] ${reason}: stopping ${activeAgents.size} background pi agent(s)…`);
-  for (const a of [...activeAgents.values()]) {
+  console.log(`\n[pi-web-chat] ${reason}: stopping ${allAgents.size} background pi agent(s)…`);
+  for (const a of [...allAgents]) {
     try { a.stop(); } catch {}
   }
   clearInterval(heartbeatInterval);
@@ -774,7 +822,7 @@ process.on("SIGINT", () => { shutdownAllAgents("SIGINT"); process.exit(0); });
 process.on("SIGTERM", () => { shutdownAllAgents("SIGTERM"); process.exit(0); });
 process.on("exit", () => {
   // best-effort: kill any still-living children synchronously on hard exit
-  for (const a of activeAgents.values()) {
+  for (const a of allAgents) {
     try { a.proc && a.proc.kill("SIGKILL"); } catch {}
   }
 });
