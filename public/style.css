@@ -708,7 +708,10 @@ body {
   transition: border-color .15s;
 }
 .composer-inner:focus-within { border-color: var(--text-dim); }
-.composer-inner.aborting { border-color: var(--danger); }
+.composer-inner.aborting {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
+}
 .composer textarea {
   flex: 1; background: transparent; border: none; outline: none; resize: none;
   color: var(--text); font-family: inherit; font-size: 15px; line-height: 1.5;
@@ -717,10 +720,12 @@ body {
 .composer .send-btn {
   width: 36px; height: 32px; border-radius: 18px; border: none; cursor: pointer;
   background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; transition: background .15s, opacity .15s;
+  flex-shrink: 0; transition: background .15s, opacity .15s, transform .1s;
 }
 .composer .send-btn:disabled { background: #3a3a3a; color: #6f6f6f; cursor: not-allowed; }
 .composer .send-btn.stop { background: var(--danger); }
+.composer .send-btn.stop:hover:not(:disabled) { background: #f87171; }
+.composer .send-btn.stop:active:not(:disabled) { transform: scale(0.95); }
 .composer .steer-btn {
   display: inline-flex;
   align-items: center;

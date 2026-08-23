@@ -42,6 +42,7 @@ const state = {
   thinkingLevel: "medium",
   sessionId: null,
   isBackfilling: false,
+  aborting: false,
 };
 
 let toastTimer = null;
@@ -576,8 +577,12 @@ async function syncSessionHistory(file, force = false) {
 }
 
 async function loadSession(file) {
+  if (state.streaming) {
+    abortGeneration();
+  }
   state.currentSessionFile = file;
   state.streaming = false;
+  state.aborting = false;
   state.streamingItems = [];
   state.streamingMsg = null;
   state.activeToolCalls.clear();
@@ -1295,6 +1300,9 @@ function handlePiMessage(obj) {
         renderThinkingPill();
         updateEmptyStateModelInfo();
       }
+    } else if (obj.command === "abort") {
+      state.aborting = false;
+      setComposerAborting(false);
     }
     else if (obj.command === "switch_session" && obj.success) {
       // ask pi for current state so we can get session id, name
@@ -1329,6 +1337,7 @@ function handlePiMessage(obj) {
       break;
     case "agent_start":
       state.streaming = true;
+      state.aborting = false;
       setComposerAborting(true);
       ensureStreamingMsg();
       refreshStreamingContent();
@@ -1340,6 +1349,7 @@ function handlePiMessage(obj) {
     case "agent_settled":
       finalizeStreamingMsg();
       state.streaming = false;
+      state.aborting = false;
       setComposerAborting(false);
       sendWs({ type: "get_state" });
       refreshSessions(); // titles may have changed
@@ -1465,6 +1475,7 @@ function handlePiMessage(obj) {
     case "pi_exit":
       finalizeStreamingMsg();
       state.streaming = false;
+      state.aborting = false;
       setComposerAborting(false);
       $("#connDot").style.color = "var(--danger)";
       break;
@@ -1560,6 +1571,7 @@ function updateState(d) {
     } else if (state.streaming) {
       finalizeStreamingMsg();
       state.streaming = false;
+      state.aborting = false;
       setComposerAborting(false);
       if (state.currentSessionFile) {
         syncSessionHistory(state.currentSessionFile, true);
@@ -2064,8 +2076,24 @@ function updateComposerUI() {
   const text = ta ? ta.value.trim() : "";
   const sendBtn = $("#sendBtn");
   const steerBtn = $("#steerBtn");
+  const inner = $("#composerInner");
 
-  if (state.streaming) {
+  if (inner) {
+    inner.classList.toggle("aborting", !!state.aborting);
+  }
+
+  if (state.aborting) {
+    if (sendBtn) {
+      sendBtn.classList.add("stop");
+      sendBtn.disabled = true;
+      sendBtn.textContent = "⏳";
+      sendBtn.title = "中止中…";
+    }
+    if (steerBtn) {
+      steerBtn.style.display = "none";
+    }
+    if (ta) ta.placeholder = "正在中止当前任务…";
+  } else if (state.streaming) {
     if (sendBtn) {
       sendBtn.classList.add("stop");
       sendBtn.disabled = !state.wsConnected;
@@ -2096,8 +2124,32 @@ function updateComposerUI() {
 }
 
 function setComposerAborting(yes) {
+  if (!yes) {
+    state.aborting = false;
+    const inner = $("#composerInner");
+    if (inner) inner.classList.remove("aborting");
+    const hint = $(".composer-hint");
+    if (hint && hint.textContent.includes("中止")) {
+      hint.textContent = "pi 会执行命令与读写你的文件 —— 请注意操作内容。";
+    }
+  }
   updateComposerUI();
   renderModelPill();
+}
+
+function abortGeneration() {
+  if (!state.streaming && !state.aborting) return;
+  if (!state.wsConnected) {
+    const hint = $(".composer-hint");
+    if (hint) hint.textContent = "操作失败：WebSocket 未连接。正在尝试重连…";
+    scheduleReconnect(0);
+    return;
+  }
+  state.aborting = true;
+  updateComposerUI();
+  const hint = $(".composer-hint");
+  if (hint) hint.textContent = "中止当前任务中…";
+  sendWs({ type: "abort" });
 }
 
 function submitSteer() {
@@ -2126,8 +2178,19 @@ function submitSteer() {
 }
 
 function submitPrompt() {
+  if (state.streaming) {
+    const ta = $("#composer");
+    const text = ta ? ta.value.trim() : "";
+    if (text) {
+      submitSteer();
+    } else {
+      abortGeneration();
+    }
+    return;
+  }
+
   const ta = $("#composer");
-  const text = ta.value.trim();
+  const text = ta ? ta.value.trim() : "";
   const hint = $(".composer-hint");
   if (!text) return;
   if (!state.wsConnected) {
@@ -2137,16 +2200,7 @@ function submitPrompt() {
     if (box) { box.style.boxShadow = "0 0 0 2px var(--danger)"; setTimeout(() => { box.style.boxShadow = ""; }, 350); }
     return;
   }
-  if (state.streaming) {
-    if (text) {
-      submitSteer();
-      return;
-    }
-    if (hint) hint.textContent = "中止当前生成中…";
-    sendWs({ type: "abort" });
-    return;
-  }
-  
+
   if (hint) hint.textContent = "pi 会执行命令与读写你的文件 —— 请注意操作内容。"; // restore default
   // Render the user's message locally for instant feedback.
   appendMessageNode("user", { text });
@@ -2154,6 +2208,7 @@ function submitPrompt() {
   autoResize();
 
   state.streaming = true;
+  state.aborting = false;
   setComposerAborting(true);
   ensureStreamingMsg();
   refreshStreamingContent();
@@ -2183,7 +2238,7 @@ async function init() {
   $("#btnNew").addEventListener("click", () => {
     if (state.streaming) {
       if (!confirm("正在生成中，新建会话会终止当前操作，确定吗？")) return;
-      sendWs({ type: "abort" });
+      abortGeneration();
     }
     clearChat();
     showEmptyState(true);
@@ -2200,12 +2255,7 @@ async function init() {
 
   $("#sendBtn").addEventListener("click", () => {
     if (state.streaming) {
-      const ta = $("#composer");
-      if (ta && ta.value.trim()) {
-        submitSteer();
-      } else {
-        submitPrompt();
-      }
+      abortGeneration();
     } else {
       submitPrompt();
     }
@@ -2259,11 +2309,17 @@ async function init() {
     });
   }
 
-  // Keyboard shortcut: Ctrl+M / Cmd+M to toggle model selector
+  // Keyboard shortcut: Ctrl+M / Cmd+M to toggle model selector, Escape to abort if streaming
   window.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "m") {
       e.preventDefault();
       toggleModelMenu();
+    } else if (e.key === "Escape" && state.streaming) {
+      const isMenuOpen = $("#modelMenu")?.classList.contains("open") || $("#thinkingMenu")?.classList.contains("open");
+      const isModalOpen = $("#cwdModal")?.style.display === "flex";
+      if (!isMenuOpen && !isModalOpen) {
+        abortGeneration();
+      }
     }
   });
 
