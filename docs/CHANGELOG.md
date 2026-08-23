@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **新建会话即时绑定会话文件与 URL (Instant Session Binding)**：在 `public/app.js` 中自动捕获 RPC 消息中的 `sessionFile`，新建会话发送第一条 Prompt 后立即更新浏览器 URL、当前状态与侧边栏高亮，防止页面刷新丢失当前对话。
 - **服务端历史文本提取空指针保护 (Null Safety in extractText)**：在 `server.js` 的 `extractText` 增加对分片项为 null/undefined 的防守式过滤，避免异常历史记录导致元数据读取崩溃。
+- **移动端侧边栏底部连接状态与版本号显示修复 (Mobile Sidebar Bottom & Safe Area)**：修复手机端侧边栏 `100vh` 溢出导致底部“已连接/版本号”不可见的问题；增加 `100dvh`、`min-height: 0`、`flex-shrink: 0` 及全面屏 `safe-area-inset-bottom` 适配。
+
 
 ---
 

@@ -83,3 +83,20 @@
 
 **修复**：在 `server.js` 的 `extractText` 过滤器中加入判空保护 `c && (c.type === "text" || typeof c === "string")`。
 
+---
+
+## 9. 移动端侧边栏底部连接状态与版本号被遮挡/不可见
+
+**症状**：在手机端浏览器打开左侧抽屉（Sidebar）时，底部的“已连接 / 版本号”信息看不到或被系统手势栏/底栏遮挡。
+
+**根因**：
+1. 移动端 `.sidebar` 样式设置了固定 `height: 100vh`，而手机浏览器 `100vh` 包含了底部工具栏高度，导致底部区域被挤出屏幕外。
+2. `.session-list` 缺少 `min-height: 0` 约束，会话数量多时 flexbox 未能限制高度，将 `.sidebar-bottom` 顶出视口。
+3. 缺少 `env(safe-area-inset-bottom)` 安全区域边距，导致贴底元素被全面屏手势条遮挡。
+
+**修复**：
+- 移动端 `.sidebar` 改用 `height: 100dvh; max-height: 100dvh; overflow: hidden;`。
+- 给 `.session-list` 增加 `min-height: 0`，给 `.sidebar-bottom` 增加 `flex-shrink: 0`。
+- 引入 `safe-area-inset-bottom` 底部安全区自适应内边距，并将 z-index 提升至 105，确保手机端完整可见。
+
+
