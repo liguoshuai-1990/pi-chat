@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.2] - 2026-07-26
+
+### Fixed
+- **移动端顶栏空间挤压与思考胶囊截断修复 (Mobile Topbar Layout & Thinking Pill Overflow)**：
+  - 移除移动端 `.model-pill-container` 的固定 `max-width: 130px` 宽度限制，修复深度思考胶囊被挤压截断、只显示一半图标的问题。
+  - 优化移动端顶栏各元素间距与自适应弹性缩放：侧边栏菜单按钮调整为 36px，工作目录胶囊最大宽度限制为 75px，模型胶囊适度收敛文字并隐藏默认徽章，思考胶囊保留完整图标与级别文本。
+  - 增加对 `<= 360px` 极窄小屏设备的精细化响应式适配规则，保障全尺寸移动端设备顶部操作栏整齐美观且不换行、不溢出。
+
+---
+
 ## [1.8.1] - 2026-07-26
 
 ### Fixed

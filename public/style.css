@@ -1205,9 +1205,9 @@ body {
 
   /* Topbar Mobile Adjustments — fixed, taller, shadowed so it is always findable */
   .topbar {
-    height: 54px;
-    padding: 0 12px;
-    gap: 8px;
+    height: 52px;
+    padding: 0 8px;
+    gap: 6px;
     position: fixed;
     top: 0;
     left: 0;
@@ -1219,36 +1219,37 @@ body {
   }
 
   .main {
-    padding-top: 54px;
+    padding-top: 52px;
   }
 
   .topbar .session-name {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     min-width: 0;
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding: 0 4px;
+    padding: 0 2px;
   }
 
   .btn-toggle-sidebar {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     padding: 0;
     color: var(--text);
     background: var(--bg-hover);
+    flex-shrink: 0;
   }
   .btn-toggle-sidebar svg {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
   }
 
   #cwdPillWrap {
-    padding: 5px 9px;
+    padding: 4px 7px;
     font-size: 11px;
-    max-width: 90px;
+    max-width: 75px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1256,25 +1257,65 @@ body {
   }
 
   .model-pill-container {
-    max-width: 130px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    max-width: none;
   }
 
   .model-pill {
-    padding: 5px 8px;
+    padding: 4px 8px;
     font-size: 11px;
-    max-width: 90px;
+    max-width: 105px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     flex-shrink: 0;
+    gap: 4px;
   }
   .model-pill-name {
-    max-width: 50px;
+    max-width: 65px;
+  }
+  .model-pill-badge {
+    display: none !important;
   }
 
   .thinking-pill {
-    padding: 5px 7px;
+    padding: 4px 7px;
     font-size: 11px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    gap: 3px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .thinking-pill .thinking-icon {
+    font-size: 12px;
+  }
+  .thinking-pill .thinking-label {
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  @media (max-width: 360px) {
+    .topbar {
+      padding: 0 4px;
+      gap: 4px;
+    }
+    #cwdPillWrap {
+      max-width: 50px;
+      padding: 4px 5px;
+    }
+    .model-pill {
+      max-width: 90px;
+    }
+    .model-pill-name {
+      max-width: 50px;
+    }
+    .thinking-pill {
+      padding: 4px 5px;
+    }
   }
 
   /* Model & Thinking Dropdown Menu Mobile Adjustments */
