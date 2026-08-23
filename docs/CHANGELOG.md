@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.6] - 2026-07-26
+
+### Security
+- **Markdown 渲染 HTML 属性逃逸注入安全漏洞修复 (HTML Attribute Breakout XSS Vulnerability)**：升级 `public/app.js` 中的 `escapeHtml` 严密性，将原有对 `&`、`<`、`>` 的处理，扩展至双引号 `"` (`&quot;`) 与单引号 `'` (`&#39;`)，阻断由于模型生成恶意链接等引起的 `href` 属性逃逸与任意 HTML 属性/事件（XSS）注入风险。
+
+### Fixed
+- **多设备与多标签页流式事件同步及中途连入追平优化 (Multi-device/Multi-tab Live Event Streaming Sync)**：
+  - 优化 `PiAgent` 事件录制范围：只要处于流式生成（Busy/Streaming）状态，即便当前已有在线浏览器连接，也会向 `eventBuffer` 持续录制。
+  - 优化缓存释放策略：若 Agent 仍处于 busy 生成状态，新连入的客户端消费完 `eventBuffer` 后不再立即清空 Buffer。
+  - 优化重连/中途断开录制：若最后一个客户端在 streaming 途中断开连接，只要生成任务仍在运行中，即不销毁当前的缓存。
+  - 以上多项优化完美实现了多台设备（例如手机、电脑）、多个浏览器 Tab 随时刷新或中途连入正在运行中的流式会话时，能够无缝重播已生成的上半段内容并追平后续实时流，极大地增强了多端多 Tab 的协同可靠性。
+
+---
+
 ## [1.7.5] - 2026-07-26
 
 ### Fixed

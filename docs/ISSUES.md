@@ -121,5 +121,30 @@
 
 **修复**：移除 `message_end` 中冗余的 `escapeHtml()`，统一由 Markdown 渲染器进行安全转义。
 
+---
+
+## 12. Markdown 渲染中潜在的 XSS 注入安全漏洞 (HTML Attribute Breakout)
+
+**症状**：若模型返回了特制格式的 Markdown 链接（例如 `[点击](http://abc.com" style="..." onmouseover="alert(1))`），该链接渲染为 HTML 时能逃逸 `href="..."` 属性，注入任意 HTML 属性与恶意 JavaScript。
+
+**根因**：原先 `escapeHtml()` 仅转义了 `&`、`<`、`>`，未能转义双引号 `"` 与单引号 `'`，使得属性逃逸攻击成为可能。
+
+**修复**：修改 `public/app.js` 中的 `escapeHtml()` 实现，额外对 `"` (`&quot;`) 与 `'` (`&#39;`) 进行了严格转义，阻止任何 HTML 属性级别的注入攻击。
+
+---
+
+## 13. 多设备 / 多 Tab 流式对话时新连入客户端无法追平进度
+
+**症状**：在某一会话处于流式文本生成（Streaming）状态时，若用户在另一台设备或新的浏览器标签页中打开相同会话，由于 `PiAgent` 检测到已连接客户端而不将流式事件写入 `eventBuffer`，新连入的客户端无法回放当前的流式消息，导致其显示为空白、缺页或卡在加载中。
+
+**根因**：
+- 原逻辑在 `onPiMessage` 中判断只有在无客户端连接时才缓存事件（`if (!this.hasWs) this.bufferEvent(obj)`）。
+- 离线回放完毕后，会强制清空环形 Buffer，导致后续其他客户端连入时无内容可播。
+
+**修复**：
+- 在 `server.js` 的 `onPiMessage` 逻辑中，当 `PiAgent` 处于繁忙或流式对话过程中（`this.isBusy` 为真）即便有客户端在线也开启缓存。
+- 修改 `detachWs`，当所有连接断开但 Agent 仍在生成中时，保留 `eventBuffer` 保证继续录制。
+- 修改 `replayBuffered`，在 Agent 仍处于 busy 状态时消费后不清空缓存，使多个设备/多个 Tab 可多次或同时连入并安全回溯追平全部生成细节，并在流式终止时通过 `agent_settled` 进行最终的统一清理。
+
 
 

@@ -159,9 +159,13 @@ class PiAgent {
   detachWs(ws) {
     this.sockets.delete(ws);
     if (this.sockets.size === 0) {
-      // Reset event buffer so we only capture events that happen while nobody is connected
-      this.eventBuffer = [];
-      this.bufferHead = 0;
+      // Reset event buffer only if NOT busy.
+      // If we are currently streaming/busy, we must retain the buffer so a reconnecting client
+      // can replay the full stream from the beginning of the active generation.
+      if (!this.isBusy) {
+        this.eventBuffer = [];
+        this.bufferHead = 0;
+      }
       // Browser closed. We do NOT kill the subprocess here: a background task
       // keeps running. We only arm the idle-kill, which fires once the agent
       // is truly idle (no streaming, no pending requests) for IDLE_TIMEOUT_MS.
@@ -326,8 +330,11 @@ class PiAgent {
     }
     // Forward every event / response to connected browsers as-is.
     this.wsSend(obj);
-    // If nobody is listening, remember it so a reconnect can replay.
-    if (!this.hasWs) this.bufferEvent(obj);
+    // If nobody is listening, or if the agent is currently busy (streaming), remember it
+    // so any reconnecting or newly connecting clients can replay and catch up.
+    if (!this.hasWs || this.isBusy) {
+      this.bufferEvent(obj);
+    }
   }
 
   bufferEvent(obj) {
@@ -353,9 +360,12 @@ class PiAgent {
       try { ws.send(JSON.stringify(ev)); } catch {}
     }
     try { ws.send(JSON.stringify({ type: "backfill_end", streaming: this.isBusy, state: this.state })); } catch {}
-    // Clear buffer once consumed by the reconnecting client
-    this.eventBuffer = [];
-    this.bufferHead = 0;
+    // Only clear the buffer if the agent is not busy.
+    // If the agent is still busy, keep the buffer so that other clients or future reconnects can still catch up.
+    if (!this.isBusy) {
+      this.eventBuffer = [];
+      this.bufferHead = 0;
+    }
   }
 
   send(cmd) {
