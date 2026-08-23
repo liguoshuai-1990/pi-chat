@@ -1,6 +1,6 @@
 # 架构设计文档
 
-> pi-web-chat 的技术架构、数据流、关键设计决策与扩展点说明（对应 v1.8.3 版本）。
+> pi-web-chat 的技术架构、数据流、关键设计决策与扩展点说明（对应 v1.8.4 版本）。
 
 ---
 
@@ -176,5 +176,6 @@ pi-web-chat/
 │   └── CHANGELOG.md                # 版本变更日志
 └── scripts/                        # 服务安装/卸载脚本
     ├── install-service.sh
+    ├── uninstall-service.sh
     └── pi-web-chat.service
 ```

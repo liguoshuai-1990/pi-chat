@@ -36,13 +36,18 @@ function resolvePiBin() {
 const PI_BIN = resolvePiBin();
 function home() { return os.homedir(); }
 
-function normalizeCwd(dir) {
-  if (!dir) return process.cwd() || home();
-  let resolved = dir;
-  if (dir.startsWith("~")) {
-    resolved = path.join(home(), dir.slice(1));
+function normalizePath(p) {
+  if (!p) return "";
+  let resolved = p;
+  if (p.startsWith("~")) {
+    resolved = path.join(home(), p.slice(1));
   }
   return path.resolve(resolved);
+}
+
+function normalizeCwd(dir) {
+  if (!dir) return process.cwd() || home();
+  return normalizePath(dir);
 }
 
 // Where pi stores sessions, organized by cwd-encoded subdirectory.
@@ -172,13 +177,19 @@ class PiAgent {
       if (IDLE_DROP_HEAP) {
         try { if (typeof global.gc === "function") global.gc(); } catch {}
       }
+      // If unkeyed AND truly idle (never had a session assigned and not busy),
+      // no client can ever re-attach to it. Stop immediately to reclaim memory.
+      if (!this.sessionKey && !this.isBusy) {
+        this.stop();
+        return;
+      }
       this.maybeScheduleIdleKill();
     }
   }
 
   setSessionKey(cwd, sessionPath) {
     if (!sessionPath) return;
-    const resolved = path.resolve(sessionPath);
+    const resolved = normalizePath(sessionPath);
     const key = `${cwd}:${resolved}`;
     if (this.sessionKey && this.sessionKey !== key) {
       activeAgents.delete(this.sessionKey);
@@ -623,7 +634,7 @@ async function listAllSessionFiles() {
   }
 
   // Subdirectory .jsonl files (created by pi itself when cwd is encoded).
-  const subdirs = top.filter(d => d.isDirectory() || d.isSymbolicLink());
+  const subdirs = top.filter(d => d.isDirectory() || (d.isSymbolicLink() && !d.name.endsWith(".jsonl")));
   for (const d of subdirs) {
     const dp = path.join(SESSIONS_DIR, d.name);
     const names = (await readdir(dp).catch(() => [])).filter(f => f.endsWith(".jsonl"));
@@ -717,12 +728,8 @@ app.get("/api/session", async (req, res) => {
     if (!file || !file.endsWith(".jsonl")) return res.status(400).json({ error: "bad file" });
     
     // Security check: ensure the file path is within SESSIONS_DIR
-    let resolvedFile = file;
-    if (resolvedFile.startsWith("~")) {
-      resolvedFile = path.join(home(), resolvedFile.slice(1));
-    }
-    resolvedFile = path.resolve(resolvedFile);
-    const resolvedSessionsDir = path.resolve(SESSIONS_DIR);
+    let resolvedFile = normalizePath(file);
+    const resolvedSessionsDir = normalizePath(SESSIONS_DIR);
     const relPath = path.relative(resolvedSessionsDir, resolvedFile);
     if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
       return res.status(403).json({ error: "Access denied" });
@@ -834,7 +841,7 @@ wss.on("connection", (ws, req) => {
   const url = new URL(req.url, "http://x");
   const cwd = normalizeCwd(url.searchParams.get("cwd"));
   const session = url.searchParams.get("session") || null;
-  const key = session ? `${cwd}:${path.resolve(session)}` : null;
+  const key = session ? `${cwd}:${normalizePath(session)}` : null;
 
   let agent = null;
   if (key && activeAgents.has(key) && activeAgents.get(key).alive) {

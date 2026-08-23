@@ -71,9 +71,10 @@ function updateCwdDisplay() {
   if (wrap) wrap.title = `工作目录: ${state.cwd || "~"}`;
 }
 
-function setCwd(newCwd) {
+async function setCwd(newCwd) {
   state.cwd = newCwd;
   localStorage.setItem("pi_cwd", newCwd);
+  await loadServerConfig();
   updateCwdDisplay();
   clearChat();
   showEmptyState(true);
@@ -112,12 +113,18 @@ function saveRecentModel(model) {
 }
 
 async function loadServerConfig() {
+  if (!state.cwd) {
+    state.cwd = localStorage.getItem("pi_cwd") || document.body.dataset.cwd || "";
+  }
   try {
     const cwdParam = state.cwd ? `?cwd=${encodeURIComponent(state.cwd)}` : "";
     const res = await fetch(`${API}/api/config${cwdParam}`);
     const data = await res.json();
     if (data.home) state.homeDir = data.home;
     if (data.serverCwd) state.serverCwd = data.serverCwd;
+    if (!state.cwd) {
+      state.cwd = state.serverCwd || state.homeDir || "";
+    }
     if (data.version) {
       state.version = data.version;
       const verEl = $("#appVersion");
@@ -131,7 +138,7 @@ async function loadServerConfig() {
     }
   } catch {}
   if (!state.cwd) {
-    state.cwd = localStorage.getItem("pi_cwd") || state.serverCwd || state.homeDir || "";
+    state.cwd = state.serverCwd || state.homeDir || "";
   }
   loadRecentModels();
   updateCwdDisplay();
@@ -358,9 +365,14 @@ function renderInlineMd(text) {
       flushList();
       outHtml += mdTable(seg.lines);
     } else if (seg.kind === "line") {
-      // headings
-      const m = seg.text.match(/^(#{1,6})\s+(.*)$/);
-      if (m) {
+      // horizontal rule
+      if (/^\s*([-*_])\s*\1\s*\1[\s\-_*]*$/.test(seg.text)) {
+        flushPara();
+        flushList();
+        outHtml += "<hr>";
+      } else if (/^(#{1,6})\s+(.*)$/.test(seg.text)) {
+        // headings
+        const m = seg.text.match(/^(#{1,6})\s+(.*)$/);
         flushPara();
         flushList();
         const level = m[1].length;
@@ -373,7 +385,7 @@ function renderInlineMd(text) {
         flushPara();
         flushList();
         outHtml += `<blockquote>${mdInlineBlock(seg.text.replace(/^>\s?/, ""))}</blockquote>`;
-      } else if (/^\s*[-*]\s+/.test(seg.text) || /^\s*\d+\.\s+/.test(seg.text)) {
+      } else if (/^\s*[-*+]\s+/.test(seg.text) || /^\s*\d+\.\s+/.test(seg.text)) {
         // list item — group consecutive into ul/ol
         // simple inline handling: wrap each list item line.
         const isOrdered = /^\s*\d+\.\s+/.test(seg.text);
@@ -384,7 +396,16 @@ function renderInlineMd(text) {
           linkListOrdered = isOrdered;
           outHtml += "<" + linkListOpen + ">";
         }
-        outHtml += `<li>${mdInlineBlock(seg.text.replace(/^\s*([-*]|\d+\.)\s+/, ""))}</li>`;
+        let itemText = seg.text.replace(/^\s*([-*+]|\d+\.)\s+/, "");
+        let taskPrefix = "";
+        if (/^\[ \]\s+/.test(itemText)) {
+          taskPrefix = '<input type="checkbox" disabled class="task-list-item-checkbox"> ';
+          itemText = itemText.replace(/^\[ \]\s+/, "");
+        } else if (/^\[[xX]\]\s+/.test(itemText)) {
+          taskPrefix = '<input type="checkbox" checked disabled class="task-list-item-checkbox"> ';
+          itemText = itemText.replace(/^\[[xX]\]\s+/, "");
+        }
+        outHtml += `<li>${taskPrefix}${mdInlineBlock(itemText)}</li>`;
       } else {
         flushList();
         para.push(seg.text);
@@ -405,6 +426,8 @@ function mdInlineBlock(text) {
   // bold
   s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+  // strikethrough
+  s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
   // italic
   s = s.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
   s = s.replace(/(^|[^_])_([^_]+)_/g, "$1<em>$2</em>");
@@ -514,6 +537,44 @@ function initMobileToolbarFab() {
   });
 }
 
+async function syncSessionHistory(file, force = false) {
+  if (!file) return;
+  try {
+    const res = await fetch(`${API}/api/session?file=${encodeURIComponent(file)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data || data.error) return;
+
+    if (data.header?.cwd && data.header.cwd !== state.cwd) {
+      state.cwd = data.header.cwd;
+      localStorage.setItem("pi_cwd", state.cwd);
+      updateCwdDisplay();
+    }
+
+    if (data.model) {
+      state.currentModel = data.model;
+      renderModelPill();
+    }
+
+    const topName = data.sessionName || (data.header?.id ? baseName(file) : "新对话");
+    $("#topSessionName").textContent = topName;
+
+    // Only overwrite chat if force is true or we're not actively streaming mid-turn live
+    if (force || !state.streaming) {
+      clearChat();
+      const msgs = reconstructFromEntries(data.entries || []);
+      showEmptyState(msgs.length === 0);
+      for (const m of msgs) {
+        appendMessageNode(m.role, m);
+      }
+      scrollBottom();
+      refreshSessions();
+    }
+  } catch (e) {
+    console.warn("syncSessionHistory error:", e);
+  }
+}
+
 async function loadSession(file) {
   state.currentSessionFile = file;
   state.streaming = false;
@@ -529,38 +590,9 @@ async function loadSession(file) {
   if (window.innerWidth <= 768) {
     closeSidebar();
   }
-  // pull transcript from REST then connect a fresh WS pointed at this session
-  const res = await fetch(`${API}/api/session?file=${encodeURIComponent(file)}`);
-  const data = await res.json();
-
-  if (!res.ok || data.error) {
-    showToast(`加载会话失败: ${data.error || "无法读取会话文件"}`);
-    showEmptyState(true);
-    state.currentSessionFile = null;
-    return;
-  }
-
-  if (data.model) {
-    state.currentModel = data.model;
-    renderModelPill();
-  }
-
-  const topName = data.sessionName || (data.header?.id ? baseName(file) : "新对话");
-  $("#topSessionName").textContent = topName;
-
-  clearChat();
-  document.querySelector("#emptyState").style.display = "none";
-  const chat = $("#chat-inner");
-  // Walk through path entries to render messages in order.
-  // We reconstruct assistant/user/toolResult blocks.
-  const msgs = reconstructFromEntries(data.entries || []);
-  for (const m of msgs) {
-    appendMessageNode(m.role, m);
-  }
+  await syncSessionHistory(file, true);
   // Reconnect websocket pointed at this session so new prompts continue history.
   connectWs({ session: file });
-  // Update sidebar active highlight
-  refreshSessions();
 }
 
 function reconstructFromEntries(entries) {
@@ -592,7 +624,7 @@ function reconstructFromEntries(entries) {
         }
         return part;
       });
-      if (m.stopReason === "error" && content.length === 0) {
+      if (m.stopReason === "error") {
         let errMsg = m.errorMessage || "生成失败（模型返回错误）";
         try {
           const parsed = JSON.parse(errMsg);
@@ -613,7 +645,8 @@ function extractContentText(content) {
   return content
     .filter(c => c && (c.type === "text" || typeof c === "string"))
     .map(c => typeof c === "string" ? c : (c.text || ""))
-    .join("");
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function appendSystemNotice(text) {
@@ -846,14 +879,22 @@ function makeToolBlockFromCall(call) {
 
 function summaryArgs(name, args) {
   if (!args) return "";
+  let obj = args;
+  if (typeof args === "string") {
+    try { obj = JSON.parse(args); } catch { return args; }
+  }
   try {
-    if (name === "bash" && args.command) return args.command;
-    if (name === "read" && args.path) return args.path;
-    if (name === "write" && args.path) return args.path;
-    if (name === "edit" && args.path) return args.path;
-    if (name === "ls" && args.path) return args.path;
-    if (name === "grep") return args.pattern || "";
-    if (name === "find") return args.pattern || args.path || "";
+    if (name === "bash" && obj.command) return obj.command;
+    if (name === "read" && obj.path) return obj.path;
+    if (name === "write" && obj.path) return obj.path;
+    if (name === "edit" && obj.path) return obj.path;
+    if (name === "ls" && obj.path) return obj.path;
+    if (name === "grep") return obj.pattern || "";
+    if (name === "find") return obj.pattern || obj.path || "";
+    if (typeof obj === "object" && obj !== null) {
+      const keys = Object.keys(obj);
+      if (keys.length === 1 && typeof obj[keys[0]] === "string") return obj[keys[0]];
+    }
     return "";
   } catch { return ""; }
 }
@@ -1121,14 +1162,18 @@ function connectWs(opts = {}) {
   state.ws = ws;
   ws._gen = myGen;
 
-  ws.onopen = () => {
+  ws.onopen = async () => {
     if (ws._gen !== wsGen) return;
     isConnecting = false;
     setConnStatus("connected");
     startPingInterval();
 
-    if (wasDisconnected || reconnectAttempts > 0) {
+    const isReconnecting = wasDisconnected || reconnectAttempts > 0 || opts.isReconnect;
+    if (isReconnecting) {
       showToast("网络连接已恢复");
+      if (targetSession) {
+        await syncSessionHistory(targetSession, true);
+      }
     }
     wasDisconnected = false;
     reconnectAttempts = 0;
@@ -1189,6 +1234,11 @@ function handlePiMessage(obj) {
   // that happened in the background while no browser was attached.
   if (obj.type === "backfill_start") {
     state.isBackfilling = true;
+    state.streaming = true;
+    setComposerAborting(true);
+    state.streamingItems = [];
+    state.streamingMsg = null;
+    state.activeToolCalls.clear();
     return;
   }
   if (obj.type === "backfill_end") {
@@ -1199,6 +1249,11 @@ function handlePiMessage(obj) {
       setComposerAborting(true);
       ensureStreamingMsg();
       refreshStreamingContent();
+    } else {
+      finalizeStreamingMsg();
+      state.streaming = false;
+      setComposerAborting(false);
+      refreshSessions();
     }
     // jump to the latest content once the replay is done
     requestAnimationFrame(scrollBottom);
@@ -1389,8 +1444,7 @@ function handlePiMessage(obj) {
     case "tool_execution_update": {
       const tc = state.activeToolCalls.get(obj.toolCallId);
       if (tc) {
-        const pr = obj.partialResult;
-        const text = pr && pr.content ? (Array.isArray(pr.content) ? pr.content.map(c => c.text || "").join("") : "") : "";
+        const text = extractContentText(obj.partialResult?.content);
         tc.body.innerHTML = escapeHtml(text) || "(执行中…)";
       }
       break;
@@ -1398,8 +1452,7 @@ function handlePiMessage(obj) {
     case "tool_execution_end": {
       const tc = state.activeToolCalls.get(obj.toolCallId);
       if (tc) {
-        const res = obj.result;
-        const text = res && res.content ? (Array.isArray(res.content) ? res.content.map(c => c.text || "").join("") : "") : "";
+        const text = extractContentText(obj.result?.content);
         tc.body.innerHTML = escapeHtml(text) || "(无输出)";
         tc.head.querySelector(".state").textContent = obj.isError ? "错误" : "完成";
         tc.head.querySelector(".state").classList.toggle("error", !!obj.isError);
@@ -1508,7 +1561,11 @@ function updateState(d) {
       finalizeStreamingMsg();
       state.streaming = false;
       setComposerAborting(false);
-      refreshSessions();
+      if (state.currentSessionFile) {
+        syncSessionHistory(state.currentSessionFile, true);
+      } else {
+        refreshSessions();
+      }
     }
   }
 }
@@ -2323,7 +2380,19 @@ async function init() {
         scheduleReconnect(0);
       } else {
         try { state.ws.send(JSON.stringify({ type: "ping" })); } catch {}
+        if (state.currentSessionFile && !state.streaming) {
+          syncSessionHistory(state.currentSessionFile, true);
+        }
       }
+    }
+  });
+
+  window.addEventListener("pageshow", () => {
+    if (!state.wsConnected) {
+      reconnectAttempts = 0;
+      scheduleReconnect(0);
+    } else if (state.currentSessionFile && !state.streaming) {
+      syncSessionHistory(state.currentSessionFile, true);
     }
   });
 

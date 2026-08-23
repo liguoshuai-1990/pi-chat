@@ -439,12 +439,30 @@ body {
 }
 .msg.assistant .content ul, .msg.assistant .content ol { margin: 8px 0 12px 24px; }
 .msg.assistant .content li { margin: 4px 0; }
-.msg.assistant .content h1, .msg.assistant .content h2, .msg.assistant .content h3 {
+.msg.assistant .content h1, .msg.assistant .content h2, .msg.assistant .content h3,
+.msg.assistant .content h4, .msg.assistant .content h5, .msg.assistant .content h6 {
   margin: 16px 0 10px; line-height: 1.3;
 }
 .msg.assistant .content h1 { font-size: 20px; }
 .msg.assistant .content h2 { font-size: 18px; }
 .msg.assistant .content h3 { font-size: 16px; }
+.msg.assistant .content h4 { font-size: 14.5px; }
+.msg.assistant .content h5 { font-size: 13.5px; }
+.msg.assistant .content h6 { font-size: 12.5px; }
+.msg.assistant .content hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+.msg.assistant .content del {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.msg.assistant .content .task-list-item-checkbox {
+  margin-right: 6px;
+  vertical-align: -2px;
+  accent-color: var(--accent);
+}
 .msg.assistant .content a { color: #4ea1ff; text-decoration: none; }
 .msg.assistant .content a:hover { text-decoration: underline; }
 .msg.assistant .content table {

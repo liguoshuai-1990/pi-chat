@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.4] - 2026-07-26
+
+### Added
+- **Markdown 渲染能力增强 (Markdown Enhancements: HR, Strikethrough & Task Checkboxes)**：
+  - 支持标准 Markdown 水平分割线（`---`、`***`、`___`）渲染为 `<hr>` 标签。
+  - 支持删除线语法（`~~strikethrough~~`）渲染为 `<del>` 标签。
+  - 支持任务列表复选框（`- [ ]` 与 `- [x]`）及加号无序列表（`+ item`）。
+  - 为 `h4`、`h5`、`h6`、`hr`、`del` 及任务复选框补充了精细的暗色主题 CSS 样式。
+
+### Fixed
+- **移动端息屏/切出恢复后历史消息自动同步 (Mobile Reconnect Session Auto-Sync)**：
+  - 修复手机端在后台挂起或息屏后切回页面时，未能及时同步后台已生成完毕的最新回复内容的问题。
+  - 增加 `syncSessionHistory` 历史同步机制，并在 `ws.onopen`、`visibilitychange` 与 `pageshow` 事件中自动拉取磁盘最新消息渲染至对话区。
+  - 优化 `backfill_start` / `backfill_end` 流式状态重置，保障后台生成途中切回时无缝追平实时生成内容。
+- **未绑定会话孤儿子进程即时回收 (Immediate Cleanup of Unkeyed Idle Agents)**：当客户端打开新建会话页面但未发送消息即关闭或切换时，后端未分配 Session Key 的孤立 `PiAgent` 进程在连接断开后立即释放，避免占用 5 分钟闲置内存。
+- **切换与加载历史会话时工作目录自动同步 (Session CWD Auto-Sync)**：点击侧边栏或通过 URL 参数（`?session=...`）打开会话时，自动将 `state.cwd` 同步为会话真实的 `data.header.cwd`，确保 Agent 执行环境与会话一致。
+- **工作目录变更后项目级默认配置实时重载 (Project Settings Live Reload on CWD Change)**：切换工作目录时重新获取 `/api/config?cwd=...`，确保项目根目录下的 `.pi/settings.json` 模型配置即时生效。
+- **波浪号路径解析规范化 (Tilde `~` Path Resolution Normalization)**：服务端引入统一的 `normalizePath`，确保会话参数与路径校验中包含的 `~` 家目录前缀能被正确展开并绝对化。
+- **历史错误消息展示保护 (Error Notice on Historical Failed Messages)**：修复历史会话中若生成中途报错中断时未能渲染失败提示条的问题。
+- **Package.json 发布字段补充 (Scripts Directory Inclusion)**：在 `package.json` 的 `files` 字段中加入 `scripts/` 目录，确保 Systemd 服务脚本正常打包发布。
+
+---
+
 ## [1.8.3] - 2026-07-26
 
 ### Fixed
