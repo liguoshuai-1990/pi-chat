@@ -811,9 +811,12 @@ body {
 .input-group {
   display: flex;
   gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 .input-group input {
   flex: 1;
+  min-width: 0;
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -822,6 +825,7 @@ body {
   font-size: 13px;
   font-family: "SF Mono", Menlo, Consolas, monospace;
   outline: none;
+  box-sizing: border-box;
 }
 .input-group input:focus {
   border-color: var(--text-dim);
@@ -837,6 +841,8 @@ body {
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 .btn-primary:hover { background: var(--accent-hover); }
 
@@ -1434,6 +1440,58 @@ body {
   .composer .send-btn {
     width: 32px;
     height: 32px;
+  }
+
+  /* CWD Modal Mobile Adjustments */
+  .modal {
+    width: 92%;
+    max-width: 440px;
+    padding: 16px;
+    border-radius: 14px;
+    gap: 12px;
+    box-sizing: border-box;
+  }
+  .modal-header h3 {
+    font-size: 15px;
+  }
+  .modal-desc {
+    font-size: 12px;
+  }
+  .input-group {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .input-group input {
+    font-size: 13px;
+    padding: 9px 10px;
+    min-width: 0;
+  }
+  .btn-primary {
+    padding: 0 14px;
+    font-size: 12px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .quick-dirs .chips .chip {
+    font-size: 11px;
+    padding: 5px 8px;
+    word-break: break-all;
+  }
+
+  @media (max-width: 380px) {
+    .input-group {
+      flex-direction: column;
+      gap: 8px;
+    }
+    .btn-primary {
+      width: 100%;
+    }
   }
 
   .composer-hint {

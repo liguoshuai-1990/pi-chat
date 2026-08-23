@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.3] - 2026-07-26
+
+### Fixed
+- **移动端工作目录切换弹窗按钮溢出修复 (CWD Modal Mobile Overflow & Input Sizing)**：
+  - 修复手机端切换工作目录弹窗中“确定切换”按钮超出卡片右侧边框的问题。
+  - 为 `.input-group input` 添加 `min-width: 0` 和 `box-sizing: border-box`，消除原生 input 元素的内在最小宽度导致的 Flexbox 溢出。
+  - 适配移动端弹窗内边距与间距（padding 降至 16px），并在 `<= 380px` 窄屏设备上自适应将按钮折行全宽呈现，防止水平溢出。
+
+---
+
 ## [1.8.2] - 2026-07-26
 
 ### Fixed
