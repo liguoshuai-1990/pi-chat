@@ -3,7 +3,7 @@
 // for listing sessions and reading session history from the JSONL store.
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
-import { readFile, readdir, stat } from "fs/promises";
+import { readFile, readdir, stat, writeFile, mkdir } from "fs/promises";
 import { readFileSync, existsSync } from "fs";
 import { StringDecoder } from "string_decoder";
 import express from "express";
@@ -467,13 +467,102 @@ app.post("/api/log-error", (req, res) => {
   res.json({ ok: true });
 });
 
-// Endpoint to get server environment config (home dir, server process cwd)
-app.get("/api/config", (req, res) => {
+// Helper to resolve pi settings (global and project-level)
+async function getPiSettings(targetCwd) {
+  const globalPath = path.join(home(), ".pi", "agent", "settings.json");
+  let globalSettings = {};
+  let globalExists = false;
+  try {
+    if (existsSync(globalPath)) {
+      globalSettings = JSON.parse(await readFile(globalPath, "utf8"));
+      globalExists = true;
+    }
+  } catch {}
+
+  let projectSettings = {};
+  let projectExists = false;
+  if (targetCwd) {
+    try {
+      const pPath = path.join(targetCwd, ".pi", "settings.json");
+      if (existsSync(pPath)) {
+        projectSettings = JSON.parse(await readFile(pPath, "utf8"));
+        projectExists = true;
+      }
+    } catch {}
+  }
+
+  const defaultProvider = projectSettings.defaultProvider || globalSettings.defaultProvider || null;
+  const defaultModel = projectSettings.defaultModel || globalSettings.defaultModel || null;
+  const defaultThinkingLevel = projectSettings.defaultThinkingLevel || globalSettings.defaultThinkingLevel || null;
+  const source = (projectExists && projectSettings.defaultModel) ? "project" : ((globalExists && globalSettings.defaultModel) ? "global" : "default");
+
+  return {
+    defaultProvider,
+    defaultModel,
+    defaultThinkingLevel,
+    source,
+    globalSettings,
+    projectSettings,
+  };
+}
+
+// Endpoint to get server environment config (home dir, server process cwd, default model settings)
+app.get("/api/config", async (req, res) => {
+  const reqCwd = normalizeCwd(req.query.cwd || "");
+  const settings = await getPiSettings(reqCwd);
   res.json({
     home: home(),
     serverCwd: process.cwd(),
     version: PKG_VERSION,
+    defaultModel: {
+      provider: settings.defaultProvider,
+      id: settings.defaultModel,
+      thinkingLevel: settings.defaultThinkingLevel,
+      source: settings.source,
+    },
   });
+});
+
+// Endpoint to set default model in global or project settings.json
+app.post("/api/set-default-model", async (req, res) => {
+  try {
+    const { provider, modelId, thinkingLevel, scope, cwd: reqCwd } = req.body;
+    if (!provider || !modelId) {
+      return res.status(400).json({ ok: false, error: "缺少 provider 或 modelId 参数" });
+    }
+
+    const isProject = scope === "project" && reqCwd;
+    const settingsPath = isProject
+      ? path.join(normalizeCwd(reqCwd), ".pi", "settings.json")
+      : path.join(home(), ".pi", "agent", "settings.json");
+
+    await mkdir(path.dirname(settingsPath), { recursive: true });
+
+    let current = {};
+    try {
+      if (existsSync(settingsPath)) {
+        current = JSON.parse(await readFile(settingsPath, "utf8"));
+      }
+    } catch {}
+
+    current.defaultProvider = provider;
+    current.defaultModel = modelId;
+    if (thinkingLevel !== undefined) {
+      current.defaultThinkingLevel = thinkingLevel;
+    }
+
+    await writeFile(settingsPath, JSON.stringify(current, null, 2), "utf8");
+
+    res.json({
+      ok: true,
+      scope: isProject ? "project" : "global",
+      defaultProvider: provider,
+      defaultModel: modelId,
+      defaultThinkingLevel: current.defaultThinkingLevel || null,
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 // Endpoint to validate if a directory path exists on the server
@@ -802,6 +891,12 @@ wss.on("connection", (ws, req) => {
         break;
       case "set_model":
         agent.send({ type: "set_model", provider: msg.provider, modelId: msg.modelId });
+        break;
+      case "set_thinking_level":
+        agent.send({ type: "set_thinking_level", level: msg.level });
+        break;
+      case "cycle_thinking_level":
+        agent.send({ type: "cycle_thinking_level" });
         break;
       case "extension_ui_response":
         agent.sendNoReply({ type: "extension_ui_response", ...msg });

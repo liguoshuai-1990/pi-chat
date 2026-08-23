@@ -37,6 +37,8 @@ const state = {
   streaming: false,
   models: [],
   currentModel: null,
+  defaultModel: null,
+  recentModels: [],
   thinkingLevel: "medium",
   sessionId: null,
   isBackfilling: false,
@@ -81,9 +83,38 @@ function setCwd(newCwd) {
   refreshSessions();
 }
 
+function loadRecentModels() {
+  try {
+    const raw = localStorage.getItem("pi_recent_models");
+    if (raw) {
+      state.recentModels = JSON.parse(raw);
+    }
+  } catch {
+    state.recentModels = [];
+  }
+}
+
+function saveRecentModel(model) {
+  if (!model || !model.id) return;
+  loadRecentModels();
+  const filtered = state.recentModels.filter(m => !(m.id === model.id && m.provider === model.provider));
+  filtered.unshift({
+    id: model.id,
+    name: model.name || model.id,
+    provider: model.provider,
+    reasoning: model.reasoning,
+    input: model.input,
+  });
+  state.recentModels = filtered.slice(0, 4);
+  try {
+    localStorage.setItem("pi_recent_models", JSON.stringify(state.recentModels));
+  } catch {}
+}
+
 async function loadServerConfig() {
   try {
-    const res = await fetch(`${API}/api/config`);
+    const cwdParam = state.cwd ? `?cwd=${encodeURIComponent(state.cwd)}` : "";
+    const res = await fetch(`${API}/api/config${cwdParam}`);
     const data = await res.json();
     if (data.home) state.homeDir = data.home;
     if (data.serverCwd) state.serverCwd = data.serverCwd;
@@ -92,11 +123,20 @@ async function loadServerConfig() {
       const verEl = $("#appVersion");
       if (verEl) verEl.textContent = `v${data.version}`;
     }
+    if (data.defaultModel) {
+      state.defaultModel = data.defaultModel;
+      if (data.defaultModel.thinkingLevel && !state.thinkingLevel) {
+        state.thinkingLevel = data.defaultModel.thinkingLevel;
+      }
+    }
   } catch {}
   if (!state.cwd) {
     state.cwd = localStorage.getItem("pi_cwd") || state.serverCwd || state.homeDir || "";
   }
+  loadRecentModels();
   updateCwdDisplay();
+  renderModelPill();
+  updateEmptyStateModelInfo();
 }
 
 async function openCwdModal() {
@@ -1149,14 +1189,34 @@ function handlePiMessage(obj) {
     else if (obj.command === "get_available_models" && obj.success) updateModels(obj.data.models || []);
     else if (obj.command === "set_model") {
       if (obj.success) {
+        const prev = state.currentModel;
         if (obj.data) state.currentModel = obj.data;
+        saveRecentModel(state.currentModel);
         renderModelPill();
         renderModelMenu();
-        showToast(`已切换模型: ${state.currentModel?.name || state.currentModel?.id || ""}`);
+        const modelLabel = state.currentModel?.name || state.currentModel?.id || "";
+        showToast(`已切换模型: ${modelLabel}`);
+        if (prev && (prev.id !== state.currentModel?.id || prev.provider !== state.currentModel?.provider)) {
+          appendSystemNotice(`已切换模型至 ${state.currentModel?.provider ? state.currentModel.provider + " / " : ""}${modelLabel}`);
+        }
         sendWs({ type: "get_state" });
       } else {
         showToast(`切换模型失败: ${obj.error || "未知错误"}`);
         renderModelPill();
+      }
+    }
+    else if (obj.command === "set_thinking_level") {
+      if (obj.success) {
+        showToast(`已更新思考深度: ${formatThinkingLevel(state.thinkingLevel)}`);
+      } else {
+        showToast(`设置思考深度失败: ${obj.error || "未知错误"}`);
+      }
+    }
+    else if (obj.command === "cycle_thinking_level" && obj.success) {
+      if (obj.data?.thinkingLevel) {
+        state.thinkingLevel = obj.data.thinkingLevel;
+        renderThinkingPill();
+        updateEmptyStateModelInfo();
       }
     }
     else if (obj.command === "switch_session" && obj.success) {
@@ -1181,8 +1241,10 @@ function handlePiMessage(obj) {
     case "model_select":
       if (obj.model) {
         state.currentModel = obj.model;
+        saveRecentModel(obj.model);
         renderModelPill();
         renderModelMenu();
+        updateEmptyStateModelInfo();
       }
       break;
     case "remote_user_prompt":
@@ -1399,8 +1461,16 @@ function handleEntries(entries, leafId) { /* no-op: history rendered via REST */
 function updateState(d) {
   if (d?.sessionFile) state.currentSessionFile = d.sessionFile;
   if (d?.sessionId) state.sessionId = d.sessionId;
-  if (d?.model) { state.currentModel = d.model; renderModelPill(); }
-  if (d?.thinkingLevel) state.thinkingLevel = d.thinkingLevel;
+  if (d?.model) {
+    state.currentModel = d.model;
+    saveRecentModel(d.model);
+    renderModelPill();
+  }
+  if (d?.thinkingLevel) {
+    state.thinkingLevel = d.thinkingLevel;
+    renderThinkingPill();
+  }
+  updateEmptyStateModelInfo();
   $("#topSessionName").textContent = d?.sessionName || (d?.sessionFile ? baseName(d.sessionFile) : "新对话");
 
   // Sync streaming state upon state updates (e.g. after reconnect)
@@ -1426,10 +1496,41 @@ function updateModels(models) {
   renderModelPill();
 }
 
+function formatThinkingLevel(lvl) {
+  if (!lvl) return "Medium";
+  return lvl.charAt(0).toUpperCase() + lvl.slice(1);
+}
+
+function isCurrentModelDefault() {
+  if (!state.defaultModel || !state.currentModel) return false;
+  const defId = state.defaultModel.id;
+  const curId = state.currentModel.id;
+  if (!defId || !curId) return false;
+  if (defId !== curId) return false;
+  if (state.defaultModel.provider && state.currentModel.provider) {
+    return state.defaultModel.provider === state.currentModel.provider;
+  }
+  return true;
+}
+
 function renderModelPill() {
   const m = state.currentModel;
   const pill = $("#modelPill");
-  if (!m) { pill.textContent = "选择模型"; return; }
+  const nameEl = $("#modelPillName");
+  const badgeEl = $("#modelPillBadge");
+  if (!pill) return;
+
+  pill.disabled = state.streaming;
+
+  if (!m) {
+    if (nameEl) nameEl.textContent = "选择模型";
+    if (badgeEl) badgeEl.style.display = "none";
+    pill.title = "点击选择模型 (快捷键: Ctrl+M)";
+    renderThinkingPill();
+    updateEmptyStateModelInfo();
+    return;
+  }
+
   const provider = m.provider || "?";
   let name = m.name || m.id;
   if (state.models && state.models.length > 0) {
@@ -1439,11 +1540,203 @@ function renderModelPill() {
       name = found.name;
     }
   }
-  pill.textContent = `${provider} / ${name}`;
-  pill.title = `当前模型: ${provider} / ${name} (${m.id})`;
+
+  if (nameEl) nameEl.textContent = `${provider} / ${name}`;
+
+  const isDefault = isCurrentModelDefault();
+  if (badgeEl) {
+    if (isDefault) {
+      badgeEl.textContent = state.defaultModel?.source === "project" ? "★ 项目默认" : "★ 默认";
+      badgeEl.style.display = "inline-block";
+    } else {
+      badgeEl.style.display = "none";
+    }
+  }
+
+  if (state.streaming) {
+    pill.title = "生成中暂不可切换模型";
+  } else if (isDefault) {
+    pill.title = `当前模型: ${provider} / ${name} (默认模型 · ${state.defaultModel?.source === 'project' ? '来自项目配置' : '来自全局配置'})`;
+  } else {
+    const defDesc = state.defaultModel?.id ? ` · 默认: ${state.defaultModel.provider || ''}/${state.defaultModel.id}` : "";
+    pill.title = `当前模型: ${provider} / ${name} (${m.id}${defDesc})`;
+  }
+
+  renderThinkingPill();
+  updateEmptyStateModelInfo();
+}
+
+function renderThinkingPill() {
+  const pill = $("#thinkingPill");
+  const labelEl = $("#thinkingPillLabel");
+  if (!pill) return;
+
+  const m = state.currentModel;
+  let supportsThinking = false;
+  if (m) {
+    if (m.reasoning === true) supportsThinking = true;
+    else if (state.models && state.models.length > 0) {
+      const found = state.models.find(item => item.id === m.id && item.provider === m.provider) ||
+                    state.models.find(item => item.id === m.id);
+      if (found && found.reasoning === true) supportsThinking = true;
+    }
+  }
+
+  if (!supportsThinking) {
+    pill.style.display = "none";
+    const menu = $("#thinkingMenu");
+    if (menu) menu.classList.remove("open");
+    return;
+  }
+
+  pill.style.display = "inline-flex";
+  pill.disabled = state.streaming;
+  if (labelEl) {
+    labelEl.textContent = formatThinkingLevel(state.thinkingLevel);
+  }
+  pill.title = `深度思考: ${formatThinkingLevel(state.thinkingLevel)} (点击调整)`;
+}
+
+const THINKING_LEVELS = [
+  { level: "off", label: "Off", desc: "关闭思考" },
+  { level: "minimal", label: "Minimal", desc: "最小思考" },
+  { level: "low", label: "Low", desc: "轻度思考" },
+  { level: "medium", label: "Medium", desc: "中等思考 (推荐)" },
+  { level: "high", label: "High", desc: "深度思考" },
+  { level: "xhigh", label: "Extra High", desc: "超高思考" },
+  { level: "max", label: "Max", desc: "最大思考深度" },
+];
+
+function renderThinkingMenu() {
+  const menu = $("#thinkingMenu");
+  if (!menu) return;
+  menu.innerHTML = "";
+
+  const titleRow = el("div", { class: "thinking-menu-title" }, [
+    el("span", { text: "🧠 深度思考设置" }),
+    el("span", { text: "Reasoning", style: "font-size: 10px; font-weight: normal;" })
+  ]);
+  menu.appendChild(titleRow);
+
+  const curLevel = (state.thinkingLevel || "medium").toLowerCase();
+  for (const item of THINKING_LEVELS) {
+    const active = item.level === curLevel;
+    const opt = el("div", {
+      class: "thinking-opt" + (active ? " active" : ""),
+      onclick: () => {
+        state.thinkingLevel = item.level;
+        sendWs({ type: "set_thinking_level", level: item.level });
+        renderThinkingPill();
+        updateEmptyStateModelInfo();
+        showToast(`已设置思考级别: ${item.label}`);
+        menu.classList.remove("open");
+      }
+    }, [
+      el("span", { text: (active ? "✓ " : "") + item.label }),
+      el("span", { class: "level-desc", text: item.desc })
+    ]);
+    menu.appendChild(opt);
+  }
+}
+
+function updateEmptyStateModelInfo() {
+  const nameEl = $("#emptyModelName");
+  const badgeEl = $("#emptyModelBadge");
+  const featsEl = $("#emptyModelFeatures");
+  if (!nameEl) return;
+
+  const m = state.currentModel;
+  if (!m) {
+    nameEl.textContent = "未选择模型";
+    if (badgeEl) badgeEl.style.display = "none";
+    if (featsEl) featsEl.innerHTML = "";
+    return;
+  }
+
+  const provider = m.provider || "?";
+  let name = m.name || m.id;
+  let supportsThinking = m.reasoning === true;
+  let supportsVision = Array.isArray(m.input) && m.input.includes("image");
+
+  if (state.models && state.models.length > 0) {
+    const found = state.models.find(item => item.id === m.id && item.provider === m.provider) ||
+                  state.models.find(item => item.id === m.id);
+    if (found) {
+      if (found.name) name = found.name;
+      if (found.reasoning === true) supportsThinking = true;
+      if (Array.isArray(found.input) && found.input.includes("image")) supportsVision = true;
+    }
+  }
+
+  nameEl.textContent = `${provider} / ${name}`;
+
+  const isDefault = isCurrentModelDefault();
+  if (badgeEl) {
+    if (isDefault) {
+      badgeEl.textContent = state.defaultModel?.source === "project" ? "★ 项目默认" : "★ 默认模型";
+      badgeEl.style.display = "inline-block";
+    } else {
+      badgeEl.style.display = "none";
+    }
+  }
+
+  if (featsEl) {
+    featsEl.innerHTML = "";
+    if (supportsThinking) {
+      featsEl.appendChild(el("span", {
+        class: "badge-feature",
+        text: `🧠 思考: ${formatThinkingLevel(state.thinkingLevel)}`
+      }));
+    }
+    if (supportsVision) {
+      featsEl.appendChild(el("span", {
+        class: "badge-feature",
+        text: "👁️ 支持多模态识图"
+      }));
+    }
+    if (m.id && m.name && m.id !== m.name) {
+      featsEl.appendChild(el("span", {
+        style: "font-family: monospace; font-size: 11px;",
+        text: m.id
+      }));
+    }
+  }
+}
+
+async function setDefaultModel(m) {
+  try {
+    const res = await fetch(`${API}/api/set-default-model`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: m.provider,
+        modelId: m.id,
+        cwd: state.cwd,
+        scope: "global",
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      state.defaultModel = {
+        provider: m.provider,
+        id: m.id,
+        thinkingLevel: data.defaultThinkingLevel || state.thinkingLevel,
+        source: data.scope || "global",
+      };
+      renderModelPill();
+      renderModelMenu();
+      updateEmptyStateModelInfo();
+      showToast(`已将 ${m.name || m.id} 设为全局默认模型`);
+    } else {
+      showToast(`设为默认模型失败: ${data.error || "未知错误"}`);
+    }
+  } catch (e) {
+    showToast(`设置失败: ${e.message}`);
+  }
 }
 
 let modelSearchQuery = "";
+let focusedModelIndex = -1;
 
 function renderModelMenu() {
   const menu = $("#modelMenu");
@@ -1468,17 +1761,36 @@ function renderModelMenu() {
     searchInput.addEventListener("click", (e) => e.stopPropagation());
     searchInput.addEventListener("input", (e) => {
       modelSearchQuery = e.target.value;
+      focusedModelIndex = -1;
       renderModelList(listContainer);
       const clearBtn = $(".btn-clear-model-search", searchWrap);
       if (clearBtn) clearBtn.style.display = modelSearchQuery ? "block" : "none";
     });
     searchInput.addEventListener("keydown", (e) => {
+      const items = listContainer._items || [];
       if (e.key === "Escape") {
         menu.classList.remove("open");
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (items.length === 0) return;
+        focusedModelIndex = (focusedModelIndex + 1) % items.length;
+        items.forEach((it, idx) => it.element.classList.toggle("focused", idx === focusedModelIndex));
+        if (items[focusedModelIndex]) {
+          items[focusedModelIndex].element.scrollIntoView({ block: "nearest" });
+        }
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (items.length === 0) return;
+        focusedModelIndex = (focusedModelIndex - 1 + items.length) % items.length;
+        items.forEach((it, idx) => it.element.classList.toggle("focused", idx === focusedModelIndex));
+        if (items[focusedModelIndex]) {
+          items[focusedModelIndex].element.scrollIntoView({ block: "nearest" });
+        }
       } else if (e.key === "Enter") {
-        const visibleOpts = listContainer.querySelectorAll(".opt");
-        if (visibleOpts.length > 0) {
-          visibleOpts[0].click();
+        if (focusedModelIndex >= 0 && items[focusedModelIndex]) {
+          items[focusedModelIndex].element.click();
+        } else if (items.length > 0) {
+          items[0].element.click();
         }
       }
     });
@@ -1494,6 +1806,7 @@ function renderModelMenu() {
         modelSearchQuery = "";
         searchInput.value = "";
         clearBtn.style.display = "none";
+        focusedModelIndex = -1;
         searchInput.focus();
         renderModelList(listContainer);
       }
@@ -1525,9 +1838,88 @@ function renderModelList(listContainer) {
 
   if (filteredModels.length === 0) {
     listContainer.appendChild(el("div", { class: "model-empty", text: "未找到匹配的模型" }));
+    listContainer._items = [];
     return;
   }
 
+  const allRenderedItems = [];
+
+  function renderModelOption(m, isDefaultBadge = false) {
+    const active = state.currentModel && m.id === state.currentModel.id && m.provider === state.currentModel.provider;
+    const isDef = state.defaultModel && m.id === state.defaultModel.id && (!state.defaultModel.provider || m.provider === state.defaultModel.provider);
+
+    const featureBadges = [];
+    if (m.reasoning) featureBadges.push(el("span", { class: "badge-feature", text: "🧠 Thinking" }));
+    if (Array.isArray(m.input) && m.input.includes("image")) featureBadges.push(el("span", { class: "badge-feature", text: "👁️ Vision" }));
+    if (isDef || isDefaultBadge) featureBadges.push(el("span", { class: "badge-default-tag", text: "★ 默认" }));
+
+    const setDefaultBtn = isDef ? null : el("button", {
+      class: "btn-set-default",
+      type: "button",
+      title: "将此模型设为全局默认模型",
+      text: "★ 设为默认",
+      onclick: (e) => {
+        e.stopPropagation();
+        setDefaultModel(m);
+      }
+    });
+
+    const opt = el("div", {
+      class: "opt" + (active ? " active" : ""),
+      onclick: () => {
+        const prev = state.currentModel;
+        $("#modelPillName").textContent = "切换中…";
+        sendWs({ type: "set_model", provider: m.provider, modelId: m.id });
+        saveRecentModel(m);
+        $("#modelMenu").classList.remove("open");
+        if (prev && (prev.id !== m.id || prev.provider !== m.provider)) {
+          appendSystemNotice(`已切换模型至 ${m.provider ? m.provider + " / " : ""}${m.name || m.id}`);
+        }
+      },
+    }, [
+      el("span", { class: "check", html: active ? "✓" : "" }),
+      el("div", { class: "model-main" }, [
+        el("div", { class: "model-name-row" }, [
+          el("span", { class: "model-name", text: `${m.name || m.id}` }),
+          ...featureBadges,
+        ]),
+        (m.name && m.id && m.name !== m.id) ? el("span", { class: "model-id-sub", text: `${m.provider ? m.provider + " · " : ""}${m.id}` }) : null,
+      ]),
+      setDefaultBtn,
+    ]);
+
+    allRenderedItems.push({ element: opt, model: m });
+    return opt;
+  }
+
+  // If no search query, show "Default & Recent" section first
+  if (!q) {
+    loadRecentModels();
+    const pinGroup = [];
+
+    // Find default model if exists
+    if (state.defaultModel?.id) {
+      const defM = state.models.find(m => m.id === state.defaultModel.id && (!state.defaultModel.provider || m.provider === state.defaultModel.provider));
+      if (defM) pinGroup.push({ model: defM, isDefault: true });
+    }
+
+    // Add recent models (excluding default)
+    for (const rm of state.recentModels) {
+      const full = state.models.find(m => m.id === rm.id && m.provider === rm.provider) || rm;
+      if (!pinGroup.some(item => item.model.id === full.id && item.model.provider === full.provider)) {
+        pinGroup.push({ model: full, isDefault: false });
+      }
+    }
+
+    if (pinGroup.length > 0) {
+      listContainer.appendChild(el("div", { class: "group-label", text: "🌟 默认与常用" }));
+      for (const item of pinGroup) {
+        listContainer.appendChild(renderModelOption(item.model, item.isDefault));
+      }
+    }
+  }
+
+  // Group rest by provider
   const groups = {};
   for (const m of filteredModels) {
     const p = m.provider || "other";
@@ -1537,21 +1929,48 @@ function renderModelList(listContainer) {
   for (const [provider, items] of Object.entries(groups).sort()) {
     listContainer.appendChild(el("div", { class: "group-label", text: provider }));
     for (const m of items) {
-      const active = state.currentModel && m.id === state.currentModel.id && m.provider === state.currentModel.provider;
-      listContainer.appendChild(el("div", {
-        class: "opt" + (active ? " active" : ""),
-        onclick: () => {
-          $("#modelPill").textContent = "切换中…";
-          sendWs({ type: "set_model", provider: m.provider, modelId: m.id });
-          $("#modelMenu").classList.remove("open");
-        },
-      }, [
-        el("span", { class: "check", html: active ? "✓ " : "" }),
-        el("span", { class: "model-name", text: `${m.name || m.id}` }),
-        (m.name && m.id && m.name !== m.id) ? el("span", { class: "model-id-sub", text: m.id }) : null,
-      ]));
+      listContainer.appendChild(renderModelOption(m));
     }
   }
+
+  listContainer._items = allRenderedItems;
+}
+
+function toggleModelMenu() {
+  if (state.streaming) {
+    showToast("生成中暂不可切换模型");
+    return;
+  }
+  sendWs({ type: "get_available_models" });
+  const menu = $("#modelMenu");
+  const thinkingMenu = $("#thinkingMenu");
+  if (thinkingMenu) thinkingMenu.classList.remove("open");
+
+  const willOpen = !menu.classList.contains("open");
+  menu.classList.toggle("open");
+  if (willOpen) {
+    focusedModelIndex = -1;
+    setTimeout(() => {
+      const input = $("#modelSearchInput");
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 50);
+  }
+}
+
+function toggleThinkingMenu() {
+  if (state.streaming) {
+    showToast("生成中暂不可调整思考等级");
+    return;
+  }
+  const modelMenu = $("#modelMenu");
+  if (modelMenu) modelMenu.classList.remove("open");
+
+  const menu = $("#thinkingMenu");
+  renderThinkingMenu();
+  menu.classList.toggle("open");
 }
 
 function baseName(p) {
@@ -1598,6 +2017,7 @@ function updateComposerUI() {
 
 function setComposerAborting(yes) {
   updateComposerUI();
+  renderModelPill();
 }
 
 function submitSteer() {
@@ -1734,26 +2154,47 @@ async function init() {
     }
   });
 
-  // model pill / menu
-  $("#modelPill").addEventListener("click", (e) => {
-    e.stopPropagation();
-    sendWs({ type: "get_available_models" });
-    const menu = $("#modelMenu");
-    const willOpen = !menu.classList.contains("open");
-    menu.classList.toggle("open");
-    if (willOpen) {
-      setTimeout(() => {
-        const input = $("#modelSearchInput");
-        if (input) {
-          input.focus();
-          input.select();
-        }
-      }, 50);
+  // model pill / thinking pill / menu interactions
+  const modelPillEl = $("#modelPill");
+  if (modelPillEl) {
+    modelPillEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleModelMenu();
+    });
+  }
+
+  const thinkingPillEl = $("#thinkingPill");
+  if (thinkingPillEl) {
+    thinkingPillEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleThinkingMenu();
+    });
+  }
+
+  const emptyChangeModelBtn = $("#emptyChangeModelBtn");
+  if (emptyChangeModelBtn) {
+    emptyChangeModelBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleModelMenu();
+    });
+  }
+
+  // Keyboard shortcut: Ctrl+M / Cmd+M to toggle model selector
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "m") {
+      e.preventDefault();
+      toggleModelMenu();
     }
   });
+
   document.addEventListener("click", (e) => {
-    if (!e.target.closest("#modelMenu") && !e.target.closest("#modelPill")) {
-      $("#modelMenu").classList.remove("open");
+    if (!e.target.closest("#modelMenu") && !e.target.closest("#modelPill") && !e.target.closest("#emptyChangeModelBtn")) {
+      const m = $("#modelMenu");
+      if (m) m.classList.remove("open");
+    }
+    if (!e.target.closest("#thinkingMenu") && !e.target.closest("#thinkingPill")) {
+      const tm = $("#thinkingMenu");
+      if (tm) tm.classList.remove("open");
     }
   });
 

@@ -48,10 +48,18 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:-2px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
           <span id="cwdPill">~</span>
         </button>
-        <div style="position:relative;">
-          <button class="model-pill" id="modelPill">选择模型</button>
+        <div class="model-pill-container" id="modelPillContainer">
+          <button class="model-pill" id="modelPill" title="点击切换模型 (快捷键: Ctrl+M)">
+            <span class="model-pill-name" id="modelPillName">选择模型</span>
+            <span class="model-pill-badge" id="modelPillBadge" style="display:none;">★ 默认</span>
+          </button>
+          <button class="thinking-pill" id="thinkingPill" style="display:none;" title="点击调整深度思考 / 推理级别">
+            <span class="thinking-icon">🧠</span>
+            <span class="thinking-label" id="thinkingPillLabel">High</span>
+          </button>
         </div>
         <div class="model-menu" id="modelMenu"></div>
+        <div class="thinking-menu" id="thinkingMenu"></div>
       </div>
 
       <div class="chat" id="chat">
@@ -59,6 +67,20 @@
           <div class="logo">π</div>
           <h1>有什么可以帮你？</h1>
           <p>我是 <strong>pi</strong> 编程助手，可以读写文件、运行命令、改代码。在下面输入你的需求，或选择左侧的历史会话继续。</p>
+          <div class="empty-model-banner" id="emptyModelBanner">
+            <div class="empty-model-left">
+              <span class="empty-model-icon">🤖</span>
+              <div class="empty-model-info">
+                <div class="empty-model-title-row">
+                  <span class="empty-model-label">当前模型：</span>
+                  <span class="empty-model-name" id="emptyModelName">加载中…</span>
+                  <span class="badge-default" id="emptyModelBadge" style="display:none;">★ 默认模型</span>
+                </div>
+                <div class="empty-model-features" id="emptyModelFeatures"></div>
+              </div>
+            </div>
+            <button class="btn-change-model" id="emptyChangeModelBtn">切换模型</button>
+          </div>
           <div class="suggestions">
             <div class="chip" data-prompt="列出当前目录下的所有文件，并告诉我这是什么项目">列出当前目录文件</div>
             <div class="chip" data-prompt="阅读 README 或主要源文件，然后用一段话总结这个项目是做什么的">总结这个项目</div>

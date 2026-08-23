@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] - 2026-07-26
+
+### Added
+- **默认模型确认与展示体系 (Default Model Identification & Visual Indicators)**：
+  - 后端 `/api/config` 自动读取并整合项目配置 `<cwd>/.pi/settings.json` 与全局配置 `~/.pi/agent/settings.json` 中的 `defaultProvider`、`defaultModel` 及 `defaultThinkingLevel`。
+  - 顶部模型胶囊 (Model Pill) 自动识别并展示 `★ 默认` 或 `★ 项目默认` 徽章，悬停提示详细配置来源。
+  - 新建对话欢迎面板 (Empty State) 增加当前会话模型展示卡片，直观呈现模型名称、默认状态及特性标签。
+- **深度思考 (Thinking / Reasoning) 联动选择器**：
+  - 当模型支持推理思考（`reasoning: true`）时，顶栏自动浮现 `🧠 High` / `🧠 Medium` 等深度思考胶囊。
+  - 支持快捷弹出思考深度菜单（Off / Minimal / Low / Medium / High / Max），即时调节思考预算；非思考模型自动隐藏。
+- **一键持久化设为默认模型 (Set as Default Model)**：
+  - 新增后端接口 `POST /api/set-default-model`，模型列表项右侧支持一键将当前选中的模型设为全局/项目默认模型。
+- **模型快捷置顶与特性标签 (Pinned, Recents & Capabilities)**：
+  - 模型下拉面板置顶呈现 `🌟 默认与常用` 分组，自动基于 `localStorage` 缓存并置顶最近使用的模型。
+  - 模型项展示 `🧠 Thinking`（深度思考）、`👁️ Vision`（多模态识图）、`★ 默认` 等能力标签。
+- **全键盘极客操作与快捷键 (Keyboard Navigation & Shortcut)**：
+  - 支持全局快捷键 `Ctrl + M` / `Cmd + M` 快速呼出/收起模型选择面板。
+  - 搜索框支持 `↑` / `↓` 移动高亮、`Enter` 快速切换、`Esc` 退出。
+- **会话流模型切换历史标记**：
+  - 会话中途切换模型时，在消息流中自动插入系统分割通知（`── 已切换模型至 Provider / ModelName ──`）。
+
+---
+
 ## [1.7.6] - 2026-07-26
 
 ### Security
