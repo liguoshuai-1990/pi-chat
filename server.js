@@ -551,6 +551,19 @@ app.post("/api/set-default-model", async (req, res) => {
       current.defaultThinkingLevel = thinkingLevel;
     }
 
+    // If enabledModels is configured in settings.json, ensure the new default model
+    // is in the enabledModels list, otherwise Pi core startup logic will fall back
+    // to enabledModels[0] instead of using defaultModel.
+    if (Array.isArray(current.enabledModels) && current.enabledModels.length > 0) {
+      const fullId = `${provider}/${modelId}`;
+      const inList = current.enabledModels.some(item =>
+        item === fullId || item === modelId || item === `${provider}/*` || item === "*"
+      );
+      if (!inList) {
+        current.enabledModels.unshift(fullId);
+      }
+    }
+
     await writeFile(settingsPath, JSON.stringify(current, null, 2), "utf8");
 
     res.json({
@@ -604,11 +617,13 @@ async function listAllSessionFiles() {
   // Root-level .jsonl files (created when we pass --session-dir to pi).
   const top = await readdir(SESSIONS_DIR, { withFileTypes: true }).catch(() => []);
   for (const e of top) {
-    if (e.isFile() && e.name.endsWith(".jsonl")) files.push(path.join(SESSIONS_DIR, e.name));
+    if ((e.isFile() || e.isSymbolicLink()) && e.name.endsWith(".jsonl")) {
+      files.push(path.join(SESSIONS_DIR, e.name));
+    }
   }
 
   // Subdirectory .jsonl files (created by pi itself when cwd is encoded).
-  const subdirs = top.filter(d => d.isDirectory());
+  const subdirs = top.filter(d => d.isDirectory() || d.isSymbolicLink());
   for (const d of subdirs) {
     const dp = path.join(SESSIONS_DIR, d.name);
     const names = (await readdir(dp).catch(() => [])).filter(f => f.endsWith(".jsonl"));
@@ -629,11 +644,14 @@ async function getSessionMetadata(file) {
 
   const content = await readFile(file, "utf8");
   const lines = content.split("\n").filter(Boolean);
-  let header = null, title = null, msgCount = 0;
+  let header = null, title = null, sessionName = null, msgCount = 0;
   for (const line of lines) {
     let o;
     try { o = JSON.parse(line); } catch { continue; }
     if (o.type === "session") header = o;
+    if (o.type === "session_info" && o.name) {
+      sessionName = o.name.trim();
+    }
     if (o.type === "message" && o.message && o.message.role === "user" && !title) {
       title = extractText(o.message.content).slice(0, 80);
     }
@@ -649,6 +667,7 @@ async function getSessionMetadata(file) {
       file,
       name: path.basename(file),
       id: header.id,
+      sessionName: sessionName || null,
       timestamp: header.timestamp,
       firstUser: title,
       messageCount: msgCount,
@@ -662,15 +681,18 @@ app.get("/api/sessions", async (req, res) => {
   try {
     const cwd = normalizeCwd(req.query.cwd);
     const all = await listAllSessionFiles();
-    const sessions = [];
-    for (const full of all) {
-      try {
-        const meta = await getSessionMetadata(full);
-        if (meta && meta.cwd === cwd) {
-          sessions.push(meta.sessionInfo);
-        }
-      } catch {}
-    }
+    const results = await Promise.all(
+      all.map(async (full) => {
+        try {
+          const meta = await getSessionMetadata(full);
+          if (meta && meta.cwd === cwd) {
+            return meta.sessionInfo;
+          }
+        } catch {}
+        return null;
+      })
+    );
+    const sessions = results.filter(Boolean);
     sessions.sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
     res.json({ cwd, sessions });
   } catch (e) {
@@ -684,7 +706,7 @@ function extractText(content) {
   if (!Array.isArray(content)) return "";
   return content
     .filter(c => c && (c.type === "text" || typeof c === "string"))
-    .map(c => typeof c === "string" ? c : c.text)
+    .map(c => typeof c === "string" ? c : (c.text || ""))
     .join("");
 }
 
@@ -695,7 +717,11 @@ app.get("/api/session", async (req, res) => {
     if (!file || !file.endsWith(".jsonl")) return res.status(400).json({ error: "bad file" });
     
     // Security check: ensure the file path is within SESSIONS_DIR
-    const resolvedFile = path.resolve(file);
+    let resolvedFile = file;
+    if (resolvedFile.startsWith("~")) {
+      resolvedFile = path.join(home(), resolvedFile.slice(1));
+    }
+    resolvedFile = path.resolve(resolvedFile);
     const resolvedSessionsDir = path.resolve(SESSIONS_DIR);
     const relPath = path.relative(resolvedSessionsDir, resolvedFile);
     if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
@@ -706,9 +732,13 @@ app.get("/api/session", async (req, res) => {
     const lines = content.split("\n").filter(Boolean);
     const entries = [];
     let header = null;
+    let sessionName = null;
     for (const line of lines) {
       let o; try { o = JSON.parse(line); } catch { continue; }
       if (o.type === "session") header = o;
+      if (o.type === "session_info" && o.name) {
+        sessionName = o.name.trim();
+      }
       entries.push(o);
     }
     // Build a map and reconstruct the active path from root -> leaf.
@@ -762,7 +792,7 @@ app.get("/api/session", async (req, res) => {
       }
     }
 
-    res.json({ header, entries: entryChain, model: sessionModel });
+    res.json({ header, entries: entryChain, model: sessionModel, sessionName });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: String(e) });

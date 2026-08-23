@@ -36,12 +36,6 @@ RestartSec=3
 # Hardening.
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=read-only
-# pi itself reads/writes ~/.pi (sessions) and may want to read source files
-# in $HOME via cwd. Read-only home blocks that — keep home writable for
-# the agent, but limit to the obvious dirs the agent reaches into.
-ReadWritePaths=%h/.pi %h/.npm-global
 
 [Install]
 WantedBy=default.target

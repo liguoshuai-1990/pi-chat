@@ -465,7 +465,7 @@ function renderSidebar(sessions) {
     return;
   }
   sessions.forEach((s) => {
-    const title = s.firstUser || "新对话";
+    const title = s.sessionName || s.firstUser || "新对话";
     const when = s.timestamp ? new Date(s.timestamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
     const item = el("div", {
       class: "session-item" + (s.file === state.currentSessionFile ? " active" : ""),
@@ -533,10 +533,20 @@ async function loadSession(file) {
   const res = await fetch(`${API}/api/session?file=${encodeURIComponent(file)}`);
   const data = await res.json();
 
+  if (!res.ok || data.error) {
+    showToast(`加载会话失败: ${data.error || "无法读取会话文件"}`);
+    showEmptyState(true);
+    state.currentSessionFile = null;
+    return;
+  }
+
   if (data.model) {
     state.currentModel = data.model;
     renderModelPill();
   }
+
+  const topName = data.sessionName || (data.header?.id ? baseName(file) : "新对话");
+  $("#topSessionName").textContent = topName;
 
   clearChat();
   document.querySelector("#emptyState").style.display = "none";
@@ -601,9 +611,20 @@ function extractContentText(content) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content
-    .filter(c => c.type === "text" || typeof c === "string")
-    .map(c => typeof c === "string" ? c : c.text)
+    .filter(c => c && (c.type === "text" || typeof c === "string"))
+    .map(c => typeof c === "string" ? c : (c.text || ""))
     .join("");
+}
+
+function appendSystemNotice(text) {
+  if (!text) return;
+  const chatInner = $("#chat-inner");
+  if (!chatInner) return;
+  const node = el("div", { class: "system-notice-divider" }, [
+    el("span", { class: "system-notice-text", text })
+  ]);
+  chatInner.appendChild(node);
+  scrollBottom();
 }
 
 // ---- Chat rendering ----
@@ -1213,8 +1234,9 @@ function handlePiMessage(obj) {
       }
     }
     else if (obj.command === "cycle_thinking_level" && obj.success) {
-      if (obj.data?.thinkingLevel) {
-        state.thinkingLevel = obj.data.thinkingLevel;
+      const newLevel = obj.data?.level || obj.data?.thinkingLevel;
+      if (newLevel) {
+        state.thinkingLevel = newLevel;
         renderThinkingPill();
         updateEmptyStateModelInfo();
       }
@@ -1264,6 +1286,7 @@ function handlePiMessage(obj) {
       finalizeStreamingMsg();
       state.streaming = false;
       setComposerAborting(false);
+      sendWs({ type: "get_state" });
       refreshSessions(); // titles may have changed
       break;
     case "message_start": {

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.1] - 2026-07-26
+
+### Fixed
+- **模型切换系统通知未定义函数报错修复 (Missing appendSystemNotice ReferenceError)**：补充前端 `appendSystemNotice` 函数实现，使用 `.system-notice-divider` 与 `.system-notice-text` 渲染模型变更系统提示，解决切换模型时触发 `ReferenceError` 的问题。
+- **思考深度循环切换响应数据字段适配 (cycle_thinking_level Response Handling)**：兼容 Pi RPC 响应中返回的 `data.level` 字段，避免因字段名不匹配导致思考深度未能及时更新。
+- **会话自定义命名解析与侧边栏即时呈现 (Session Name & session_info Extraction)**：服务端 `/api/sessions` 与 `/api/session` 增加对 `session_info` 记录的解析，支持读取用户通过 `set_session_name` 设置的会话名称并在侧边栏和顶栏直观显示。
+- **默认模型设为已启用模型列表防回退保护 (enabledModels Sync on Set Default)**：在写入 `defaultModel` 时同步检查并加入 `enabledModels` 列表，防止 Pi core 启动时回退至 `enabledModels[0]`。
+- **会话历史加载异常容错与提示 (Session Load Error Handling)**：`loadSession` 增加网络及文件读取异常判断与 Toast 友好提示，避免读取异常会话文件时界面卡死。
+- **Systemd User 单元文件权限沙箱配置优化 (Systemd Unit Workspace Access)**：移除 `ProtectHome=read-only`，确保作为用户级服务启动时 Pi Agent 可以正常读写和编辑工作区项目文件。
+
+---
+
 ## [1.8.0] - 2026-07-26
 
 ### Added

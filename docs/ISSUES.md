@@ -146,5 +146,47 @@
 - 修改 `detachWs`，当所有连接断开但 Agent 仍在生成中时，保留 `eventBuffer` 保证继续录制。
 - 修改 `replayBuffered`，在 Agent 仍处于 busy 状态时消费后不清空缓存，使多个设备/多个 Tab 可多次或同时连入并安全回溯追平全部生成细节，并在流式终止时通过 `agent_settled` 进行最终的统一清理。
 
+---
+
+## 14. 切换模型时触发 `appendSystemNotice is not defined` 报错
+
+**症状**：在顶部模型下拉菜单中切换模型后，控制台报错 `ReferenceError: appendSystemNotice is not defined`，并在 `/api/log-error` 中记录错误日志。
+
+**根因**：前端 `app.js` 在处理模型切换和接收 `set_model` 响应时调用了 `appendSystemNotice` 函数在消息流中插入切换提醒，但在重构时该辅助函数未被声明。
+
+**修复**：在 `app.js` 中补充 `appendSystemNotice(text)` 实现，利用 CSS 中已定义好的 `.system-notice-divider` 与 `.system-notice-text` 类在聊天区尾部安全插入居中分割标签。
+
+---
+
+## 15. `cycle_thinking_level` 响应字段未正确更新思考深度
+
+**症状**：通过 RPC 调用循环切换思考级别后，前端状态与顶栏思考胶囊未实时更新。
+
+**根因**：Pi RPC 模式下 `cycle_thinking_level` 返回的响应数据为 `{ level: ThinkingLevel }`，而前端代码按 `obj.data?.thinkingLevel` 读取导致取得 `undefined`。
+
+**修复**：在 `app.js` 中改为 `const newLevel = obj.data?.level || obj.data?.thinkingLevel;`，兼容标准 RPC 返回格式。
+
+---
+
+## 16. 自定义会话名称 (`session_info`) 无法在侧边栏与顶栏显示
+
+**症状**：通过 `set_session_name` 重命名会话后，侧边栏列表中依然只展示第一条用户 prompt 提取出的简略标题。
+
+**根因**：服务端 `getSessionMetadata` 和 `/api/session` 在逐行扫描 `.jsonl` 时只查找了 `type === "session"` 和 `type === "message"`，忽略了 `type === "session_info"` 记录。
+
+**修复**：
+- 服务端解析 `.jsonl` 时提取最新的 `session_info.name` 作为 `sessionName` 返回。
+- 前端 `renderSidebar` 优先使用 `s.sessionName || s.firstUser || "新对话"` 进行渲染。
+
+---
+
+## 17. Systemd 用户服务中 `ProtectHome=read-only` 导致 Agent 读写工作区报错
+
+**症状**：通过 `install-service.sh` 将服务安装至 systemd user 后，Pi 编程代理在用户项目目录中执行 `write` 或 `edit` 工具时触发 `EACCES` 权限拒绝错误。
+
+**根因**：服务单元模板设置了 `ProtectHome=read-only` 并仅将 `~/.pi` 和 `~/.npm-global` 列入白名单，导致 Agent 无法在 `$HOME/projects` 等工作区目录下创建或修改文件。
+
+**修复**：移除该限制，让 User-level 服务在常规用户权限上下文下直接操作工作区。
+
 
 
