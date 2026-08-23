@@ -3,7 +3,7 @@
 // for listing sessions and reading session history from the JSONL store.
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
-import { readFile, readdir, stat, writeFile, mkdir } from "fs/promises";
+import { readFile, readdir, stat, writeFile, mkdir, realpath as fsRealpath } from "fs/promises";
 import { readFileSync, existsSync } from "fs";
 import { StringDecoder } from "string_decoder";
 import express from "express";
@@ -727,11 +727,27 @@ app.get("/api/session", async (req, res) => {
     const file = req.query.file;
     if (!file || !file.endsWith(".jsonl")) return res.status(400).json({ error: "bad file" });
     
-    // Security check: ensure the file path is within SESSIONS_DIR
-    let resolvedFile = normalizePath(file);
+    // Security check: ensure the file path is within SESSIONS_DIR. We resolve the
+    // canonical (real) path rather than just the lexical one, otherwise a
+    // symlink placed inside SESSIONS_DIR could point outside and let a caller
+    // read arbitrary .jsonl files via the traversal check above.
     const resolvedSessionsDir = normalizePath(SESSIONS_DIR);
-    const relPath = path.relative(resolvedSessionsDir, resolvedFile);
+    const requestedPath = normalizePath(file);
+    const relPath = path.relative(resolvedSessionsDir, requestedPath);
     if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    // Canonicalize and verify the real target still lives under SESSIONS_DIR.
+    let resolvedFile;
+    try {
+      resolvedFile = await fsRealpath(requestedPath);
+    } catch {
+      // Fall back to the lexical path if realpath fails (e.g. missing file);
+      // the read below will surface the actual error.
+      resolvedFile = requestedPath;
+    }
+    const realRel = path.relative(resolvedSessionsDir, resolvedFile);
+    if (realRel.startsWith("..") || path.isAbsolute(realRel)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -751,11 +767,6 @@ app.get("/api/session", async (req, res) => {
     // Build a map and reconstruct the active path from root -> leaf.
     const byId = new Map();
     for (const e of entries) if (e.id) byId.set(e.id, e);
-    let leaf = null;
-    for (const e of entries) {
-      // a leaf is one that nobody else has as parentId (and isn't a non-message like header)
-      if (e.type === "message" || e.type === "message_summary") leaf = e.id;
-    }
     // find true leaf = last entry with no children
     const childCount = new Map();
     for (const e of entries) {
