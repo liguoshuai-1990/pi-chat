@@ -99,4 +99,27 @@
 - 给 `.session-list` 增加 `min-height: 0`，给 `.sidebar-bottom` 增加 `flex-shrink: 0`。
 - 引入 `safe-area-inset-bottom` 底部安全区自适应内边距，并将 z-index 提升至 105，确保手机端完整可见。
 
+---
+
+## 10. 页面初次加载时服务端配置加载与 WebSocket 连接的竞态
+
+**症状**：在未设置 localStorage CWD 时打开页面，前端顶栏胶囊显示为当前服务启动目录（`serverCwd`），但后端生成的 agent 子进程的工作目录实际上是用户的 home 目录（`~`），导致执行文件操作或命令时位置不一致。
+
+**根因**：前端 `init()` 中 `loadServerConfig()` 异步发起 `/api/config` 请求，但没有等待返回就同步调用了 `connectWs({})`。此时 `state.cwd` 尚为空字符串 `""`，WebSocket URL 为 `/ws?cwd=`，后端 fallback 成了 `home()`。等到 fetch 返回后 `state.cwd` 虽被赋予 `serverCwd`，但 WebSocket 连接和 `PiAgent` 已经按 `home()` 创建。
+
+**修复**：
+- 前端 `init()` 改为异步函数，显式 `await loadServerConfig()` 保证配置解析完毕后再建立 WebSocket 连接或加载会话。
+- 后端 `normalizeCwd(dir)` 在 `dir` 为空时优先返回 `process.cwd()`，其次回退到 `home()`，确保前后端默认工作目录始终精确一致。
+
+---
+
+## 11. 模型异常响应错误信息二次转义 (Double Escape)
+
+**症状**：当模型返回错误（如 stopReason="error"）且错误信息中含有 `<`、`&` 等字符时，聊天框中显示为 `&lt;`、`&amp;` 字面量。
+
+**根因**：`public/app.js` 在 `message_end` 处理中对 `errMsg` 调用了一次 `escapeHtml()`，随后 `refreshStreamingContent()` 调用 `renderMarkdown()` 时又内部进行了一次 `escapeHtml()`。
+
+**修复**：移除 `message_end` 中冗余的 `escapeHtml()`，统一由 Markdown 渲染器进行安全转义。
+
+
 

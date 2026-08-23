@@ -37,7 +37,7 @@ const PI_BIN = resolvePiBin();
 function home() { return os.homedir(); }
 
 function normalizeCwd(dir) {
-  if (!dir) return home();
+  if (!dir) return process.cwd() || home();
   let resolved = dir;
   if (dir.startsWith("~")) {
     resolved = path.join(home(), dir.slice(1));

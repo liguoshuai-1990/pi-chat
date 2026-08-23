@@ -1226,7 +1226,7 @@ function handlePiMessage(obj) {
           const parsed = JSON.parse(errMsg);
           if (parsed.error?.message) errMsg = parsed.error.message;
         } catch {}
-        state.streamingItems.push({ type: "text", text: `⚠️ **${escapeHtml(errMsg)}**` });
+        state.streamingItems.push({ type: "text", text: `⚠️ **${errMsg}**` });
         refreshStreamingContent();
       }
       break;
@@ -1668,11 +1668,13 @@ function autoResize() {
 }
 
 // ---- Init ----
-function init() {
+async function init() {
   // Default cwd to home (server uses home default too).
   state.cwd = document.body.dataset.cwd || "";
 
-  // event listeners
+  // Load server config & restore saved CWD before connecting WebSocket
+  await loadServerConfig();
+
   // event listeners
   $("#btnNew").addEventListener("click", () => {
     if (state.streaming) {
@@ -1716,7 +1718,7 @@ function init() {
     updateComposerUI();
   });
   ta.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
       e.preventDefault();
       if (state.streaming) {
         if (ta.value.trim()) {
@@ -1825,9 +1827,6 @@ function init() {
       else if (e.key === "Escape") { e.preventDefault(); closeCwdModal(); }
     });
   }
-
-  // Load server config & restore saved CWD
-  loadServerConfig();
 
   // Status badge click to reconnect
   const connStatusEl = $("#connStatus");

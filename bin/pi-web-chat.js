@@ -37,15 +37,43 @@ Examples:
 }
 
 function parseArgs(argv) {
-  const opts = { port: process.env.PORT || 3000, cwd: process.env.HOME };
+  const opts = { port: process.env.PORT || 3000, cwd: process.env.HOME || os.homedir() };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "-h" || a === "--help") { printHelp(); process.exit(0); }
-    if (a === "-p" || a === "--port") opts.port = Number(argv[++i]);
-    else if (a.startsWith("--port=")) opts.port = Number(a.split("=")[1]);
-    else if (a === "-c" || a === "--cwd") opts.cwd = argv[++i];
-    else if (a.startsWith("--cwd=")) opts.cwd = a.split("=")[1];
-    else { console.error(`Unknown option: ${a}`); printHelp(); process.exit(1); }
+    if (a === "-p" || a === "--port") {
+      const val = argv[++i];
+      if (!val || isNaN(Number(val))) {
+        console.error(`Error: --port requires a valid number`);
+        process.exit(1);
+      }
+      opts.port = Number(val);
+    } else if (a.startsWith("--port=")) {
+      const val = a.split("=")[1];
+      if (!val || isNaN(Number(val))) {
+        console.error(`Error: --port requires a valid number`);
+        process.exit(1);
+      }
+      opts.port = Number(val);
+    } else if (a === "-c" || a === "--cwd") {
+      const val = argv[++i];
+      if (!val) {
+        console.error(`Error: --cwd requires a path`);
+        process.exit(1);
+      }
+      opts.cwd = val;
+    } else if (a.startsWith("--cwd=")) {
+      const val = a.split("=")[1];
+      if (!val) {
+        console.error(`Error: --cwd requires a path`);
+        process.exit(1);
+      }
+      opts.cwd = val;
+    } else {
+      console.error(`Unknown option: ${a}`);
+      printHelp();
+      process.exit(1);
+    }
   }
   return opts;
 }

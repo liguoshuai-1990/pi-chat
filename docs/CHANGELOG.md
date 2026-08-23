@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.5] - 2026-07-26
+
+### Fixed
+- **初始化 CWD 配置加载与 WebSocket 建立竞态修复 (Async CWD Init Race Condition)**：
+  - 前端 `init()` 声明为异步函数，优先 `await loadServerConfig()` 完成服务器配置（`serverCwd` / `homeDir`）与本地缓存读取后，再发起 WebSocket 连接或加载会话，彻底消除首次加载时 agent 子进程工作目录与前端显示不一致的问题。
+  - 服务端 `normalizeCwd(dir)` 在 `dir` 为空时默认使用 `process.cwd()`（服务启动目录），保证前后端默认工作目录始终精确统一。
+- **错误信息二次 HTML 转义修复 (Double Escape on Error Messages)**：移除 `message_end` 中冗余的 `escapeHtml()` 调用，避免错误信息包含特殊符号时被 Markdown 渲染器二次转义显示为实体编码字符。
+- **CLI 参数解析健壮性增强 (CLI Arguments Validation)**：`bin/pi-web-chat.js` 增加对 `-p/--port` 与 `-c/--cwd` 选项值的合法性检验与防越界保护，避免 `NaN` 或 `undefined`。
+- **输入法合成事件优化 (IME Keycode Handling)**：输入框 `keydown` 事件追加 `e.keyCode !== 229` 判断，进一步增强各平台中文输入法选词回车时的兼容性。
+- **Systemd 安装脚本优化 (Systemd Absolute ExecStart Path)**：`scripts/install-service.sh` 生成 unit 文件时将 `ExecStart` 明确为绝对路径 `$NODE_BIN "$PROJECT_DIR/server.js"`。
+
+---
+
 ## [1.7.4] - 2026-07-26
 
 ### Added

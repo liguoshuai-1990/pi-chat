@@ -154,6 +154,10 @@ pi-web-chat/
 │   ├── index.html                  单页 UI
 │   ├── app.js                      前端逻辑与状态机
 │   └── style.css                   ChatGPT/Gemini 风格样式
+├── scripts/                        Systemd 服务安装与管理脚本
+│   ├── pi-web-chat.service         Systemd user unit 模板
+│   ├── install-service.sh          一键安装与启动脚本
+│   └── uninstall-service.sh        一键卸载脚本
 └── docs/                           项目文档库
     ├── ARCHITECTURE.md             架构设计文档
     ├── DESIGN.md                   详细设计与决策文档
@@ -210,6 +214,10 @@ journalctl --user -u pi-web-chat -f
 
 卸载服务：
 ```bash
+# 使用一键卸载脚本
+./scripts/uninstall-service.sh
+
+# 或手动清理：
 systemctl --user disable --now pi-web-chat
 rm ~/.config/systemd/user/pi-web-chat.service
 systemctl --user daemon-reload

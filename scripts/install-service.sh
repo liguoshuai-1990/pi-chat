@@ -59,7 +59,7 @@ NODE_BIN="$(command -v node)"
 # Read the template and substitute.
 sed \
   -e "s|^WorkingDirectory=.*|WorkingDirectory=$PROJECT_DIR|" \
-  -e "s|^ExecStart=.*|ExecStart=$NODE_BIN server.js|" \
+  -e "s|^ExecStart=.*|ExecStart=$NODE_BIN $PROJECT_DIR/server.js|" \
   -e "s|^Environment=PORT=.*|Environment=PORT=$PORT|" \
   -e "s|%h/projects/pi-web-chat|$PROJECT_DIR|g" \
   -e "s|%h/|$USER_HOME/|g" \
