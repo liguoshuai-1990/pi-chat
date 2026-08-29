@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.8] - 2026-08-29
+
+### Fixed
+- **消息发送框确认按钮上下居中与正圆对齐优化 (Composer Send Button Alignment & Circular Sizing)**：
+  - 修复默认单行输入状态下，发送按钮因与 `textarea` 存在高度差并在 `flex-end` 布局下导致严重偏下、没有垂直居中的问题。
+  - 精准对齐单行 `textarea` 高度（32px）与按钮高度（32px），使单行状态下发送/确认按钮在输入框内绝对垂直居中，多行输入时依然平滑吸底。
+  - 将桌面端发送按钮修正为标准正圆（`32px × 32px`，`border-radius: 50%`），并补充字号与行高约束，确保图标居中且不影响手机侧及响应式体验。
+
+---
+
 ## [1.8.5] - 2026-08-23
 
 ### Fixed

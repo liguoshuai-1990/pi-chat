@@ -718,13 +718,14 @@ body {
 }
 .composer textarea {
   flex: 1; background: transparent; border: none; outline: none; resize: none;
-  color: var(--text); font-family: inherit; font-size: 15px; line-height: 1.5;
-  padding: 10px 0; max-height: 200px; min-height: 24px;
+  color: var(--text); font-family: inherit; font-size: 15px; line-height: 20px;
+  padding: 6px 0; max-height: 200px; min-height: 32px;
 }
 .composer .send-btn {
-  width: 36px; height: 32px; border-radius: 18px; border: none; cursor: pointer;
+  width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
   background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; transition: background .15s, opacity .15s, transform .1s;
+  flex-shrink: 0; font-size: 16px; font-weight: 600; line-height: 1;
+  transition: background .15s, opacity .15s, transform .1s;
 }
 .composer .send-btn:disabled { background: #3a3a3a; color: #6f6f6f; cursor: not-allowed; }
 .composer .send-btn.stop { background: var(--danger); }
@@ -1453,20 +1454,23 @@ body {
   }
 
   .composer-inner {
-    padding: 4px 6px 4px 12px;
-    border-radius: 20px;
+    padding: 6px 8px 6px 14px;
+    border-radius: 22px;
     gap: 6px;
   }
 
   .composer textarea {
-    padding: 8px 0;
+    padding: 6px 0;
     font-size: 14px;
+    line-height: 20px;
+    min-height: 32px;
     max-height: 160px;
   }
 
   .composer .send-btn {
     width: 32px;
     height: 32px;
+    border-radius: 50%;
   }
 
   /* CWD Modal Mobile Adjustments */
