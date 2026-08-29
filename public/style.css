@@ -235,6 +235,20 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+}
+.sidebar-bottom-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-link-sep {
+  color: var(--text-dim);
+  font-size: 11px;
 }
 .app-version {
   font-size: 11px;

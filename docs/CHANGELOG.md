@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.1] - 2026-08-29
+
+### Added
+- **侧边栏底部开源项目跳转链接 (Repository Link in Sidebar Bottom)**：
+  - 在侧边栏底部元信息区域增加 `pi-web-chat` 项目开源仓库链接（`https://github.com/liguoshuai-1990/pi-web-chat`），方便用户快速跳转与查阅源码。
+
+---
+
 ## [1.9.0] - 2026-08-29
 
 ### Added
