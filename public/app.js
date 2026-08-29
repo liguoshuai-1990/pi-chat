@@ -1959,14 +1959,12 @@ function renderModelList(listContainer) {
     const opt = el("div", {
       class: "opt" + (active ? " active" : ""),
       onclick: () => {
-        const prev = state.currentModel;
         $("#modelPillName").textContent = "切换中…";
         sendWs({ type: "set_model", provider: m.provider, modelId: m.id });
         saveRecentModel(m);
         $("#modelMenu").classList.remove("open");
-        if (prev && (prev.id !== m.id || prev.provider !== m.provider)) {
-          appendSystemNotice(`已切换模型至 ${m.provider ? m.provider + " / " : ""}${m.name || m.id}`);
-        }
+        // 成功后的“已切换模型至 …”提示统一由 set_model 的 response 处理逻辑弹出，
+        // 避免在这里乐观提示一次、响应到达后 pi 再提示一次（重复提示）。
       },
     }, [
       el("span", { class: "check", html: active ? "✓" : "" }),
