@@ -398,7 +398,22 @@ class PiAgent {
       }
       const id = String(++this.reqId);
       const payload = { ...cmd, id };
-      this.pending.set(id, resolve);
+      // Long-running commands (prompt/steer) are tracked for their whole
+      // lifetime: pi's response may legitimately take many minutes, and the
+      // pending entry doubles as the isBusy guard that protects a working
+      // agent from idle-kill. Fire-and-forget queries (get_state etc.) keep a
+      // safety timeout so a dropped response doesn't leak the promise.
+      const longRunning = cmd.type === "prompt" || cmd.type === "steer";
+      let timeoutId = null;
+      const settled = { done: false };
+      const complete = (obj) => {
+        if (settled.done) return;
+        settled.done = true;
+        this.pending.delete(id);
+        if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+        resolve(obj);
+      };
+      this.pending.set(id, complete);
       this.markActivity();
       try {
         this.proc.stdin.write(JSON.stringify(payload) + "\n");
@@ -406,14 +421,14 @@ class PiAgent {
         this.pending.delete(id);
         return resolve({ type: "response", id, success: false, error: err.message });
       }
-      // Safety: timeout so a dropped response doesn't leak the promise.
-      setTimeout(() => {
-        if (this.pending.has(id)) {
-          this.pending.delete(id);
-          this.markActivity();
-          resolve({ type: "response", id, success: false, error: "timeout" });
-        }
-      }, 60000);
+      if (!longRunning) {
+        timeoutId = setTimeout(() => {
+          if (this.pending.has(id)) {
+            this.pending.delete(id);
+            resolve({ type: "response", id, success: false, error: "timeout" });
+          }
+        }, 60000);
+      }
     });
   }
 
@@ -937,7 +952,8 @@ wss.on("connection", (ws, req) => {
         agent.send({ type: "new_session" });
         break;
       case "switch_session":
-        if (msg.sessionPath) agent.setSessionKey(cwd, msg.sessionPath);
+        if (!msg.sessionPath) break; // refuse malformed request; never forward an undefined path to pi
+        agent.setSessionKey(cwd, msg.sessionPath);
         agent.send({ type: "switch_session", sessionPath: msg.sessionPath });
         break;
       case "steer":
