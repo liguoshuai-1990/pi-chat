@@ -22,11 +22,12 @@ SRC="$HERE/pi-web-chat.service"
 DEST_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 DEST="$DEST_DIR/pi-web-chat.service"
 
-PORT="${1:-3000}"
+PORT="3000"
 RESTART_NOW="no"
 for arg in "$@"; do
   case "$arg" in
     --restart|--now) RESTART_NOW="yes" ;;
+    [0-9]*) PORT="$arg" ;;
   esac
 done
 

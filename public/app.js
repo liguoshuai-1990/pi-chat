@@ -2316,7 +2316,7 @@ async function init() {
       toggleModelMenu();
     } else if (e.key === "Escape" && state.streaming) {
       const isMenuOpen = $("#modelMenu")?.classList.contains("open") || $("#thinkingMenu")?.classList.contains("open");
-      const isModalOpen = $("#cwdModal")?.style.display === "flex";
+      const isModalOpen = $("#cwdModal")?.classList.contains("open");
       if (!isMenuOpen && !isModalOpen) {
         abortGeneration();
       }

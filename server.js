@@ -213,14 +213,14 @@ class PiAgent {
   maybeScheduleIdleKill() {
     // Only arm the reclamation timer when: no client attached AND truly idle.
     // A background task that is still running must never be killed here.
-    if (this.hasWs || this.isBusy) return;
+    if (!this.alive || this.hasWs || this.isBusy) return;
     if (IDLE_TIMEOUT_MS === 0) return; // disabled
     this.cancelIdleKill();
     const ms = IDLE_TIMEOUT_MS;
     this.idleTimer = setTimeout(() => {
       this.idleTimer = null;
       // re-check at fire time — a reconnect or new task may have started.
-      if (this.hasWs || this.isBusy) return;
+      if (!this.alive || this.hasWs || this.isBusy) return;
       console.log(`Reclaiming truly-idle pi agent after ${Math.round(ms / 1000)}s (key=${this.sessionKey || "unkeyed"})`);
       if (IDLE_DROP_HEAP) {
         try { if (typeof global.gc === "function") global.gc(); } catch {}
@@ -271,6 +271,10 @@ class PiAgent {
       if (this.sessionKey) activeAgents.delete(this.sessionKey);
       this.cancelIdleKill();
       if (this.lifetimeTimer) { clearTimeout(this.lifetimeTimer); this.lifetimeTimer = null; }
+      for (const [id, resolve] of this.pending) {
+        resolve({ type: "response", id, success: false, error: err.message });
+      }
+      this.pending.clear();
       console.error(`[pi spawn error]`, err);
       this.wsSend({ type: "pi_exit", error: err.message });
       for (const s of this.sockets) { try { s.close(); } catch {} }
@@ -291,6 +295,10 @@ class PiAgent {
       console.log(`pi exited (code=${code})`);
       this.wsSend({ type: "pi_exit", code });
       if (this.sessionKey) activeAgents.delete(this.sessionKey);
+      for (const [id, resolve] of this.pending) {
+        resolve({ type: "response", id, success: false, error: "pi exited" });
+      }
+      this.pending.clear();
       for (const s of this.sockets) { try { s.close(); } catch {} }
       this.sockets.clear();
       this.cancelIdleKill();
@@ -326,6 +334,10 @@ class PiAgent {
         this.setStreaming(false);
         this.eventBuffer = [];
         this.bufferHead = 0;
+        // If unkeyed, actively query state from pi so sessionKey is recorded
+        if (!this.sessionKey) {
+          this.send({ type: "get_state" });
+        }
         break;
       case "pi_exit": this.state = "idle"; break;
     }
@@ -459,6 +471,10 @@ class PiAgent {
     if (this.sessionKey) {
       activeAgents.delete(this.sessionKey);
     }
+    for (const [id, resolve] of this.pending) {
+      resolve({ type: "response", id, success: false, error: "pi process stopped" });
+    }
+    this.pending.clear();
     for (const s of this.sockets) { try { s.close(); } catch {} }
     this.sockets.clear();
     try { this.proc && this.proc.kill("SIGTERM"); } catch {}
@@ -737,7 +753,8 @@ app.get("/api/session", async (req, res) => {
     if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
       return res.status(403).json({ error: "Access denied" });
     }
-    // Canonicalize and verify the real target still lives under SESSIONS_DIR.
+    // Canonicalize both target file and sessions directory to verify the real
+    // target still lives under the real SESSIONS_DIR even when symlinks exist.
     let resolvedFile;
     try {
       resolvedFile = await fsRealpath(requestedPath);
@@ -746,7 +763,11 @@ app.get("/api/session", async (req, res) => {
       // the read below will surface the actual error.
       resolvedFile = requestedPath;
     }
-    const realRel = path.relative(resolvedSessionsDir, resolvedFile);
+    let canonicalSessionsDir = resolvedSessionsDir;
+    try {
+      canonicalSessionsDir = await fsRealpath(resolvedSessionsDir);
+    } catch {}
+    const realRel = path.relative(canonicalSessionsDir, resolvedFile);
     if (realRel.startsWith("..") || path.isAbsolute(realRel)) {
       return res.status(403).json({ error: "Access denied" });
     }

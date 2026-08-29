@@ -356,7 +356,11 @@ body {
   font-size: 15px; line-height: 1.65; color: var(--text);
   max-width: 100%; min-width: 0;
 }
-.msg.assistant .content p { margin-bottom: 12px; }
+.msg.assistant .content p {
+  margin-bottom: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .msg.assistant .content p:last-child { margin-bottom: 0; }
 .msg.assistant .content pre {
   background: #0d0d0d; border: 1px solid var(--border);
