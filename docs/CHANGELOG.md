@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.9] - 2026-08-29
+
+### Fixed
+- **Markdown 下划线变量与标识符渲染保护 (Markdown Identifier & Underscore Parsing Protection)**：
+  - 优化行内 Markdown 解析器，限定下划线 `_` 仅在非单词边界（空格/标点包裹）时触发斜体，防止编程标识符与文件名（如 `user_id_list`、`process.env.NODE_ENV`）被误切分解析为斜体。
+  - 优化加粗与嵌套斜体（`**bold and *italic***`）的非贪婪匹配规则。
+- **移动端模型选择菜单支持“设为默认” (Mobile Model Selector 'Set Default' Accessibility)**：
+  - 在移动端媒体查询下保持 `.btn-set-default` 可见（`opacity: 1`），修复手机端因缺少 hover 无法将模型设为全局默认的问题。
+- **工具调用头部与顶栏弹性布局溢出保护 (Tool Block & Topbar Flex Overflow Protection)**：
+  - 给 `.tool-head .args` 增加 `min-width: 0`，防止长命令/长文件路径将右侧“复制”按钮与“执行状态”标签挤出卡片。
+  - 给桌面端 `.topbar .session-name` 增加 `min-width: 0`，防止窄屏下超长会话标题破坏顶栏胶囊布局。
+
+---
+
 ## [1.8.8] - 2026-08-29
 
 ### Fixed

@@ -422,16 +422,16 @@ function renderInlineMd(text) {
 
 // helper state bag attached to the function during line scan
 function mdInlineBlock(text) {
-  function esc(s) { return escapeHtml(s); }
   let s = escapeHtml(text);
   // bold
-  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+  s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
   // strikethrough
-  s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-  // italic
-  s = s.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
-  s = s.replace(/(^|[^_])_([^_]+)_/g, "$1<em>$2</em>");
+  s = s.replace(/~~(.+?)~~/g, "<del>$1</del>");
+  // italic (asterisk)
+  s = s.replace(/(^|[^*])\*([^*\s](?:[^*]*?[^*\s])?)\*(?!\*)/g, "$1<em>$2</em>");
+  // italic (underscore): only match boundary/space so identifier_names are preserved
+  s = s.replace(/(^|[\s(\[<,;:])_([^_\s](?:[^_]*?[^_\s])?)_(?=[\s)\]>,;:!?.]|$)/g, "$1<em>$2</em>");
   // links [txt](url)
   s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
   return s;
