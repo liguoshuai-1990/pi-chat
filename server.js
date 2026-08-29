@@ -3,7 +3,7 @@
 // for listing sessions and reading session history from the JSONL store.
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
-import { readFile, readdir, stat, writeFile, mkdir, realpath as fsRealpath } from "fs/promises";
+import { readFile, readdir, stat, writeFile, mkdir, realpath as fsRealpath, unlink } from "fs/promises";
 import { readFileSync, existsSync } from "fs";
 import { StringDecoder } from "string_decoder";
 import express from "express";
@@ -849,6 +849,65 @@ app.get("/api/session", async (req, res) => {
     res.json({ header, entries: entryChain, model: sessionModel, sessionName });
   } catch (e) {
     console.error(e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Delete a session file from disk and clean up in-memory caches / active agents
+app.delete("/api/session", async (req, res) => {
+  try {
+    const file = req.query.file || req.body?.file;
+    if (!file || !file.endsWith(".jsonl")) {
+      return res.status(400).json({ error: "bad file" });
+    }
+
+    const resolvedSessionsDir = normalizePath(SESSIONS_DIR);
+    const requestedPath = normalizePath(file);
+    const relPath = path.relative(resolvedSessionsDir, requestedPath);
+    if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    let resolvedFile;
+    try {
+      resolvedFile = await fsRealpath(requestedPath);
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        return res.status(404).json({ error: "File not found" });
+      }
+      resolvedFile = requestedPath;
+    }
+
+    let canonicalSessionsDir = resolvedSessionsDir;
+    try {
+      canonicalSessionsDir = await fsRealpath(resolvedSessionsDir);
+    } catch {}
+
+    const realRel = path.relative(canonicalSessionsDir, resolvedFile);
+    if (realRel.startsWith("..") || path.isAbsolute(realRel)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Stop and unpool any active PiAgent managing this session
+    for (const [key, agent] of activeAgents.entries()) {
+      if (key.endsWith(`:${requestedPath}`) || key.endsWith(`:${resolvedFile}`)) {
+        activeAgents.delete(key);
+        try {
+          agent.stop();
+        } catch {}
+      }
+    }
+
+    // Invalidate session cache
+    sessionMetadataCache.delete(requestedPath);
+    sessionMetadataCache.delete(resolvedFile);
+
+    // Delete the session JSONL file
+    await unlink(resolvedFile);
+
+    res.json({ success: true, file: requestedPath });
+  } catch (e) {
+    console.error("Delete session error:", e);
     res.status(500).json({ error: String(e) });
   }
 });

@@ -491,6 +491,17 @@ function renderSidebar(sessions) {
   sessions.forEach((s) => {
     const title = s.sessionName || s.firstUser || "新对话";
     const when = s.timestamp ? new Date(s.timestamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+    
+    const btnDelete = el("button", {
+      class: "btn-delete-session",
+      title: "删除会话",
+      html: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>`,
+      onclick: (e) => {
+        e.stopPropagation();
+        deleteSession(s.file, title);
+      },
+    });
+
     const item = el("div", {
       class: "session-item" + (s.file === state.currentSessionFile ? " active" : ""),
       dataset: { file: s.file },
@@ -498,12 +509,55 @@ function renderSidebar(sessions) {
       onclick: () => loadSession(s.file),
     }, [
       el("div", { class: "title" }, [
-        el("div", { text: title }),
+        el("div", { class: "session-item-name", text: title }),
         el("div", { class: "meta", text: `${when} · ${s.messageCount || 0} 条` }),
       ]),
+      btnDelete,
     ]);
     list.appendChild(item);
   });
+}
+
+function startNewSession(askConfirm = true) {
+  if (state.streaming) {
+    if (askConfirm && !confirm("正在生成中，新建会话会终止当前操作，确定吗？")) return;
+    abortGeneration();
+  }
+  clearChat();
+  showEmptyState(true);
+  state.currentSessionFile = null;
+  try {
+    window.history.replaceState({}, "", window.location.pathname);
+  } catch {}
+  connectWs({ explicitNewSession: true }); // no session -> pi creates a new one
+  $("#topSessionName").textContent = "新对话";
+  // Mobile: close sidebar on new session
+  if (window.innerWidth <= 768) closeSidebar();
+  refreshSessions();
+}
+
+async function deleteSession(file, title) {
+  if (!confirm(`确定要删除此会话记录吗？\n「${title || "新对话"}」\n删除后不可恢复。`)) {
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/api/session?file=${encodeURIComponent(file)}`, {
+      method: "DELETE",
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      showToast(`删除失败: ${data.error || "未知错误"}`);
+      return;
+    }
+    showToast("会话已删除");
+    if (state.currentSessionFile === file) {
+      startNewSession(false);
+    } else {
+      await refreshSessions();
+    }
+  } catch (err) {
+    showToast(`删除失败: ${err.message || "网络错误"}`);
+  }
 }
 
 async function toggleSidebar() {
@@ -2224,6 +2278,70 @@ function autoResize() {
   ta.style.height = Math.min(ta.scrollHeight, 220) + "px";
 }
 
+function initSidebarResize() {
+  const resizer = $("#sidebarResizer");
+  if (!resizer) return;
+
+  // Restore saved width from localStorage
+  const savedWidth = parseInt(localStorage.getItem("sidebarWidth"), 10);
+  if (savedWidth && savedWidth >= 180 && savedWidth <= 800) {
+    document.documentElement.style.setProperty("--sidebar-width", `${savedWidth}px`);
+  }
+
+  let isDragging = false;
+  let startX = 0;
+  let startWidth = 260;
+
+  resizer.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return; // Only primary button
+    if (window.innerWidth <= 768) return; // Ignore on mobile
+
+    isDragging = true;
+    startX = e.clientX;
+    const currentWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--sidebar-width"), 10) || $(".sidebar")?.offsetWidth || 260;
+    startWidth = currentWidth;
+
+    resizer.setPointerCapture(e.pointerId);
+    document.body.classList.add("is-resizing");
+    e.preventDefault();
+  });
+
+  resizer.addEventListener("pointermove", (e) => {
+    if (!isDragging) return;
+    const deltaX = e.clientX - startX;
+    let newWidth = startWidth + deltaX;
+
+    const minWidth = 180;
+    const maxWidth = Math.min(650, Math.max(300, window.innerWidth - 250));
+    newWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
+
+    document.documentElement.style.setProperty("--sidebar-width", `${newWidth}px`);
+  });
+
+  const endDrag = (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    try {
+      resizer.releasePointerCapture(e.pointerId);
+    } catch {}
+    document.body.classList.remove("is-resizing");
+
+    const finalWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--sidebar-width"), 10);
+    if (finalWidth) {
+      localStorage.setItem("sidebarWidth", finalWidth);
+    }
+  };
+
+  resizer.addEventListener("pointerup", endDrag);
+  resizer.addEventListener("pointercancel", endDrag);
+
+  // Double-click to reset width to default 260px
+  resizer.addEventListener("dblclick", () => {
+    document.documentElement.style.setProperty("--sidebar-width", "260px");
+    localStorage.removeItem("sidebarWidth");
+  });
+}
+
 // ---- Init ----
 async function init() {
   // Default cwd to home (server uses home default too).
@@ -2233,23 +2351,7 @@ async function init() {
   await loadServerConfig();
 
   // event listeners
-  $("#btnNew").addEventListener("click", () => {
-    if (state.streaming) {
-      if (!confirm("正在生成中，新建会话会终止当前操作，确定吗？")) return;
-      abortGeneration();
-    }
-    clearChat();
-    showEmptyState(true);
-    state.currentSessionFile = null;
-    try {
-      window.history.replaceState({}, "", window.location.pathname);
-    } catch {}
-    connectWs({ explicitNewSession: true }); // no session -> pi creates a new one
-    $("#topSessionName").textContent = "新对话";
-    // Mobile: close sidebar on new session
-    if (window.innerWidth <= 768) closeSidebar();
-    refreshSessions();
-  });
+  $("#btnNew").addEventListener("click", () => startNewSession(true));
 
   $("#sendBtn").addEventListener("click", () => {
     if (state.streaming) {
@@ -2348,7 +2450,9 @@ async function init() {
   $("#sidebarSearch").addEventListener("input", (e) => {
     const q = e.target.value.toLowerCase();
     document.querySelectorAll(".session-item").forEach((it) => {
-      it.style.display = it.textContent.toLowerCase().includes(q) ? "" : "none";
+      const titleEl = it.querySelector(".title");
+      const text = titleEl ? titleEl.textContent.toLowerCase() : it.textContent.toLowerCase();
+      it.style.display = text.includes(q) ? "" : "none";
     });
   });
 
@@ -2478,6 +2582,9 @@ async function init() {
 
   // Mobile: floating button to jump back to the toolbar after long scrolls
   initMobileToolbarFab();
+
+  // Sidebar resizer
+  initSidebarResize();
 
   refreshSessions();
   // start in the disconnected state; connectWs will flip to green on open.

@@ -1,4 +1,5 @@
 :root {
+  --sidebar-width: 260px;
   --bg: #212121;
   --bg-sidebar: #171717;
   --bg-hover: #2a2a2a;
@@ -42,7 +43,7 @@ body {
 }
 
 .sidebar {
-  width: 260px;
+  width: var(--sidebar-width);
   flex-shrink: 0;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
@@ -52,11 +53,12 @@ body {
   transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 100;
   overflow: hidden;
+  position: relative;
 }
 
 /* Sidebar collapsed state on desktop */
 .app:not(.sidebar-open) .sidebar {
-  margin-left: -260px;
+  margin-left: calc(-1 * var(--sidebar-width));
 }
 
 .main {
@@ -117,23 +119,103 @@ body {
   padding: 4px 8px 16px;
 }
 .session-item {
-  padding: 9px 10px;
+  padding: 8px 10px;
   border-radius: 10px;
   cursor: pointer;
   font-size: 13px;
   color: var(--text);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-bottom: 2px;
   transition: background .12s;
   word-break: break-word;
+  position: relative;
 }
 .session-item:hover { background: var(--bg-hover); }
 .session-item.active { background: var(--bg-hover); }
-.session-item .title { flex: 1; line-height: 1.35; }
+.session-item .title {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+.session-item .session-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .session-item .meta {
-  font-size: 11px; color: var(--text-dim); margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btn-delete-session {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+.session-item:hover .btn-delete-session,
+.session-item:focus-within .btn-delete-session {
+  opacity: 1;
+}
+.btn-delete-session:hover {
+  color: var(--danger, #ef4444);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Sidebar Resizer */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 102;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2px;
+  height: 100%;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+.sidebar-resizer:hover::after,
+.is-resizing .sidebar-resizer::after {
+  background: var(--accent);
+}
+.sidebar-resizer:hover,
+.is-resizing .sidebar-resizer {
+  background: rgba(16, 163, 127, 0.12);
+}
+
+.is-resizing,
+.is-resizing * {
+  user-select: none !important;
+  cursor: col-resize !important;
+}
+.is-resizing .sidebar {
+  transition: none !important;
 }
 .sidebar-empty { color: var(--text-dim); font-size: 13px; padding: 20px 12px; text-align: center; }
 
@@ -1215,6 +1297,16 @@ body {
     flex-direction: column;
     overflow: hidden;
     z-index: 105;
+  }
+
+  .sidebar-resizer {
+    display: none !important;
+  }
+
+  .btn-delete-session {
+    opacity: 0.7;
+    width: 30px;
+    height: 30px;
   }
 
   .sidebar-bottom {
