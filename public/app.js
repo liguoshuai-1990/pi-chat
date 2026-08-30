@@ -812,7 +812,11 @@ function renderImagePreviews() {
   }
   bar.style.display = "flex";
   state.attachedImages.forEach((img, idx) => {
-    const item = el("div", { class: "image-preview-item" }, [
+    const item = el("div", {
+      class: "image-preview-item",
+      title: "点击查看大图",
+      onclick: () => openLightbox(img.url)
+    }, [
       el("img", { src: img.url, alt: "预览" }),
       el("button", {
         class: "image-preview-remove",
@@ -840,37 +844,172 @@ function detectImageMimeType(file) {
     bmp: "image/bmp",
     svg: "image/svg+xml",
     ico: "image/x-icon",
-    avif: "image/avif"
+    avif: "image/avif",
+    heic: "image/heic",
+    heif: "image/heif"
   };
   return map[ext] || "image/png";
 }
 
-function handleImageFiles(files) {
-  if (!files || files.length === 0) return;
-  const imageFiles = Array.from(files).filter(f => {
-    return (f.type && f.type.startsWith("image/")) ||
-      (f.name && /\.(png|jpe?g|webp|gif|bmp|svg|ico|avif)$/i.test(f.name));
-  });
-  if (imageFiles.length === 0) return;
-
-  imageFiles.forEach(file => {
+async function processImageFile(file) {
+  const mimeType = detectImageMimeType(file);
+  const dataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== "string") return;
-      const commaIdx = result.indexOf(",");
-      const base64 = commaIdx !== -1 ? result.slice(commaIdx + 1) : result;
-      const mimeType = detectImageMimeType(file);
-      state.attachedImages.push({
-        data: base64,
-        mimeType,
-        url: result
-      });
-      renderImagePreviews();
-    };
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+
+  if (typeof dataUrl !== "string") return null;
+
+  // For SVG or GIF (which might be animated), or small images, keep original
+  if (mimeType.includes("svg") || mimeType.includes("gif") || (file.size && file.size < 800 * 1024)) {
+    const commaIdx = dataUrl.indexOf(",");
+    const base64 = commaIdx !== -1 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+    return { data: base64, mimeType, url: dataUrl };
+  }
+
+  // Optimize large phone camera photos / oversized images via canvas downscale
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = dataUrl;
+    });
+
+    const maxDim = 2048;
+    let { width, height } = img;
+    if (width > maxDim || height > maxDim) {
+      if (width > height) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas 2D unavailable");
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const targetMime = (mimeType === "image/png" && file.size < 2 * 1024 * 1024) ? "image/png" : "image/jpeg";
+    const quality = 0.88;
+    const optimizedUrl = canvas.toDataURL(targetMime, quality);
+    const commaIdx = optimizedUrl.indexOf(",");
+    const base64 = commaIdx !== -1 ? optimizedUrl.slice(commaIdx + 1) : optimizedUrl;
+
+    return {
+      data: base64,
+      mimeType: targetMime,
+      url: optimizedUrl
+    };
+  } catch {
+    // Fallback to original base64 if canvas processing is unsupported
+    const commaIdx = dataUrl.indexOf(",");
+    const base64 = commaIdx !== -1 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+    return { data: base64, mimeType, url: dataUrl };
+  }
 }
+
+function getLanguageFromFilename(filename) {
+  if (!filename) return "";
+  const ext = filename.split(".").pop().toLowerCase();
+  const langMap = {
+    js: "javascript", mjs: "javascript", cjs: "javascript",
+    ts: "typescript", tsx: "tsx", jsx: "jsx",
+    py: "python", pyw: "python",
+    rb: "ruby", rs: "rust", go: "go", java: "java",
+    c: "c", cpp: "cpp", cc: "cpp", cxx: "cpp", h: "c", hpp: "cpp",
+    sh: "bash", bash: "bash", zsh: "bash",
+    json: "json", yaml: "yaml", yml: "yaml", toml: "toml",
+    md: "markdown", markdown: "markdown",
+    html: "html", htm: "html", css: "css", scss: "scss", less: "less",
+    sql: "sql", xml: "xml", svg: "xml",
+    log: "log", env: "ini", ini: "ini", conf: "ini",
+    diff: "diff", patch: "diff", dockerfile: "dockerfile", makefile: "makefile"
+  };
+  return langMap[ext] || "";
+}
+
+function isTextFile(file) {
+  if (file.type && (file.type.startsWith("text/") || file.type.includes("json") || file.type.includes("xml") || file.type.includes("javascript") || file.type.includes("yaml"))) {
+    return true;
+  }
+  const name = file.name ? file.name.toLowerCase() : "";
+  return /\.(txt|md|markdown|json|js|mjs|cjs|ts|tsx|jsx|py|pyw|rb|php|java|c|cpp|cc|cxx|h|hpp|rs|go|sh|bash|zsh|sql|html|htm|css|scss|sass|less|vue|svelte|yaml|yml|toml|ini|env|xml|log|csv|tsv|diff|patch|dockerfile|makefile)$/i.test(name);
+}
+
+async function handleIncomingFiles(files) {
+  if (!files || files.length === 0) return;
+  const list = Array.from(files);
+
+  let imageCount = 0;
+  let textCount = 0;
+
+  for (const file of list) {
+    const isImg = (file.type && file.type.startsWith("image/")) ||
+      (file.name && /\.(png|jpe?g|webp|gif|bmp|svg|ico|avif|heic|heif)$/i.test(file.name));
+
+    if (isImg) {
+      try {
+        const imgObj = await processImageFile(file);
+        if (imgObj) {
+          state.attachedImages.push(imgObj);
+          renderImagePreviews();
+          imageCount++;
+        }
+      } catch (err) {
+        console.error("Failed to process image file:", err);
+      }
+    } else if (isTextFile(file)) {
+      if (file.size > 1024 * 1024) {
+        showToast(`文件 ${file.name} 较大，建议放入工作目录供 pi 访问`);
+        continue;
+      }
+      try {
+        const content = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+        if (typeof content === "string") {
+          const lang = getLanguageFromFilename(file.name);
+          const composer = $("#composer");
+          if (composer) {
+            const block = `[附件: ${file.name}]\n\`\`\`${lang}\n${content}\n\`\`\`\n`;
+            if (composer.value.trim()) {
+              composer.value = composer.value.trimEnd() + "\n\n" + block;
+            } else {
+              composer.value = block;
+            }
+            autoResize();
+            composer.focus();
+            textCount++;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to read text file:", err);
+      }
+    } else {
+      showToast(`暂不支持直接解析该附件格式 (${file.name || "未知类型"})`);
+    }
+  }
+
+  if (imageCount > 0) {
+    showToast(`已添加 ${imageCount} 张图片附件`);
+  }
+  if (textCount > 0) {
+    showToast(`已导入 ${textCount} 个文本文件`);
+  }
+}
+
+const handleImageFiles = handleIncomingFiles;
 
 function exportCurrentSession() {
   const chatInner = $("#chat-inner");
@@ -2714,30 +2853,43 @@ async function init() {
     exportBtn.addEventListener("click", exportCurrentSession);
   }
 
-  // Image attach / file picker / paste / drag-and-drop
+  // Image and file attach / picker / paste / drag-and-drop
   const btnAttach = $("#btnAttachImage");
   const fileInput = $("#imageFileInput");
-  if (btnAttach && fileInput) {
-    btnAttach.addEventListener("click", () => fileInput.click());
+  if (fileInput) {
     fileInput.addEventListener("change", (e) => {
-      handleImageFiles(e.target.files);
+      handleIncomingFiles(e.target.files);
       fileInput.value = "";
     });
   }
 
-  // Image paste support
+  if (btnAttach) {
+    // If not a label (e.g. fallback button), click input
+    if (btnAttach.tagName !== "LABEL") {
+      btnAttach.addEventListener("click", () => fileInput?.click());
+    }
+    // Keyboard accessibility for Enter / Space
+    btnAttach.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput?.click();
+      }
+    });
+  }
+
+  // Image and file paste support
   document.addEventListener("paste", (e) => {
     const items = e.clipboardData?.items;
     if (!items) return;
     const files = [];
     for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1) {
+      if (items[i].kind === "file") {
         const file = items[i].getAsFile();
         if (file) files.push(file);
       }
     }
     if (files.length > 0) {
-      handleImageFiles(files);
+      handleIncomingFiles(files);
       const ta = $("#composer");
       if (ta) ta.focus();
     }
@@ -2747,7 +2899,7 @@ async function init() {
   window.addEventListener("dragover", (e) => e.preventDefault(), false);
   window.addEventListener("drop", (e) => e.preventDefault(), false);
 
-  // Drag and drop images to composer
+  // Drag and drop images and files to composer
   const composerBox = $("#composerInner") || $(".composer");
   if (composerBox) {
     composerBox.addEventListener("dragover", (e) => {
@@ -2765,7 +2917,7 @@ async function init() {
       e.stopPropagation();
       composerBox.classList.remove("drag-over");
       if (e.dataTransfer?.files) {
-        handleImageFiles(e.dataTransfer.files);
+        handleIncomingFiles(e.dataTransfer.files);
       }
     });
   }

@@ -895,6 +895,20 @@ body {
 .suggestions .chip:hover { border-color: var(--text-dim); color: var(--text); }
 
 /* ---------- Composer & Image Upload ---------- */
+.sr-only-file-input {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .composer {
   padding: 12px 24px 20px;
   background: var(--bg);
@@ -917,6 +931,12 @@ body {
   background: #111;
   flex-shrink: 0;
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.image-preview-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
 }
 .image-preview-item img {
   width: 100%;
@@ -941,10 +961,12 @@ body {
   font-size: 12px;
   line-height: 1;
   padding: 0;
-  transition: background 0.15s;
+  transition: background 0.15s, transform 0.1s;
+  z-index: 2;
 }
 .image-preview-remove:hover {
   background: var(--danger, #ef4444);
+  transform: scale(1.1);
 }
 
 .composer-inner {
@@ -972,12 +994,15 @@ body {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   transition: color 0.15s ease, background 0.15s ease, transform 0.1s ease;
   flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
 }
 .composer .attach-btn:hover {
   color: var(--text);
@@ -1795,10 +1820,35 @@ body {
     padding-bottom: max(12px, calc(8px + env(safe-area-inset-bottom, 0px)));
   }
 
+  .image-preview-bar {
+    gap: 8px;
+    margin-bottom: 6px;
+    padding: 2px 4px;
+  }
+
+  .image-preview-item {
+    width: 60px;
+    height: 60px;
+  }
+
+  .image-preview-remove {
+    width: 22px;
+    height: 22px;
+    font-size: 14px;
+    top: 2px;
+    right: 2px;
+    background: rgba(0, 0, 0, 0.85);
+  }
+
   .composer-inner {
-    padding: 5px 8px 5px 12px;
+    padding: 5px 8px 5px 8px;
     border-radius: 22px;
     gap: 6px;
+  }
+
+  .composer .attach-btn {
+    width: 32px;
+    height: 32px;
   }
 
   .composer textarea {

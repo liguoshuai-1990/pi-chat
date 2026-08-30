@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.3] - 2026-08-30
+
+### Fixed & Improved
+- **移动端附件导入功能全面重构与修复 (Mobile Attachment Import Fix)**：
+  - **移动端文件选择器唤起修复**：将上传触发器重构为标准可访问的 `<label for="imageFileInput">` 并配合 CSS `.sr-only-file-input`，彻底解决 iOS Safari、Android Chrome、移动端 WebView 及微信内置浏览器中因 `display: none` 导致异步 JS `.click()` 被浏览器安全策略拦截而无法调起系统相册/文件选择器的问题。
+  - **移动端格式与相机照片兼容性**：扩展对 iOS HEIC/HEIF 相机原图、AVIF、ICO、SVG 及大写扩展名的识别与支持。
+  - **移动端高清原图智能压缩降采样 (Client-side Downscale)**：针对手机拍摄的超高分辨率照片（12MP~48MP），自动使用 Canvas 进行等比下采样（最大 2048px）与高质量编码压缩，防止超大 Base64 数据挤爆移动端内存或造成 WebSocket 通信中断，同时确保所有主流大模型 Vision API 稳定解析。
+  - **文本与源码文件附件导入支持 (Text & Code Attachment Parsing)**：支持通过附件按钮、拖拽或剪贴板直接导入 `.py`、`.js`、`.json`、`.md`、`.txt`、`.log` 等各类代码和文本附件，自动提取并按对应语言 Markdown 代码块注入输入框。
+  - **预览交互与触控体验优化 (Touch UX & Preview Lightbox)**：输入框待发送图片缩略图支持点击直接弹出 Lightbox 大图预览，加大移动端单张删除按钮的触控热区（22px）与操作反馈。
+
+---
+
 ## [1.10.2] - 2026-08-30
 
 ### Fixed & Improved

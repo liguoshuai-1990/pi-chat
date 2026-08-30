@@ -4,9 +4,9 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 
 describe("pi-web-chat Unit Tests", () => {
-  test("package.json is valid and version is 1.10.2", () => {
+  test("package.json is valid and version is 1.10.3", () => {
     const pkg = JSON.parse(readFileSync(path.resolve("package.json"), "utf8"));
-    assert.equal(pkg.version, "1.10.2");
+    assert.equal(pkg.version, "1.10.3");
     assert.equal(pkg.type, "module");
     assert.ok(pkg.bin["pi-web-chat"]);
   });
@@ -78,5 +78,49 @@ describe("pi-web-chat Unit Tests", () => {
     assert.equal(checkSafeRelPath(sessionsDir, "/home/user/.pi/agent/sessions/subdir/test.jsonl"), true);
     assert.equal(checkSafeRelPath(sessionsDir, "/etc/passwd"), false);
     assert.equal(checkSafeRelPath(sessionsDir, "/home/user/.pi/agent/sessions/../../etc/shadow"), false);
+  });
+
+  test("Attachment MIME detection and text file inference", () => {
+    function detectImageMimeType(file) {
+      if (file.type && file.type.startsWith("image/")) return file.type;
+      const ext = file.name ? file.name.split(".").pop().toLowerCase() : "";
+      const map = {
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        webp: "image/webp",
+        gif: "image/gif",
+        bmp: "image/bmp",
+        svg: "image/svg+xml",
+        ico: "image/x-icon",
+        avif: "image/avif",
+        heic: "image/heic",
+        heif: "image/heif"
+      };
+      return map[ext] || "image/png";
+    }
+
+    function isTextFile(file) {
+      if (file.type && (file.type.startsWith("text/") || file.type.includes("json") || file.type.includes("xml") || file.type.includes("javascript") || file.type.includes("yaml"))) {
+        return true;
+      }
+      const name = file.name ? file.name.toLowerCase() : "";
+      return /\.(txt|md|markdown|json|js|mjs|cjs|ts|tsx|jsx|py|pyw|rb|php|java|c|cpp|cc|cxx|h|hpp|rs|go|sh|bash|zsh|sql|html|htm|css|scss|sass|less|vue|svelte|yaml|yml|toml|ini|env|xml|log|csv|tsv|diff|patch|dockerfile|makefile)$/i.test(name);
+    }
+
+    // Image MIME detection
+    assert.equal(detectImageMimeType({ type: "image/png", name: "test.png" }), "image/png");
+    assert.equal(detectImageMimeType({ type: "", name: "photo.HEIC" }), "image/heic");
+    assert.equal(detectImageMimeType({ type: "", name: "photo.jpg" }), "image/jpeg");
+    assert.equal(detectImageMimeType({ type: "", name: "vector.svg" }), "image/svg+xml");
+    assert.equal(detectImageMimeType({ type: "", name: "unknown" }), "image/png");
+
+    // Text file inference
+    assert.equal(isTextFile({ type: "text/plain", name: "notes.txt" }), true);
+    assert.equal(isTextFile({ type: "", name: "app.py" }), true);
+    assert.equal(isTextFile({ type: "", name: "package.json" }), true);
+    assert.equal(isTextFile({ type: "", name: "server.log" }), true);
+    assert.equal(isTextFile({ type: "application/zip", name: "archive.zip" }), false);
+    assert.equal(isTextFile({ type: "application/octet-stream", name: "binary.exe" }), false);
   });
 });
