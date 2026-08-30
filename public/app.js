@@ -43,6 +43,7 @@ const state = {
   sessionId: null,
   isBackfilling: false,
   aborting: false,
+  attachedImages: [], // Array of { data: string (base64), mimeType: string, url: string }
 };
 
 let toastTimer = null;
@@ -358,7 +359,7 @@ function renderInlineMd(text) {
     if (para.length === 0) return;
     const block = para.join("\n").trim();
     para = [];
-    outHtml += "<p>" + mdInlineBlock(block) + "</p>";
+    outHtml += "<p>" + mdInlineBlock(block).replace(/\n/g, "<br>") + "</p>";
   }
   for (const seg of out) {
     if (seg.kind === "table") {
@@ -420,6 +421,15 @@ function renderInlineMd(text) {
   return outHtml;
 }
 
+function sanitizeUrl(url) {
+  if (!url) return "#";
+  const trimmed = url.trim();
+  if (/^(https?:\/\/|mailto:)/i.test(trimmed)) {
+    return escapeHtml(trimmed);
+  }
+  return "#";
+}
+
 // helper state bag attached to the function during line scan
 function mdInlineBlock(text) {
   let s = escapeHtml(text);
@@ -432,8 +442,11 @@ function mdInlineBlock(text) {
   s = s.replace(/(^|[^*])\*([^*\s](?:[^*]*?[^*\s])?)\*(?!\*)/g, "$1<em>$2</em>");
   // italic (underscore): only match boundary/space so identifier_names are preserved
   s = s.replace(/(^|[\s(\[<,;:])_([^_\s](?:[^_]*?[^_\s])?)_(?=[\s)\]>,;:!?.]|$)/g, "$1<em>$2</em>");
-  // links [txt](url)
-  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // links [txt](url) - strictly sanitize URL
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (match, txt, url) => {
+    const safeUrl = sanitizeUrl(url);
+    return `<a href="${safeUrl}" target="_blank" rel="noopener">${txt}</a>`;
+  });
   return s;
 }
 
@@ -516,6 +529,31 @@ function renderSidebar(sessions) {
     ]);
     list.appendChild(item);
   });
+  filterSessions();
+}
+
+function filterSessions(query) {
+  const q = (query !== undefined ? query : ($("#sidebarSearch")?.value || "")).toLowerCase().trim();
+  const list = $("#sessionList");
+  if (!list) return;
+  const items = list.querySelectorAll(".session-item");
+  let visibleCount = 0;
+  items.forEach((it) => {
+    const titleEl = it.querySelector(".session-item-name") || it.querySelector(".title");
+    const text = titleEl ? titleEl.textContent.toLowerCase() : it.textContent.toLowerCase();
+    const match = !q || text.includes(q);
+    it.style.display = match ? "" : "none";
+    if (match) visibleCount++;
+  });
+  let emptyTip = list.querySelector(".sidebar-search-empty");
+  if (items.length > 0 && visibleCount === 0 && q) {
+    if (!emptyTip) {
+      emptyTip = el("div", { class: "sidebar-search-empty", text: "未找到匹配的会话" });
+      list.appendChild(emptyTip);
+    }
+  } else if (emptyTip) {
+    emptyTip.remove();
+  }
 }
 
 function startNewSession(askConfirm = true) {
@@ -672,8 +710,18 @@ function reconstructFromEntries(entries) {
     const m = e.message;
     if (!m || m.role === "bashExecution") continue;
     if (m.role === "user") {
-      // skip "bash execution" pseudo-users (those have role user but content type special)
-      out.push({ role: "user", text: extractContentText(m.content), ts: m.timestamp });
+      // Extract optional images from user message content array
+      let images = [];
+      if (Array.isArray(m.content)) {
+        images = m.content
+          .filter(c => c && (c.type === "image" || c.mimeType))
+          .map(c => ({
+            data: c.data,
+            mimeType: c.mimeType || "image/png",
+            url: c.data ? `data:${c.mimeType || "image/png"};base64,${c.data}` : (c.url || "")
+          }));
+      }
+      out.push({ role: "user", text: extractContentText(m.content), images, ts: m.timestamp });
     } else if (m.role === "assistant") {
       const rawContent = Array.isArray(m.content) ? m.content : (m.content ? [{ type: "text", text: String(m.content) }] : []);
       const content = rawContent.map(part => {
@@ -734,14 +782,157 @@ function showEmptyState(show) {
   document.querySelector("#emptyState").style.display = show ? "flex" : "none";
 }
 
+function openLightbox(src) {
+  const box = $("#imageLightbox");
+  const img = $("#lightboxImg");
+  if (!box || !img) return;
+  img.src = src;
+  box.style.display = "flex";
+}
+
+function closeLightbox() {
+  const box = $("#imageLightbox");
+  if (box) box.style.display = "none";
+}
+
+function removeAttachedImage(index) {
+  if (index >= 0 && index < state.attachedImages.length) {
+    state.attachedImages.splice(index, 1);
+    renderImagePreviews();
+  }
+}
+
+function renderImagePreviews() {
+  const bar = $("#imagePreviewBar");
+  if (!bar) return;
+  bar.innerHTML = "";
+  if (!state.attachedImages || state.attachedImages.length === 0) {
+    bar.style.display = "none";
+    return;
+  }
+  bar.style.display = "flex";
+  state.attachedImages.forEach((img, idx) => {
+    const item = el("div", { class: "image-preview-item" }, [
+      el("img", { src: img.url, alt: "预览" }),
+      el("button", {
+        class: "image-preview-remove",
+        type: "button",
+        title: "移除此图片",
+        onclick: (e) => {
+          e.stopPropagation();
+          removeAttachedImage(idx);
+        }
+      }, ["×"])
+    ]);
+    bar.appendChild(item);
+  });
+}
+
+function handleImageFiles(files) {
+  if (!files || files.length === 0) return;
+  const imageFiles = Array.from(files).filter(f => f.type && f.type.startsWith("image/"));
+  if (imageFiles.length === 0) return;
+
+  imageFiles.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") return;
+      const commaIdx = result.indexOf(",");
+      const base64 = commaIdx !== -1 ? result.slice(commaIdx + 1) : result;
+      state.attachedImages.push({
+        data: base64,
+        mimeType: file.type || "image/png",
+        url: result
+      });
+      renderImagePreviews();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function exportCurrentSession() {
+  const chatInner = $("#chat-inner");
+  if (!chatInner || chatInner.children.length === 0) {
+    showToast("当前会话没有内容可导出");
+    return;
+  }
+  const sessionTitle = $("#topSessionName")?.textContent || "pi-chat-export";
+  let md = `# ${sessionTitle}\n\n`;
+  md += `> 导出时间: ${new Date().toLocaleString()}\n`;
+  if (state.currentModel?.id) {
+    md += `> 模型: ${state.currentModel.provider ? state.currentModel.provider + " / " : ""}${state.currentModel.name || state.currentModel.id}\n`;
+  }
+  if (state.cwd) {
+    md += `> 工作目录: \`${state.cwd}\`\n`;
+  }
+  md += `\n---\n\n`;
+
+  const msgs = chatInner.querySelectorAll(".msg");
+  msgs.forEach(msg => {
+    if (msg.classList.contains("user")) {
+      const isSteer = !!msg.querySelector(".steer-badge");
+      const bubble = msg.querySelector(".bubble");
+      const text = bubble ? bubble.innerText.replace("🧭 指导指令", "").trim() : "";
+      md += `### 👤 User${isSteer ? " (🧭 指导指令)" : ""}\n\n${text}\n\n`;
+    } else if (msg.classList.contains("assistant")) {
+      md += `### 🤖 pi\n\n`;
+      const thinking = msg.querySelector(".thinking-body");
+      if (thinking && thinking.innerText.trim()) {
+        md += `<details><summary>💭 思考过程</summary>\n\n${thinking.innerText.trim()}\n\n</details>\n\n`;
+      }
+      const tools = msg.querySelectorAll(".tool-block");
+      tools.forEach(tool => {
+        const name = tool.querySelector(".name")?.innerText || "tool";
+        const args = tool.querySelector(".args")?.innerText || "";
+        const body = tool.querySelector(".tool-body")?.innerText || "";
+        md += `\`\`\`bash\n# Tool: ${name} ${args}\n${body.trim()}\n\`\`\`\n\n`;
+      });
+      const paragraphs = msg.querySelectorAll(".content > div:not(.thinking-block):not(.tool-block)");
+      paragraphs.forEach(p => {
+        md += `${p.innerText.trim()}\n\n`;
+      });
+    }
+  });
+
+  const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const safeName = sessionTitle.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 40);
+  a.download = `${safeName}_${new Date().toISOString().slice(0, 10)}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast("对话已导出为 Markdown 文件");
+}
+
 function appendMessageNode(role, m) {
   if (role === "user") {
     const isSteer = m.isSteer || false;
     const steerBadge = isSteer ? el("span", { class: "steer-badge", text: "🧭 指导指令" }) : null;
-    const bubble = el("div", { class: "bubble" + (isSteer ? " steer" : "") }, [
-      steerBadge,
-      document.createTextNode(m.text || "")
-    ]);
+    const bubbleChildren = [steerBadge];
+    if (m.text) {
+      bubbleChildren.push(document.createTextNode(m.text));
+    }
+    if (m.images && m.images.length > 0) {
+      const imgsContainer = el("div", { class: "msg-images" });
+      m.images.forEach(img => {
+        const src = img.url || (img.data ? `data:${img.mimeType || "image/png"};base64,${img.data}` : "");
+        if (!src) return;
+        const imgEl = el("img", {
+          class: "msg-image-thumb",
+          src,
+          alt: "用户上传图片",
+          title: "点击查看大图",
+          onclick: () => openLightbox(src)
+        });
+        imgsContainer.appendChild(imgEl);
+      });
+      bubbleChildren.push(imgsContainer);
+    }
+    const bubble = el("div", { class: "bubble" + (isSteer ? " steer" : "") }, bubbleChildren);
     const node = el("div", { class: "msg user" }, [bubble]);
     $("#chat-inner").appendChild(node);
     scrollBottom();
@@ -2243,8 +2434,16 @@ function submitPrompt() {
 
   const ta = $("#composer");
   const text = ta ? ta.value.trim() : "";
+  const imagesToSend = (state.attachedImages && state.attachedImages.length > 0)
+    ? state.attachedImages.map(img => ({
+        type: "image",
+        data: img.data,
+        mimeType: img.mimeType
+      }))
+    : undefined;
+
   const hint = $(".composer-hint");
-  if (!text) return;
+  if (!text && (!imagesToSend || imagesToSend.length === 0)) return;
   if (!state.wsConnected) {
     if (hint) hint.textContent = "发送失败：WebSocket 未连接。正在尝试重连…";
     scheduleReconnect(0);
@@ -2255,8 +2454,11 @@ function submitPrompt() {
 
   if (hint) hint.textContent = "pi 会执行命令与读写你的文件 —— 请注意操作内容。"; // restore default
   // Render the user's message locally for instant feedback.
-  appendMessageNode("user", { text });
+  appendMessageNode("user", { text, images: state.attachedImages ? [...state.attachedImages] : [] });
+  
   ta.value = "";
+  state.attachedImages = [];
+  renderImagePreviews();
   autoResize();
 
   state.streaming = true;
@@ -2266,10 +2468,10 @@ function submitPrompt() {
   refreshStreamingContent();
 
   // Set session name from the first prompt of a brand-new session.
-  if (state.currentSessionFile == null) {
+  if (state.currentSessionFile == null && text) {
     sendWs({ type: "set_session_name", name: text.slice(0, 60).replace(/\s+/g, " ") });
   }
-  sendWs({ type: "prompt", message: text });
+  sendWs({ type: "prompt", message: text, images: imagesToSend });
 }
 
 function autoResize() {
@@ -2409,19 +2611,130 @@ async function init() {
     });
   }
 
-  // Keyboard shortcut: Ctrl+M / Cmd+M to toggle model selector, Escape to abort if streaming
+  // Keyboard shortcuts:
+  // Ctrl+M / Cmd+M: toggle model selector
+  // Ctrl+Shift+N / Cmd+Shift+N: new session
+  // Ctrl+K / Cmd+K or Ctrl+/: search sidebar
+  // Ctrl+B / Cmd+B: toggle sidebar
+  // Escape: abort if streaming, close modals / lightbox / search
   window.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "m") {
+    const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+    const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+    if (isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === "n") {
+      e.preventDefault();
+      startNewSession(true);
+      return;
+    }
+    if ((isCmdOrCtrl && e.key.toLowerCase() === "k") || (e.ctrlKey && e.key === "/")) {
+      e.preventDefault();
+      const search = $("#sidebarSearch");
+      if (search) {
+        if (window.innerWidth <= 768) {
+          $(".app").classList.add("sidebar-open");
+        }
+        search.focus();
+        search.select();
+      }
+      return;
+    }
+    if (isCmdOrCtrl && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      toggleSidebar();
+      return;
+    }
+    if (isCmdOrCtrl && e.key.toLowerCase() === "m") {
       e.preventDefault();
       toggleModelMenu();
-    } else if (e.key === "Escape" && state.streaming) {
+      return;
+    }
+    if (e.key === "Escape") {
+      const lightbox = $("#imageLightbox");
+      if (lightbox && lightbox.style.display !== "none") {
+        closeLightbox();
+        return;
+      }
       const isMenuOpen = $("#modelMenu")?.classList.contains("open") || $("#thinkingMenu")?.classList.contains("open");
       const isModalOpen = $("#cwdModal")?.classList.contains("open");
-      if (!isMenuOpen && !isModalOpen) {
+      if (isMenuOpen || isModalOpen) {
+        if ($("#modelMenu")) $("#modelMenu").classList.remove("open");
+        if ($("#thinkingMenu")) $("#thinkingMenu").classList.remove("open");
+        if (isModalOpen) closeCwdModal();
+        return;
+      }
+      if (state.streaming) {
         abortGeneration();
+        return;
+      }
+      if (document.activeElement === $("#sidebarSearch")) {
+        $("#sidebarSearch").blur();
       }
     }
   });
+
+  // Export chat button
+  const exportBtn = $("#btnExportChat");
+  if (exportBtn) {
+    exportBtn.addEventListener("click", exportCurrentSession);
+  }
+
+  // Image attach / file picker / paste / drag-and-drop
+  const btnAttach = $("#btnAttachImage");
+  const fileInput = $("#imageFileInput");
+  if (btnAttach && fileInput) {
+    btnAttach.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => {
+      handleImageFiles(e.target.files);
+      fileInput.value = "";
+    });
+  }
+
+  // Image paste support
+  document.addEventListener("paste", (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        const file = items[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length > 0) {
+      handleImageFiles(files);
+      const ta = $("#composer");
+      if (ta) ta.focus();
+    }
+  });
+
+  // Drag and drop images to composer
+  const composerBox = $("#composerInner");
+  if (composerBox) {
+    composerBox.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      composerBox.classList.add("drag-over");
+    });
+    composerBox.addEventListener("dragleave", () => {
+      composerBox.classList.remove("drag-over");
+    });
+    composerBox.addEventListener("drop", (e) => {
+      e.preventDefault();
+      composerBox.classList.remove("drag-over");
+      if (e.dataTransfer?.files) {
+        handleImageFiles(e.dataTransfer.files);
+      }
+    });
+  }
+
+  // Lightbox close listeners
+  const lightboxEl = $("#imageLightbox");
+  if (lightboxEl) {
+    lightboxEl.addEventListener("click", (e) => {
+      if (e.target === lightboxEl || e.target.id === "lightboxClose") {
+        closeLightbox();
+      }
+    });
+  }
 
   document.addEventListener("click", (e) => {
     if (!e.target.closest("#modelMenu") && !e.target.closest("#modelPill") && !e.target.closest("#emptyChangeModelBtn")) {
@@ -2448,12 +2761,7 @@ async function init() {
 
   // sidebar search (client side filter)
   $("#sidebarSearch").addEventListener("input", (e) => {
-    const q = e.target.value.toLowerCase();
-    document.querySelectorAll(".session-item").forEach((it) => {
-      const titleEl = it.querySelector(".title");
-      const text = titleEl ? titleEl.textContent.toLowerCase() : it.textContent.toLowerCase();
-      it.style.display = text.includes(q) ? "" : "none";
-    });
+    filterSessions(e.target.value);
   });
 
   // Restore sidebar state for desktop, collapse by default on mobile

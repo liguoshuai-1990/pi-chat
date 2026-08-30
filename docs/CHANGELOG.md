@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.0] - 2026-08-30
+
+### Security
+- **WebSocket 跨站劫持 (CSWSH) 防护与 Origin 校验**：
+  - 在 `server.js` 增加 `verifyClient` 来源校验，严格拦截非授权外部网页发起的跨域 WebSocket 连接，防御针对本地服务与命令执行的 CSWSH 攻击。
+  - 支持同源、`localhost`、`127.0.0.1` 及通过 `ALLOWED_ORIGINS` 环境变量配置的反向代理域名白名单。
+- **路径与系统配置写入加固**：
+  - 加固 `/api/set-default-model` 接口，严格校验客户端传入的目标工作目录，防止任意路径操作。
+- **Markdown 链接协议与属性逃逸 XSS 防护**：
+  - 增强链接协议校验（仅允许 `http:`、`https:`、`mailto:`），修复 URL 包含特定引号实体时在属性反转义下的 XSS 逃逸隐患。
+
+### Added
+- **多模态图片输入与预览支持 (Multimodal Image Attachments & Lightbox)**：
+  - 输入框支持截图粘贴（`Ctrl+V` / `Cmd+V`）、本地图片文件拖拽（Drag & Drop）以及附件图标上传。
+  - 输入框上方显示待发送图片缩略图胶囊，支持单张移除。
+  - 消息气泡中支持渲染用户上传的多张图片缩略图，点击可弹出全屏大图预览（Lightbox）。
+  - 加载历史会话记录时自动提取并渲染历史消息中的图片附件。
+- **对话导出为 Markdown 功能 (Export Chat as Markdown)**：
+  - 顶栏新增“导出”按钮，一键将当前会话（包含会话名称、模型信息、工作目录、思考过程、工具调用与对话正文）导出为标准 Markdown（`.md`）文件下载。
+- **全局快捷键扩充 (Keyboard Shortcuts)**：
+  - `Ctrl/Cmd + Shift + N`：快速新建会话。
+  - `Ctrl/Cmd + K` 或 `Ctrl + /`：快速聚焦侧边栏搜索框。
+  - `Ctrl/Cmd + B`：快速切换侧边栏展开/折叠。
+  - `Escape`：支持快速关闭大图预览、搜索框失焦、关闭菜单及模态框。
+- **侧边栏搜索体验优化**：
+  - 搜索结果为空时展示“未找到匹配的会话”空提示。
+  - 会话列表刷新时自动保持当前搜索过滤词。
+- **自动化单元测试套件**：
+  - 新增基于 `node --test` 的单元测试，覆盖安全规则、Origin 校验与路径穿越检查。
+
+### Changed
+- **段落排版与换行优化**：Markdown 段落内单换行符自动转为 `<br>`，优化 AI 输出文本的行间结构与排版体验。
+- **跨平台工程化优化**：优化 `package.json` 中的 `prepare` 脚本，避免 Windows 下执行 `chmod` 报错；将 `rpctest.mjs` 整理归入 `scripts/` 目录。
+
+---
+
 ## [1.9.1] - 2026-08-29
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "@liguoshuai/pi-web-chat",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "description": "A ChatGPT/Gemini-style web UI for the pi coding agent, powered by pi's RPC mode.",
   "type": "module",
   "main": "server.js",
@@ -19,7 +19,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "prepare": "chmod +x bin/pi-web-chat.js"
+    "test": "node --test",
+    "prepare": "node -e \"import('fs').then(fs => { try { fs.chmodSync('bin/pi-web-chat.js', 0o755); } catch {} })\""
   },
   "keywords": [
     "pi",

@@ -1,9 +1,22 @@
 import { spawn } from "child_process";
 import os from "os";
 import path from "path";
+import { existsSync } from "fs";
 
-const PI_BIN = path.join(os.homedir(), ".npm-global/bin/pi");
-const SESSIONS_DIR = path.join(os.homedir(), ".pi/agent/sessions");
+function resolvePiBin() {
+  if (process.env.PI_BIN && existsSync(process.env.PI_BIN)) return process.env.PI_BIN;
+  const home = os.homedir();
+  const candidates = [
+    path.join(home, ".npm-global/bin/pi"),
+    "/usr/local/bin/pi",
+    "/usr/bin/pi",
+  ];
+  for (const c of candidates) if (existsSync(c)) return c;
+  return "pi";
+}
+
+const PI_BIN = resolvePiBin();
+const SESSIONS_DIR = process.env.PI_SESSIONS_DIR || path.join(os.homedir(), ".pi/agent/sessions");
 
 console.log("Spawning pi...");
 const proc = spawn(PI_BIN, ["--mode", "rpc", "--session-dir", SESSIONS_DIR], {

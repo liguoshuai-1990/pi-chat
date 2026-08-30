@@ -492,6 +492,10 @@ class PiAgent {
     this.pending.clear();
     for (const s of this.sockets) { try { s.close(); } catch {} }
     this.sockets.clear();
+    this.buffer = "";
+    this.eventBuffer = [];
+    this.bufferHead = 0;
+    this.lastUserPrompt = null;
     try { this.proc && this.proc.kill("SIGTERM"); } catch {}
   }
 }
@@ -574,9 +578,21 @@ app.post("/api/set-default-model", async (req, res) => {
     }
 
     const isProject = scope === "project" && reqCwd;
-    const settingsPath = isProject
-      ? path.join(normalizeCwd(reqCwd), ".pi", "settings.json")
-      : path.join(home(), ".pi", "agent", "settings.json");
+    let settingsPath;
+    if (isProject) {
+      const resolvedCwd = normalizeCwd(reqCwd);
+      try {
+        const s = await stat(resolvedCwd);
+        if (!s.isDirectory()) {
+          return res.status(400).json({ ok: false, error: "指定的工作目录不是一个有效目录" });
+        }
+      } catch {
+        return res.status(400).json({ ok: false, error: "指定的工作目录不存在或无权访问" });
+      }
+      settingsPath = path.join(resolvedCwd, ".pi", "settings.json");
+    } else {
+      settingsPath = path.join(home(), ".pi", "agent", "settings.json");
+    }
 
     await mkdir(path.dirname(settingsPath), { recursive: true });
 
@@ -917,7 +933,47 @@ const httpServer = app.listen(PORT, () => {
   console.log(`pi-web-chat on http://localhost:${PORT}`);
 });
 
-const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+// Origin check helper to defend against Cross-Site WebSocket Hijacking (CSWSH)
+function isAllowedOrigin(origin, host) {
+  if (!origin) return true; // Direct non-browser clients (curl, electron, etc.)
+  try {
+    const originUrl = new URL(origin);
+    const originHost = originUrl.host;
+    // Direct match with Host header (same-origin)
+    if (originHost.toLowerCase() === (host || "").toLowerCase()) return true;
+
+    // Allow localhost / 127.0.0.1 loopback variations
+    const isLocalOrigin = originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1" || originUrl.hostname === "::1";
+    const hostName = (host || "").split(":")[0].toLowerCase();
+    const isLocalHost = hostName === "localhost" || hostName === "127.0.0.1" || hostName === "::1";
+    if (isLocalOrigin && isLocalHost) return true;
+
+    // Custom allowed origins from ALLOWED_ORIGINS env var (comma-separated)
+    if (process.env.ALLOWED_ORIGINS) {
+      const allowed = process.env.ALLOWED_ORIGINS.split(",").map(s => s.trim().toLowerCase());
+      if (allowed.includes(origin.toLowerCase()) || allowed.includes(originUrl.origin.toLowerCase())) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+const wss = new WebSocketServer({
+  server: httpServer,
+  path: "/ws",
+  verifyClient: (info, callback) => {
+    const origin = info.origin || info.req.headers.origin;
+    const host = info.req.headers.host;
+    if (!isAllowedOrigin(origin, host)) {
+      console.warn(`[pi-web-chat] Rejected WebSocket connection from unauthorized origin: ${origin} (host: ${host})`);
+      return callback(false, 403, "Forbidden: Cross-origin WebSocket connection denied");
+    }
+    callback(true);
+  }
+});
 
 // WebSocket server heartbeat (ping/pong at protocol level)
 const heartbeatInterval = setInterval(() => {
