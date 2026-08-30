@@ -17,6 +17,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "build": "node --check server.js && node --check bin/pi-web-chat.js && node --check public/app.js",
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node --test",

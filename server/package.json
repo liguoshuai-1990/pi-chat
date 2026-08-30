@@ -25,6 +25,7 @@
     "README.md"
   ],
   "scripts": {
+    "build": "node --check src/index.js && node --check src/server.js",
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "test": "node --test"
