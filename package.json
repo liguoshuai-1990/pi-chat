@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "pnpm -r --filter @liguoshuai/pi-chat-protocol --filter @liguoshuai/pi-chat-server --filter @liguoshuai/pi-web-chat build && pnpm test",
+    "build:android": "cd clients/android && ./gradlew assembleDebug",
+    "build:all": "pnpm build && pnpm build:android",
     "start": "pnpm --filter @liguoshuai/pi-web-chat start",
     "start:web": "pnpm --filter @liguoshuai/pi-web-chat start",
     "start:server": "pnpm --filter @liguoshuai/pi-chat-server start",
