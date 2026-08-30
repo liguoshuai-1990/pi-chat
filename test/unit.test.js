@@ -4,9 +4,9 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 
 describe("pi-web-chat Unit Tests", () => {
-  test("package.json is valid and version is 1.10.1", () => {
+  test("package.json is valid and version is 1.10.2", () => {
     const pkg = JSON.parse(readFileSync(path.resolve("package.json"), "utf8"));
-    assert.equal(pkg.version, "1.10.1");
+    assert.equal(pkg.version, "1.10.2");
     assert.equal(pkg.type, "module");
     assert.ok(pkg.bin["pi-web-chat"]);
   });

@@ -2335,6 +2335,21 @@ function baseName(p) {
 }
 
 // ---- Composer ----
+function getComposerPlaceholder() {
+  const isMobile = window.innerWidth <= 768;
+  if (state.aborting) {
+    return isMobile ? "正在中止…" : "正在中止当前任务…";
+  }
+  if (state.streaming) {
+    return isMobile
+      ? "AI 运行中… 可输入补充指令"
+      : "AI 正在运行中… 可在此输入补充/指导指令，按 Enter 或点击【插入指令】实时调整";
+  }
+  return isMobile
+    ? "给 pi 发消息…"
+    : "给 pi 发消息…  (Enter 发送，Shift+Enter 换行)";
+}
+
 function updateComposerUI() {
   const ta = $("#composer");
   const text = ta ? ta.value.trim() : "";
@@ -2356,7 +2371,7 @@ function updateComposerUI() {
     if (steerBtn) {
       steerBtn.style.display = "none";
     }
-    if (ta) ta.placeholder = "正在中止当前任务…";
+    if (ta) ta.placeholder = getComposerPlaceholder();
   } else if (state.streaming) {
     if (sendBtn) {
       sendBtn.classList.add("stop");
@@ -2372,7 +2387,7 @@ function updateComposerUI() {
         steerBtn.style.display = "none";
       }
     }
-    if (ta) ta.placeholder = "AI 正在运行中… 可在此输入补充/指导指令，按 Enter 或点击【插入指令】实时调整";
+    if (ta) ta.placeholder = getComposerPlaceholder();
   } else {
     if (sendBtn) {
       sendBtn.classList.remove("stop");
@@ -2383,7 +2398,7 @@ function updateComposerUI() {
     if (steerBtn) {
       steerBtn.style.display = "none";
     }
-    if (ta) ta.placeholder = "给 pi 发消息…  (Enter 发送，Shift+Enter 换行)";
+    if (ta) ta.placeholder = getComposerPlaceholder();
   }
 }
 
@@ -2824,6 +2839,7 @@ async function init() {
       lastIsMobile = isMobile;
       // Crossing the breakpoint: always close the drawer to reach a known state.
       $(".app").classList.remove("sidebar-open");
+      updateComposerUI();
     }
   });
 
