@@ -51,9 +51,9 @@ class WebSocketClient(
 
         val cleanBase = base.removeSuffix("/")
         val wsUrlBuilder = StringBuilder("$cleanBase/ws?")
-        if (cwd.isNotEmpty()) wsUrlBuilder.append("cwd=").append(cwd).append("&")
-        if (!sessionPath.isNullOrEmpty()) wsUrlBuilder.append("session=").append(sessionPath).append("&")
-        if (!token.isNullOrEmpty()) wsUrlBuilder.append("token=").append(token).append("&")
+        if (cwd.isNotEmpty()) wsUrlBuilder.append("cwd=").append(java.net.URLEncoder.encode(cwd, "UTF-8")).append("&")
+        if (!sessionPath.isNullOrEmpty()) wsUrlBuilder.append("session=").append(java.net.URLEncoder.encode(sessionPath, "UTF-8")).append("&")
+        if (!token.isNullOrEmpty()) wsUrlBuilder.append("token=").append(java.net.URLEncoder.encode(token, "UTF-8")).append("&")
 
         val request = Request.Builder()
             .url(wsUrlBuilder.toString().removeSuffix("&").removeSuffix("?"))

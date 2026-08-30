@@ -36,8 +36,8 @@ class ApiService(
 
     suspend fun getSessions(cwd: String = ""): Result<SessionsResponse> = withContext(Dispatchers.IO) {
         try {
-            var url = "$baseUrl/api/sessions?cwd=$cwd"
-            if (!token.isNullOrEmpty()) url += "&token=$token"
+            var url = "$baseUrl/api/sessions?cwd=${java.net.URLEncoder.encode(cwd, "UTF-8")}"
+            if (!token.isNullOrEmpty()) url += "&token=${java.net.URLEncoder.encode(token, "UTF-8")}"
 
             val request = Request.Builder()
                 .url(url)

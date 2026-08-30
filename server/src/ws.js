@@ -71,6 +71,7 @@ export function setupWebSocketGateway(httpServer) {
       try { ws.ping(); } catch {}
     });
   }, 30000);
+  heartbeatInterval.unref();
 
   wss.on("close", () => {
     clearInterval(heartbeatInterval);
@@ -102,16 +103,18 @@ export function setupWebSocketGateway(httpServer) {
     const session = url.searchParams.get("session") || null;
 
     let agent = null;
-    try {
-      agent = getOrCreateAgent(cwd, session);
-      agent.attachWs(ws);
-      ws.piAgent = agent;
-    } catch (err) {
+    if (ws.isAuthenticated) {
       try {
-        ws.send(JSON.stringify(createErrorMessage(ErrorCode.CAPACITY, err.message)));
-        ws.close(1013, "Capacity");
-      } catch {}
-      return;
+        agent = getOrCreateAgent(cwd, session);
+        agent.attachWs(ws);
+        ws.piAgent = agent;
+      } catch (err) {
+        try {
+          ws.send(JSON.stringify(createErrorMessage(ErrorCode.CAPACITY, err.message)));
+          ws.close(1013, "Capacity");
+        } catch {}
+        return;
+      }
     }
 
     ws.on("message", (raw) => {
@@ -127,7 +130,19 @@ export function setupWebSocketGateway(httpServer) {
         if (verifyToken(rawMsg.token)) {
           ws.isAuthenticated = true;
           if (authTimer) { clearTimeout(authTimer); authTimer = null; }
-          try { ws.send(JSON.stringify({ type: "response", success: true, message: "Authenticated successfully" })); } catch {}
+          try {
+            if (!ws.piAgent) {
+              agent = getOrCreateAgent(cwd, session);
+              agent.attachWs(ws);
+              ws.piAgent = agent;
+            }
+            ws.send(JSON.stringify({ type: "response", success: true, message: "Authenticated successfully" }));
+          } catch (err) {
+            try {
+              ws.send(JSON.stringify(createErrorMessage(ErrorCode.CAPACITY, err.message)));
+              ws.close(1013, "Capacity");
+            } catch {}
+          }
         } else {
           try {
             ws.send(JSON.stringify(createErrorMessage(ErrorCode.UNAUTHORIZED, "Invalid authentication token")));
@@ -141,6 +156,14 @@ export function setupWebSocketGateway(httpServer) {
       if (config.authToken && !ws.isAuthenticated) {
         try {
           ws.send(JSON.stringify(createErrorMessage(ErrorCode.UNAUTHORIZED, "Unauthorized. Must authenticate first.")));
+        } catch {}
+        return;
+      }
+
+      const activeAgent = ws.piAgent || agent;
+      if (!activeAgent) {
+        try {
+          ws.send(JSON.stringify(createErrorMessage(ErrorCode.AGENT_NOT_FOUND, "Agent instance not initialized")));
         } catch {}
         return;
       }
@@ -162,72 +185,72 @@ export function setupWebSocketGateway(httpServer) {
 
       switch (msg.type) {
         case ClientMessageType.PROMPT:
-          agent.broadcast({ type: "remote_user_prompt", message: msg.message, images: msg.images }, ws);
-          agent.lastUserPrompt = { text: msg.message, isSteer: false, at: nowMs };
-          agent.send({ type: "prompt", message: msg.message, images: msg.images });
+          activeAgent.broadcast({ type: "remote_user_prompt", message: msg.message, images: msg.images }, ws);
+          activeAgent.lastUserPrompt = { text: msg.message, isSteer: false, at: nowMs };
+          activeAgent.send({ type: "prompt", message: msg.message, images: msg.images });
           break;
 
         case ClientMessageType.STEER:
-          agent.broadcast({ type: "remote_user_prompt", message: msg.message, isSteer: true }, ws);
-          agent.lastUserPrompt = { text: msg.message, isSteer: true, at: nowMs };
-          agent.send({ type: "steer", message: msg.message });
+          activeAgent.broadcast({ type: "remote_user_prompt", message: msg.message, isSteer: true }, ws);
+          activeAgent.lastUserPrompt = { text: msg.message, isSteer: true, at: nowMs };
+          activeAgent.send({ type: "steer", message: msg.message });
           break;
 
         case ClientMessageType.ABORT:
-          agent.sendNoReply({ type: "abort" });
+          activeAgent.sendNoReply({ type: "abort" });
           break;
 
         case ClientMessageType.NEW_SESSION:
-          if (agent.sessionKey) {
-            activeAgents.delete(agent.sessionKey);
-            agent.sessionKey = null;
+          if (activeAgent.sessionKey) {
+            activeAgents.delete(activeAgent.sessionKey);
+            activeAgent.sessionKey = null;
           }
-          agent.lastUserPrompt = null;
-          agent.eventBuffer = [];
-          agent.bufferHead = 0;
-          agent.send({ type: "new_session" });
+          activeAgent.lastUserPrompt = null;
+          activeAgent.eventBuffer = [];
+          activeAgent.bufferHead = 0;
+          activeAgent.send({ type: "new_session" });
           break;
 
         case ClientMessageType.SWITCH_SESSION:
           if (!msg.sessionPath) break;
-          agent.setSessionKey(cwd, msg.sessionPath);
-          agent.send({ type: "switch_session", sessionPath: msg.sessionPath });
+          activeAgent.setSessionKey(cwd, msg.sessionPath);
+          activeAgent.send({ type: "switch_session", sessionPath: msg.sessionPath });
           break;
 
         case ClientMessageType.SET_SESSION_NAME:
-          agent.send({ type: "set_session_name", name: msg.name });
+          activeAgent.send({ type: "set_session_name", name: msg.name });
           break;
 
         case ClientMessageType.GET_ENTRIES:
-          agent.send({ type: "get_entries", since: msg.since });
+          activeAgent.send({ type: "get_entries", since: msg.since });
           break;
 
         case ClientMessageType.GET_STATE:
-          agent.send({ type: "get_state" });
+          activeAgent.send({ type: "get_state" });
           break;
 
         case ClientMessageType.GET_AVAILABLE_MODELS:
-          agent.send({ type: "get_available_models" });
+          activeAgent.send({ type: "get_available_models" });
           break;
 
         case ClientMessageType.SET_MODEL:
-          agent.send({ type: "set_model", provider: msg.provider, modelId: msg.modelId });
+          activeAgent.send({ type: "set_model", provider: msg.provider, modelId: msg.modelId });
           break;
 
         case ClientMessageType.SET_THINKING_LEVEL:
-          agent.send({ type: "set_thinking_level", level: msg.level });
+          activeAgent.send({ type: "set_thinking_level", level: msg.level });
           break;
 
         case ClientMessageType.CYCLE_THINKING_LEVEL:
-          agent.send({ type: "cycle_thinking_level" });
+          activeAgent.send({ type: "cycle_thinking_level" });
           break;
 
         case ClientMessageType.EXTENSION_UI_RESPONSE:
-          agent.sendNoReply({ type: "extension_ui_response", ...msg });
+          activeAgent.sendNoReply({ type: "extension_ui_response", ...msg });
           break;
 
         default:
-          agent.send(msg);
+          activeAgent.send(msg);
       }
     });
 

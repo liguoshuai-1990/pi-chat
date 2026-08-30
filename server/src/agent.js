@@ -279,16 +279,16 @@ export class PiAgent {
   }
 
   replayBufferedSse(res) {
-    if (this.eventBuffer.length === 0) return;
+    if (this.eventBuffer.length === 0 || res.destroyed || res.writableEnded) return;
     const count = this.eventBuffer.length;
-    res.write(`data: ${JSON.stringify({ type: "backfill_start", count })}\n\n`);
+    try { res.write(`data: ${JSON.stringify({ type: "backfill_start", count })}\n\n`); } catch {}
     const start = count === config.eventBufferSize ? this.bufferHead : 0;
     for (let i = 0; i < count; i++) {
       const idx = (start + i) % config.eventBufferSize;
       const ev = this.eventBuffer[idx];
-      res.write(`data: ${JSON.stringify(ev)}\n\n`);
+      try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch {}
     }
-    res.write(`data: ${JSON.stringify({ type: "backfill_end", streaming: this.isBusy, state: this.state })}\n\n`);
+    try { res.write(`data: ${JSON.stringify({ type: "backfill_end", streaming: this.isBusy, state: this.state })}\n\n`); } catch {}
   }
 
   broadcast(obj, skipWs = null) {
@@ -298,6 +298,7 @@ export class PiAgent {
       try { ws.send(str); } catch {}
     }
     for (const res of this.sseListeners) {
+      if (res.destroyed || res.writableEnded) continue;
       try { res.write(`data: ${str}\n\n`); } catch {}
     }
   }

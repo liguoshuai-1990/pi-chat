@@ -52,6 +52,12 @@ class ChatViewModel(
         repository.newSession()
     }
 
+    fun reconnect(newServerUrl: String, newToken: String? = null, newCwd: String = "") {
+        repository.disconnect()
+        // Connect with new parameters
+        repository.connect(newCwd)
+    }
+
     override fun onCleared() {
         super.onCleared()
         repository.disconnect()
