@@ -78,8 +78,9 @@ export class PiAgent {
 
   setSessionKey(cwd, sessionPath) {
     if (!sessionPath) return;
+    const normCwd = normalizeCwd(cwd);
     const resolved = normalizePath(sessionPath);
-    const key = `${cwd}:${resolved}`;
+    const key = `${normCwd}:${resolved}`;
     if (this.sessionKey && this.sessionKey !== key) {
       activeAgents.delete(this.sessionKey);
     }
@@ -310,7 +311,11 @@ export class PiAgent {
         this.sseListeners.delete(res);
         continue;
       }
-      try { res.write(`data: ${str}\n\n`); } catch {}
+      try {
+        res.write(`data: ${str}\n\n`);
+      } catch {
+        this.sseListeners.delete(res);
+      }
     }
   }
 

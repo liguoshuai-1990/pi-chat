@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.0] - 2026-08-30
+
+### Fixed & Improved
+- **服务端会话路径解析与遍历安全加固 (Session Path Resolution & Security)**：
+  - 修复了 `/api/session`（GET 与 DELETE）在处理会话相对路径时由于错误相对路径基准导致的误拦截（403 Forbidden），增强为相对于 `config.sessionsDir` 的安全解析并保留严格的路径越界校验与符号链接真实路径防穿透防护。
+  - 会话扫描增强为多层级安全目录递归遍历（`listAllSessionFiles`），支持更深的会话目录结构与符号链接解析。
+  - 为服务端 `sessionMetadataCache` 增加 LRU/最大条目上限限制（5000条），防止长期运行内存泄漏。
+- **服务端网关稳健性与跨平台优化 (Gateway Robustness & Cross-Platform)**：
+  - 完善了 WebSocket 握手鉴权响应对请求 `id` 的透传关联，优化了 `PING`/`heartbeat` 的 ID 支持。
+  - 规范了 `PROMPT` 消息中的 `message` 字符串与 `images` 数组格式，防止向 Pi 进程传递 `undefined`。
+  - 改进了 SSE 客户端异常断开时的错误捕获与失效监听器及时清理。
+  - 增强了 `resolvePiBin` 的跨平台检测路径，支持 macOS Homebrew、Linux `~/.local/bin`、`~/.cargo/bin` 等常见环境。
+- **Web 端多端同步与渲染优化 (Web UI & Markdown Rendering)**：
+  - 修复了 `remote_user_prompt` 事件未同步呈现多端上传的 `images` 附件的问题。
+  - 修复了 Markdown 解析器中 URL 包含查询参数时因多次转义造成的双重转义（Double Escaping）问题，并支持 `mailto:` 链接解析。
+- **协议库与 TypeScript 类型定义完善 (`@liguoshuai/pi-chat-protocol`)**：
+  - 新增 `createSetSessionNameMessage`、`createGetEntriesMessage`、`createGetStateMessage`、`createGetAvailableModelsMessage`、`createExtensionUiResponseMessage` 辅助构造方法。
+  - 增强了 `SET_SESSION_NAME` 与 `SET_THINKING_LEVEL` 的数据校验与 TypeScript 类型声明。
+
+---
+
 ## [2.1.0] - 2026-08-30
 
 ### Fixed & Improved

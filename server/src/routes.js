@@ -175,23 +175,44 @@ async function listAllSessionFiles() {
   if (!existsSync(config.sessionsDir)) return [];
   const files = [];
 
-  const top = await readdir(config.sessionsDir, { withFileTypes: true }).catch(() => []);
-  for (const e of top) {
-    if ((e.isFile() || e.isSymbolicLink()) && e.name.endsWith(".jsonl")) {
-      files.push(path.join(config.sessionsDir, e.name));
+  async function walk(dir, depth = 0) {
+    if (depth > 5) return;
+    const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isFile() || e.isSymbolicLink()) {
+        if (e.name.endsWith(".jsonl")) {
+          files.push(full);
+        }
+      } else if (e.isDirectory()) {
+        await walk(full, depth + 1);
+      }
     }
   }
 
-  const subdirs = top.filter(d => d.isDirectory() || (d.isSymbolicLink() && !d.name.endsWith(".jsonl")));
-  for (const d of subdirs) {
-    const dp = path.join(config.sessionsDir, d.name);
-    const names = (await readdir(dp).catch(() => [])).filter(f => f.endsWith(".jsonl"));
-    for (const n of names) files.push(path.join(dp, n));
-  }
+  await walk(config.sessionsDir);
   return files;
 }
 
+const MAX_SESSION_CACHE_SIZE = 5000;
 const sessionMetadataCache = new Map();
+
+function setSessionMetadataCache(key, value) {
+  if (sessionMetadataCache.size >= MAX_SESSION_CACHE_SIZE) {
+    const firstKey = sessionMetadataCache.keys().next().value;
+    if (firstKey) sessionMetadataCache.delete(firstKey);
+  }
+  sessionMetadataCache.set(key, value);
+}
+
+function resolveSessionPath(file) {
+  if (!file || typeof file !== "string") return null;
+  const resolvedSessionsDir = normalizePath(config.sessionsDir);
+  const target = file.startsWith("~")
+    ? normalizePath(file)
+    : (path.isAbsolute(file) ? path.normalize(file) : path.resolve(resolvedSessionsDir, file));
+  return { resolvedSessionsDir, requestedPath: target };
+}
 
 function extractText(content) {
   if (typeof content === "string") return content;
@@ -240,7 +261,7 @@ async function getSessionMetadata(file) {
       messageCount: msgCount,
     },
   };
-  sessionMetadataCache.set(file, result);
+  setSessionMetadataCache(file, result);
   return result;
 }
 
@@ -273,10 +294,12 @@ router.get("/api/sessions", authMiddleware, async (req, res) => {
 router.get("/api/session", authMiddleware, async (req, res) => {
   try {
     const file = req.query.file;
-    if (!file || !file.endsWith(".jsonl")) return res.status(400).json({ error: "bad file" });
+    if (!file || typeof file !== "string" || !file.endsWith(".jsonl")) return res.status(400).json({ error: "bad file" });
 
-    const resolvedSessionsDir = normalizePath(config.sessionsDir);
-    const requestedPath = normalizePath(file);
+    const resolvedInfo = resolveSessionPath(file);
+    if (!resolvedInfo) return res.status(400).json({ error: "bad file" });
+
+    const { resolvedSessionsDir, requestedPath } = resolvedInfo;
     const relPath = path.relative(resolvedSessionsDir, requestedPath);
     if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
       return res.status(403).json({ error: "Access denied" });
@@ -357,6 +380,14 @@ router.get("/api/session", authMiddleware, async (req, res) => {
       }
     }
 
+    if (!sessionModel && header?.model) {
+      sessionModel = {
+        provider: header.provider || "",
+        id: header.model,
+        name: header.model
+      };
+    }
+
     res.json({ header, entries: activeEntries, model: sessionModel, sessionName });
   } catch (e) {
     console.error(e);
@@ -368,12 +399,14 @@ router.get("/api/session", authMiddleware, async (req, res) => {
 router.delete("/api/session", authMiddleware, async (req, res) => {
   try {
     const file = req.query.file || req.body?.file;
-    if (!file || !file.endsWith(".jsonl")) {
+    if (!file || typeof file !== "string" || !file.endsWith(".jsonl")) {
       return res.status(400).json({ error: "bad file" });
     }
 
-    const resolvedSessionsDir = normalizePath(config.sessionsDir);
-    const requestedPath = normalizePath(file);
+    const resolvedInfo = resolveSessionPath(file);
+    if (!resolvedInfo) return res.status(400).json({ error: "bad file" });
+
+    const { resolvedSessionsDir, requestedPath } = resolvedInfo;
     const relPath = path.relative(resolvedSessionsDir, requestedPath);
     if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
       return res.status(403).json({ error: "Access denied" });
@@ -429,13 +462,17 @@ router.post("/api/chat", authMiddleware, async (req, res) => {
 
   try {
     const agent = getOrCreateAgent(cwd, session);
-    agent.broadcast({ type: "remote_user_prompt", message, images });
-    agent.lastUserPrompt = { text: message, isSteer: false, at: Date.now() };
+    agent.broadcast({ type: "remote_user_prompt", message: message || "", images: images || [] });
+    agent.lastUserPrompt = { text: message || "", isSteer: false, at: Date.now() };
 
-    const response = await agent.send({ type: "prompt", message, images });
-    res.json(response);
+    const response = await agent.send({ type: "prompt", message: message || "", images: images || [] });
+    if (!res.headersSent && !res.writableEnded) {
+      res.json(response);
+    }
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    if (!res.headersSent && !res.writableEnded) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
   }
 });
 

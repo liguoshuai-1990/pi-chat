@@ -2,7 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { isAllowedOrigin } from "../src/ws.js";
 import { verifyToken, verifyWsAuth, authMiddleware } from "../src/auth.js";
-import { config } from "../src/config.js";
+import { config, normalizePath, home } from "../src/config.js";
 import { createServer } from "../src/server.js";
 
 describe("Pi-Chat Server Gateway Unit Tests", () => {
@@ -96,6 +96,13 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
     assert.ok(typeof config.sessionsDir === "string");
     assert.ok(typeof config.idleTimeoutMs === "number");
     assert.ok(typeof config.maxAgentLifetimeMs === "number");
+  });
+
+  test("normalizePath handles tilde expansion and relative paths", () => {
+    assert.equal(normalizePath("~"), home());
+    assert.equal(normalizePath("~/test.jsonl"), `${home()}/test.jsonl`);
+    assert.equal(normalizePath(""), "");
+    assert.ok(normalizePath("/tmp/foo").startsWith("/tmp/foo"));
   });
 
   test("createServer initializes express app and routes correctly", async () => {

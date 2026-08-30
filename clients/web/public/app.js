@@ -456,7 +456,7 @@ function sanitizeUrl(url) {
   if (!url) return "#";
   const trimmed = url.trim();
   if (/^(https?:\/\/|mailto:)/i.test(trimmed)) {
-    return escapeHtml(trimmed);
+    return trimmed.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   return "#";
 }
@@ -474,7 +474,7 @@ function mdInlineBlock(text) {
   // italic (underscore): only match boundary/space so identifier_names are preserved
   s = s.replace(/(^|[\s(\[<,;:])_([^_\s](?:[^_]*?[^_\s])?)_(?=[\s)\]>,;:!?.]|$)/g, "$1<em>$2</em>");
   // links [txt](url) - strictly sanitize URL
-  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (match, txt, url) => {
+  s = s.replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^\s)]+)\)/g, (match, txt, url) => {
     const safeUrl = sanitizeUrl(url);
     return `<a href="${safeUrl}" target="_blank" rel="noopener">${txt}</a>`;
   });
@@ -1780,7 +1780,7 @@ function handlePiMessage(obj) {
       }
       break;
     case "remote_user_prompt":
-      appendMessageNode("user", { text: obj.message, isSteer: obj.isSteer });
+      appendMessageNode("user", { text: obj.message, images: obj.images, isSteer: obj.isSteer });
       break;
     case "agent_start":
       state.streaming = true;

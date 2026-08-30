@@ -141,16 +141,21 @@ export function setupWebSocketGateway(httpServer) {
               agent.attachWs(ws);
               ws.piAgent = agent;
             }
-            ws.send(JSON.stringify({ type: "response", success: true, message: "Authenticated successfully" }));
+            ws.send(JSON.stringify({
+              type: "response",
+              ...(rawMsg.id !== undefined ? { id: rawMsg.id } : {}),
+              success: true,
+              message: "Authenticated successfully"
+            }));
           } catch (err) {
             try {
-              ws.send(JSON.stringify(createErrorMessage(ErrorCode.CAPACITY, err.message)));
+              ws.send(JSON.stringify(createErrorMessage(ErrorCode.CAPACITY, err.message, rawMsg.id !== undefined ? { id: rawMsg.id } : null)));
               ws.close(1013, "Capacity");
             } catch {}
           }
         } else {
           try {
-            ws.send(JSON.stringify(createErrorMessage(ErrorCode.UNAUTHORIZED, "Invalid authentication token")));
+            ws.send(JSON.stringify(createErrorMessage(ErrorCode.UNAUTHORIZED, "Invalid authentication token", rawMsg.id !== undefined ? { id: rawMsg.id } : null)));
             ws.close(4401, "Unauthorized");
           } catch {}
         }
@@ -175,7 +180,12 @@ export function setupWebSocketGateway(httpServer) {
 
       // Application level ping/pong
       if (rawMsg.type === ClientMessageType.PING || rawMsg.type === "heartbeat") {
-        try { ws.send(JSON.stringify(createPongMessage())); } catch {}
+        try {
+          ws.send(JSON.stringify({
+            ...createPongMessage(),
+            ...(rawMsg.id !== undefined ? { id: rawMsg.id } : {})
+          }));
+        } catch {}
         return;
       }
 
@@ -189,11 +199,14 @@ export function setupWebSocketGateway(httpServer) {
       const nowMs = Date.now();
 
       switch (msg.type) {
-        case ClientMessageType.PROMPT:
-          activeAgent.broadcast({ type: "remote_user_prompt", message: msg.message, images: msg.images }, ws);
-          activeAgent.lastUserPrompt = { text: msg.message, isSteer: false, at: nowMs };
-          activeAgent.send({ type: "prompt", message: msg.message, images: msg.images, id: msg.id });
+        case ClientMessageType.PROMPT: {
+          const promptText = typeof msg.message === "string" ? msg.message : "";
+          const promptImages = Array.isArray(msg.images) ? msg.images : [];
+          activeAgent.broadcast({ type: "remote_user_prompt", message: promptText, images: promptImages }, ws);
+          activeAgent.lastUserPrompt = { text: promptText, isSteer: false, at: nowMs };
+          activeAgent.send({ type: "prompt", message: promptText, images: promptImages, id: msg.id });
           break;
+        }
 
         case ClientMessageType.STEER:
           activeAgent.broadcast({ type: "remote_user_prompt", message: msg.message, isSteer: true }, ws);
@@ -263,6 +276,7 @@ export function setupWebSocketGateway(httpServer) {
       if (authTimer) { clearTimeout(authTimer); authTimer = null; }
       if (ws.piAgent) {
         ws.piAgent.detachWs(ws);
+        ws.piAgent = null;
       }
     });
 
@@ -270,6 +284,7 @@ export function setupWebSocketGateway(httpServer) {
       if (authTimer) { clearTimeout(authTimer); authTimer = null; }
       if (ws.piAgent) {
         ws.piAgent.detachWs(ws);
+        ws.piAgent = null;
       }
     });
   });

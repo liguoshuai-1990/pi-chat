@@ -12,7 +12,11 @@ export function home() {
 export function normalizePath(p) {
   if (!p) return "";
   let resolved = p;
-  if (p.startsWith("~")) {
+  if (p === "~") {
+    resolved = home();
+  } else if (p.startsWith("~/") || p.startsWith("~\\")) {
+    resolved = path.join(home(), p.slice(2));
+  } else if (p.startsWith("~")) {
     resolved = path.join(home(), p.slice(1));
   }
   return path.resolve(resolved);
@@ -28,8 +32,12 @@ export function resolvePiBin() {
   const h = home();
   const candidates = [
     path.join(h, ".npm-global/bin/pi"),
+    path.join(h, ".local/bin/pi"),
+    path.join(h, ".cargo/bin/pi"),
+    path.join(h, ".pnpm-global/bin/pi"),
     "/usr/local/bin/pi",
     "/usr/bin/pi",
+    "/opt/homebrew/bin/pi",
   ];
   for (const c of candidates) if (existsSync(c)) return c;
   return "pi";

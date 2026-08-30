@@ -14,6 +14,11 @@ import {
   createSetThinkingLevelMessage,
   createCycleThinkingLevelMessage,
   createSwitchSessionMessage,
+  createSetSessionNameMessage,
+  createGetEntriesMessage,
+  createGetStateMessage,
+  createGetAvailableModelsMessage,
+  createExtensionUiResponseMessage,
   createErrorMessage,
   normalizeClientMessage,
   validateClientMessage,
@@ -61,6 +66,25 @@ describe("Pi-Chat Protocol Unit Tests", () => {
     assert.equal(switchMsg.type, ClientMessageType.SWITCH_SESSION);
     assert.equal(switchMsg.sessionPath, "/path/to/session.jsonl");
 
+    const setNameMsg = createSetSessionNameMessage("My Session");
+    assert.equal(setNameMsg.type, ClientMessageType.SET_SESSION_NAME);
+    assert.equal(setNameMsg.name, "My Session");
+
+    const getEntriesMsg = createGetEntriesMessage(10);
+    assert.equal(getEntriesMsg.type, ClientMessageType.GET_ENTRIES);
+    assert.equal(getEntriesMsg.since, 10);
+
+    const getStateMsg = createGetStateMessage();
+    assert.equal(getStateMsg.type, ClientMessageType.GET_STATE);
+
+    const getModelsMsg = createGetAvailableModelsMessage();
+    assert.equal(getModelsMsg.type, ClientMessageType.GET_AVAILABLE_MODELS);
+
+    const extUiResp = createExtensionUiResponseMessage("req-1", { confirmed: true });
+    assert.equal(extUiResp.type, ClientMessageType.EXTENSION_UI_RESPONSE);
+    assert.equal(extUiResp.id, "req-1");
+    assert.equal(extUiResp.confirmed, true);
+
     const errorMsg = createErrorMessage(ErrorCode.UNAUTHORIZED, "Invalid token");
     assert.equal(errorMsg.type, ServerMessageType.ERROR);
     assert.equal(errorMsg.code, ErrorCode.UNAUTHORIZED);
@@ -100,5 +124,11 @@ describe("Pi-Chat Protocol Unit Tests", () => {
 
     assert.equal(validateClientMessage({ type: "abort" }).valid, true);
     assert.equal(validateClientMessage({ type: "ping" }).valid, true);
+
+    assert.equal(validateClientMessage({ type: "set_session_name", name: "Project A" }).valid, true);
+    assert.equal(validateClientMessage({ type: "set_session_name", name: 123 }).valid, false);
+
+    assert.equal(validateClientMessage({ type: "set_thinking_level", level: "high" }).valid, true);
+    assert.equal(validateClientMessage({ type: "set_thinking_level", level: {} }).valid, false);
   });
 });

@@ -135,6 +135,40 @@ export function createCycleThinkingLevelMessage() {
   };
 }
 
+export function createSetSessionNameMessage(name) {
+  return {
+    type: ClientMessageType.SET_SESSION_NAME,
+    name: String(name || ""),
+  };
+}
+
+export function createGetEntriesMessage(since = undefined) {
+  return {
+    type: ClientMessageType.GET_ENTRIES,
+    ...(since !== undefined ? { since } : {}),
+  };
+}
+
+export function createGetStateMessage() {
+  return {
+    type: ClientMessageType.GET_STATE,
+  };
+}
+
+export function createGetAvailableModelsMessage() {
+  return {
+    type: ClientMessageType.GET_AVAILABLE_MODELS,
+  };
+}
+
+export function createExtensionUiResponseMessage(id, extra = {}) {
+  return {
+    type: ClientMessageType.EXTENSION_UI_RESPONSE,
+    id,
+    ...extra,
+  };
+}
+
 export function createErrorMessage(code, message, details = null) {
   return {
     type: ServerMessageType.ERROR,
@@ -216,13 +250,23 @@ export function validateClientMessage(msg) {
       }
       return { valid: true };
 
+    case ClientMessageType.SET_SESSION_NAME:
+      if (msg.name !== undefined && typeof msg.name !== "string") {
+        return { valid: false, error: "Set session name requires 'name' to be a string" };
+      }
+      return { valid: true };
+
+    case ClientMessageType.SET_THINKING_LEVEL:
+      if (typeof msg.level !== "string" && typeof msg.level !== "number") {
+        return { valid: false, error: "Set thinking level requires 'level' string or number" };
+      }
+      return { valid: true };
+
     case ClientMessageType.ABORT:
     case ClientMessageType.NEW_SESSION:
     case ClientMessageType.GET_STATE:
     case ClientMessageType.GET_AVAILABLE_MODELS:
     case ClientMessageType.GET_ENTRIES:
-    case ClientMessageType.SET_SESSION_NAME:
-    case ClientMessageType.SET_THINKING_LEVEL:
     case ClientMessageType.CYCLE_THINKING_LEVEL:
     case ClientMessageType.PING:
     case "heartbeat":

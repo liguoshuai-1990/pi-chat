@@ -78,6 +78,30 @@ export interface ClientSetThinkingLevelMessage {
   level: string;
 }
 
+export interface ClientSetSessionNameMessage {
+  type: "set_session_name";
+  name: string;
+}
+
+export interface ClientGetEntriesMessage {
+  type: "get_entries";
+  since?: number | string;
+}
+
+export interface ClientGetStateMessage {
+  type: "get_state";
+}
+
+export interface ClientGetAvailableModelsMessage {
+  type: "get_available_models";
+}
+
+export interface ClientExtensionUiResponseMessage {
+  type: "extension_ui_response";
+  id: string;
+  [key: string]: unknown;
+}
+
 export interface ClientCycleThinkingLevelMessage {
   type: "cycle_thinking_level";
 }
