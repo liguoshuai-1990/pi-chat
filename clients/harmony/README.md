@@ -1,4 +1,4 @@
-# Pi Chat HarmonyOS App (v2.0.0)
+# Pi Chat HarmonyOS App (v2.1.0)
 
 Pi Chat 华为鸿蒙系统 (HarmonyOS Next / OpenHarmony) 原生客户端工程，基于 Stage 模型与声明式 ArkUI 框架构建：
 - **开发语言与框架**：ArkTS + ArkUI (Stage 模型，API 12+)

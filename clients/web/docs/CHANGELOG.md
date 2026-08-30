@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.0] - 2026-08-30
+
+### Fixed & Improved
+- **移动端流式打字与思考过程实时渲染修复 (Mobile Streaming & Thinking Render Fix)**：
+  - 在 `@liguoshuai/pi-chat-protocol`、Android 和 HarmonyOS 原生客户端中完善了 `assistantMessageEvent` 结构解析，修复了移动端在 AI 回复生成期间无法接收 `text_delta` 与 `thinking_delta` 流式打字效果的问题。
+- **移动端历史会话转录加载修复 (Mobile Session History Restore)**：
+  - 在 Android (`ApiService`) 与 HarmonyOS (`HttpService`) 中新增了 `/api/session?file=...` 接口调用，在切换会话时自动还原历史聊天气泡。
+- **Web 端 401 鉴权重连修复 (Web Re-Auth Fix)**：
+  - 修复了 `app.js` 中弹窗输入 Token 后调用未定义 `initWebSocket` 导致 `ReferenceError` 的异常，改为正确调用 `connectWs`。
+- **服务端网关 RPC ID 保持与进程管理增强 (Gateway RPC ID & Lifecycle Improvements)**：
+  - 修复了网关转发指令时丢失客户端 `id` 的问题，确保 RPC 请求响应精确关联。
+  - 增强了 IPv6 Localhost 跨域兼容性支持与死连接自动清理。
+  - 补充了 `@liguoshuai/pi-chat-protocol` 中的 `createSetThinkingLevelMessage` 与 `createCycleThinkingLevelMessage` 辅助方法。
+
+---
+
 ## [2.0.0] - 2026-08-30
 
 ### Major Architecture Refactoring (Monorepo & Multi-Client Ecosystem)
