@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.10.3] - 2026-08-30
 
+### Added & Published
+- **NPM 官方包发布与全局命令行安装支持 (Official NPM Package & Global CLI)**：
+  - 正式发布软件包至 npm 官方注册表（[`@liguoshuai/pi-web-chat`](https://www.npmjs.com/package/@liguoshuai/pi-web-chat)），支持通过 `npm i -g @liguoshuai/pi-web-chat` 或 `pnpm add -g @liguoshuai/pi-web-chat` 全局安装并随时随地使用 `pi-web-chat` 命令启动。
+  - 支持通过 `npx @liguoshuai/pi-web-chat` 免安装即时启动，并在 README 中完善了全局安装、npx 启动与源码安装三种模式的快速指引。
+
 ### Fixed & Improved
 - **移动端附件导入功能全面重构与修复 (Mobile Attachment Import Fix)**：
   - **移动端文件选择器唤起修复**：将上传触发器重构为标准可访问的 `<label for="imageFileInput">` 并配合 CSS `.sr-only-file-input`，彻底解决 iOS Safari、Android Chrome、移动端 WebView 及微信内置浏览器中因 `display: none` 导致异步 JS `.click()` 被浏览器安全策略拦截而无法调起系统相册/文件选择器的问题。

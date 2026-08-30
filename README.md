@@ -1,10 +1,15 @@
 # pi-web-chat
 
+[![npm version](https://img.shields.io/npm/v/@liguoshuai/pi-web-chat.svg)](https://www.npmjs.com/package/@liguoshuai/pi-web-chat)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
+
 一个 [pi](https://pi.dev) 编程代理的 Web 界面，风格参考 ChatGPT / Gemini ——
 左侧历史会话侧边栏 + 右侧对话区 + 底部输入框。底层通过 pi 的 **RPC 模式**
 (`pi --mode rpc`) 与 pi 子进程通信，前端走 WebSocket 流式渲染。
 
-> 项目主页：https://github.com/liguoshuai-1990/pi-web-chat
+> 📦 **NPM 软件包**：[`@liguoshuai/pi-web-chat`](https://www.npmjs.com/package/@liguoshuai/pi-web-chat)  
+> 🔗 **项目主页**：https://github.com/liguoshuai-1990/pi-web-chat
 
 ---
 
@@ -35,7 +40,7 @@
 
 ---
 
-### 2. 安装 pi 编程代理 (pi agent)
+### 2. 安装底层 pi 编程代理 (pi agent)
 
 `pi-web-chat` 通过 RPC 模式 (`pi --mode rpc`) 与底层 `pi` 命令行 Agent 子进程通信。若系统中尚未安装 `pi`，请选择以下任一方式进行全局安装：
 
@@ -92,39 +97,79 @@ pi
 
 ---
 
-### 4. 克隆与启动 pi-web-chat
+### 4. 安装与启动 pi-web-chat
 
-#### 克隆仓库与安装依赖
+#### 方式 A：通过 npm / pnpm 全局安装（推荐，最快捷）
+
+```bash
+# 使用 npm 全局安装
+npm install -g @liguoshuai/pi-web-chat
+
+# 或使用 pnpm 全局安装
+pnpm add -g @liguoshuai/pi-web-chat
+```
+
+安装完成后，在终端任意目录下直接运行 `pi-web-chat` 命令启动：
+
+```bash
+# 启动 Web 服务（默认监听 3000 端口，工作目录为当前目录）
+pi-web-chat
+
+# 自定义端口和指定工作目录 (cwd)
+pi-web-chat --port 8080 --cwd /path/to/your/project
+```
+
+#### 方式 B：使用 npx 免安装即时运行
+
+无需全局安装，直接通过 npx 快速启动：
+
+```bash
+npx @liguoshuai/pi-web-chat
+# 或指定参数
+npx @liguoshuai/pi-web-chat --port 8080 --cwd /path/to/your/project
+```
+
+#### 方式 C：通过 Git 源码克隆与启动（适合二次开发）
 
 ```bash
 git clone https://github.com/liguoshuai-1990/pi-web-chat.git
 cd pi-web-chat
 npm install
-```
-
-#### 启动 Web 服务
-
-```bash
 npm start
 ```
 
-#### 打开浏览器体验
-在浏览器中访问：
-👉 **http://localhost:3000**
+---
+
+### 5. 打开浏览器体验
+
+Web 服务启动后，在浏览器中访问：
+👉 **http://localhost:3000** （或自定义的端口）
 
 ---
 
-### 5. 命令行启动选项与全局 CLI（可选）
+### 6. CLI 命令行参数与选项
 
-你也可以通过 `bin/pi-web-chat.js` 指定工作目录或监听端口：
+`pi-web-chat` CLI 提供了便捷的命令行参数与环境变量支持：
 
-```bash
-# 指定端口和工作目录 (cwd)
-node bin/pi-web-chat.js --port 8080 --cwd /path/to/your/project
+```text
+用法:
+  pi-web-chat [选项]
 
-# 或通过 npm 全局安装后在任意目录下启动
-npm install -g .
-pi-web-chat --port 8080
+选项:
+  -p, --port <number>    指定 Web 服务监听端口（默认: 3000，或读取 PORT 环境变量）
+  -c, --cwd <path>       指定 pi 会话初始工作目录（默认: 当前终端路径 / 用户主目录）
+  -h, --help             显示帮助信息
+
+环境变量:
+  PORT                   服务端口（同 --port）
+  PI_BIN                 pi 可执行文件绝对路径（未设置时自动探测）
+  PI_SESSIONS_DIR        pi 会话数据存储目录（默认: ~/.pi/agent/sessions）
+
+运行示例:
+  pi-web-chat                                     # 默认端口 3000 启动
+  pi-web-chat --port 8080                         # 指定 8080 端口启动
+  pi-web-chat --port 8080 --cwd ~/projects/my-app # 指定端口与初始工作区
+  PORT=4000 pi-web-chat                           # 通过环境变量指定端口
 ```
 
 ---
