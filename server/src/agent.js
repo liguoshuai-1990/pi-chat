@@ -197,6 +197,10 @@ export class PiAgent {
 
   onStdout(chunk) {
     this.buffer += this.decoder.write(chunk);
+    if (this.buffer.length > 50 * 1024 * 1024) {
+      console.warn(`[PiAgent] Buffer length exceeded 50MB, truncating`);
+      this.buffer = this.buffer.slice(-10 * 1024 * 1024);
+    }
     while (true) {
       const nl = this.buffer.indexOf("\n");
       if (nl === -1) break;
@@ -211,8 +215,9 @@ export class PiAgent {
   }
 
   onPiMessage(obj) {
-    if (obj.data?.sessionFile) {
-      this.setSessionKey(this.cwd, obj.data.sessionFile);
+    const sessFile = obj.data?.sessionFile || obj.sessionFile || obj.data?.sessionPath || obj.sessionPath;
+    if (sessFile) {
+      this.setSessionKey(this.cwd, sessFile);
     }
 
     switch (obj.type) {
@@ -239,10 +244,11 @@ export class PiAgent {
       this.lastUserPrompt = { text: obj.message, isSteer: !!obj.isSteer, at: nowMs() };
     }
 
-    if (obj.type === "response" && obj.id) {
-      const res = this.pending.get(obj.id);
+    if (obj.type === "response" && obj.id !== undefined && obj.id !== null) {
+      const idStr = String(obj.id);
+      const res = this.pending.get(idStr);
       if (res) {
-        this.pending.delete(obj.id);
+        this.pending.delete(idStr);
         res(obj);
       }
       this.markActivity();
@@ -371,6 +377,10 @@ export class PiAgent {
     if (this.sessionKey) activeAgents.delete(this.sessionKey);
     this.cancelIdleKill();
     if (this.lifetimeTimer) { clearTimeout(this.lifetimeTimer); this.lifetimeTimer = null; }
+    for (const [id, resolve] of this.pending) {
+      resolve({ type: "response", id, success: false, error: "pi process stopped" });
+    }
+    this.pending.clear();
     if (this.proc) {
       try { this.proc.kill("SIGTERM"); } catch {}
       const p = this.proc;
@@ -403,8 +413,12 @@ export function getOrCreateAgent(cwd, sessionPath = null) {
   const normCwd = normalizeCwd(cwd);
   const key = sessionPath ? `${normCwd}:${normalizePath(sessionPath)}` : null;
 
-  if (key && activeAgents.has(key) && activeAgents.get(key).alive) {
-    return activeAgents.get(key);
+  if (key && activeAgents.has(key)) {
+    const existing = activeAgents.get(key);
+    if (existing && existing.alive) {
+      return existing;
+    }
+    activeAgents.delete(key);
   }
 
   if (config.maxConcurrentAgents > 0) {

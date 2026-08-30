@@ -31,12 +31,14 @@ export const ServerMessageType = Object.freeze({
   AGENT_STREAM: "agent_stream",
   MESSAGE_UPDATE: "message_update",
   REMOTE_USER_PROMPT: "remote_user_prompt",
+  REMOTE_USER_STEER: "remote_user_steer",
   BACKFILL_START: "backfill_start",
   BACKFILL_END: "backfill_end",
   RESPONSE: "response",
   PONG: "pong",
   ERROR: "error",
   PI_EXIT: "pi_exit",
+  EXTENSION_UI_REQUEST: "extension_ui_request",
 });
 
 export const ErrorCode = Object.freeze({
@@ -164,8 +166,30 @@ export function createGetAvailableModelsMessage() {
 export function createExtensionUiResponseMessage(id, extra = {}) {
   return {
     type: ClientMessageType.EXTENSION_UI_RESPONSE,
-    id,
+    id: String(id || ""),
     ...extra,
+  };
+}
+
+export function createRemoteUserPromptMessage(message, images = [], isSteer = false) {
+  return {
+    type: isSteer ? ServerMessageType.REMOTE_USER_STEER : ServerMessageType.REMOTE_USER_PROMPT,
+    message: String(message || ""),
+    images: Array.isArray(images) ? images : [],
+    ...(isSteer ? { isSteer: true } : {}),
+  };
+}
+
+export function createRemoteUserSteerMessage(message) {
+  return createRemoteUserPromptMessage(message, [], true);
+}
+
+export function createExtensionUiRequestMessage(id, method, options = {}) {
+  return {
+    type: ServerMessageType.EXTENSION_UI_REQUEST,
+    id: String(id || ""),
+    method: String(method || ""),
+    ...options,
   };
 }
 

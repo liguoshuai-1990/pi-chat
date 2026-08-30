@@ -30,7 +30,7 @@ export function isAllowedOrigin(origin, host) {
 
     if (config.allowedOrigins) {
       const allowed = config.allowedOrigins.split(",").map(s => s.trim().toLowerCase());
-      if (allowed.includes(origin.toLowerCase()) || allowed.includes(originUrl.origin.toLowerCase())) {
+      if (allowed.includes("*") || allowed.includes(origin.toLowerCase()) || allowed.includes(originUrl.origin.toLowerCase())) {
         return true;
       }
     }
@@ -202,6 +202,9 @@ export function setupWebSocketGateway(httpServer) {
         case ClientMessageType.PROMPT: {
           const promptText = typeof msg.message === "string" ? msg.message : "";
           const promptImages = Array.isArray(msg.images) ? msg.images : [];
+          if (!promptText.trim() && promptImages.length === 0) {
+            return;
+          }
           activeAgent.broadcast({ type: "remote_user_prompt", message: promptText, images: promptImages }, ws);
           activeAgent.lastUserPrompt = { text: promptText, isSteer: false, at: nowMs };
           activeAgent.send({ type: "prompt", message: promptText, images: promptImages, id: msg.id });
@@ -209,6 +212,7 @@ export function setupWebSocketGateway(httpServer) {
         }
 
         case ClientMessageType.STEER:
+          if (!msg.message || !msg.message.trim()) return;
           activeAgent.broadcast({ type: "remote_user_prompt", message: msg.message, isSteer: true }, ws);
           activeAgent.lastUserPrompt = { text: msg.message, isSteer: true, at: nowMs };
           activeAgent.send({ type: "steer", message: msg.message, id: msg.id });
@@ -231,7 +235,7 @@ export function setupWebSocketGateway(httpServer) {
 
         case ClientMessageType.SWITCH_SESSION:
           if (!msg.sessionPath) break;
-          activeAgent.setSessionKey(cwd, msg.sessionPath);
+          activeAgent.setSessionKey(activeAgent.cwd || cwd, msg.sessionPath);
           activeAgent.send({ type: "switch_session", sessionPath: msg.sessionPath, id: msg.id });
           break;
 

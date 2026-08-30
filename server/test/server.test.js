@@ -89,6 +89,15 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
     // Untrusted external origins
     assert.equal(isAllowedOrigin("http://evil-attacker.xyz", "localhost:3000"), false);
     assert.equal(isAllowedOrigin("https://phishing.site", "localhost:3000"), false);
+
+    // Wildcard allowed origins
+    const origOrigins = config.allowedOrigins;
+    config.allowedOrigins = "*";
+    assert.equal(isAllowedOrigin("https://any-external-domain.com", "localhost:3000"), true);
+    config.allowedOrigins = "https://custom.app.com, https://another.app.com";
+    assert.equal(isAllowedOrigin("https://custom.app.com", "localhost:3000"), true);
+    assert.equal(isAllowedOrigin("https://unknown.com", "localhost:3000"), false);
+    config.allowedOrigins = origOrigins;
   });
 
   test("Server configuration contains expected defaults and types", () => {

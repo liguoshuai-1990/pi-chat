@@ -79,4 +79,19 @@ export namespace PiProtocol {
       modelId: modelId
     });
   }
+
+  export function createSetThinkingLevel(level: string): string {
+    return JSON.stringify({
+      type: 'set_thinking_level',
+      level: level
+    });
+  }
+
+  export function createExtensionUiResponse(id: string, extra: any = {}): string {
+    return JSON.stringify({
+      type: 'extension_ui_response',
+      id: id,
+      ...extra
+    });
+  }
 }

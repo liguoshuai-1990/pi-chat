@@ -19,6 +19,9 @@ import {
   createGetStateMessage,
   createGetAvailableModelsMessage,
   createExtensionUiResponseMessage,
+  createRemoteUserPromptMessage,
+  createRemoteUserSteerMessage,
+  createExtensionUiRequestMessage,
   createErrorMessage,
   normalizeClientMessage,
   validateClientMessage,
@@ -84,6 +87,21 @@ describe("Pi-Chat Protocol Unit Tests", () => {
     assert.equal(extUiResp.type, ClientMessageType.EXTENSION_UI_RESPONSE);
     assert.equal(extUiResp.id, "req-1");
     assert.equal(extUiResp.confirmed, true);
+
+    const remotePrompt = createRemoteUserPromptMessage("User says hello");
+    assert.equal(remotePrompt.type, ServerMessageType.REMOTE_USER_PROMPT);
+    assert.equal(remotePrompt.message, "User says hello");
+
+    const remoteSteer = createRemoteUserSteerMessage("Change topic");
+    assert.equal(remoteSteer.type, ServerMessageType.REMOTE_USER_STEER);
+    assert.equal(remoteSteer.message, "Change topic");
+    assert.equal(remoteSteer.isSteer, true);
+
+    const extUiReq = createExtensionUiRequestMessage("req-2", "confirm", { message: "Proceed?" });
+    assert.equal(extUiReq.type, ServerMessageType.EXTENSION_UI_REQUEST);
+    assert.equal(extUiReq.id, "req-2");
+    assert.equal(extUiReq.method, "confirm");
+    assert.equal(extUiReq.message, "Proceed?");
 
     const errorMsg = createErrorMessage(ErrorCode.UNAUTHORIZED, "Invalid token");
     assert.equal(errorMsg.type, ServerMessageType.ERROR);

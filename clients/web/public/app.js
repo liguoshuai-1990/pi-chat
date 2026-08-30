@@ -1670,14 +1670,15 @@ function sendWs(obj) {
 
 function handlePiMessage(obj) {
   // Automatically bind to the session file as soon as pi allocates it on disk
-  if (obj.data?.sessionFile && obj.data.sessionFile !== state.currentSessionFile) {
-    state.currentSessionFile = obj.data.sessionFile;
+  const sessionFile = obj.data?.sessionFile || obj.sessionFile || obj.data?.sessionPath || obj.sessionPath;
+  if (sessionFile && sessionFile !== state.currentSessionFile) {
+    state.currentSessionFile = sessionFile;
     try {
-      const newUrl = window.location.pathname + "?session=" + encodeURIComponent(obj.data.sessionFile);
-      window.history.replaceState({ session: obj.data.sessionFile }, "", newUrl);
+      const newUrl = window.location.pathname + "?session=" + encodeURIComponent(sessionFile);
+      window.history.replaceState({ session: sessionFile }, "", newUrl);
     } catch {}
     if ($("#topSessionName").textContent === "新对话") {
-      $("#topSessionName").textContent = baseName(obj.data.sessionFile);
+      $("#topSessionName").textContent = baseName(sessionFile);
     }
     refreshSessions();
   }
@@ -2786,12 +2787,15 @@ async function init() {
   }
 
   const ta = $("#composer");
+  let isComposing = false;
+  ta.addEventListener("compositionstart", () => { isComposing = true; });
+  ta.addEventListener("compositionend", () => { isComposing = false; });
   ta.addEventListener("input", () => {
     autoResize();
     updateComposerUI();
   });
   ta.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !isComposing && e.keyCode !== 229) {
       e.preventDefault();
       if (state.streaming) {
         if (ta.value.trim()) {

@@ -39,16 +39,13 @@ class ChatRepository(
     private val _isStreaming = MutableStateFlow(false)
     val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
 
-    val connectionState: StateFlow<ConnectionState>
-        get() {
-            val stateFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
-            scope.launch {
-                wsClient.connectionState.collect { stateFlow.value = it }
-            }
-            return stateFlow.asStateFlow()
-        }
+    private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
+    val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
     init {
+        scope.launch {
+            wsClient.connectionState.collect { _connectionState.value = it }
+        }
         scope.launch {
             wsClient.incomingMessages.collect { msg ->
                 handleServerMessage(msg)

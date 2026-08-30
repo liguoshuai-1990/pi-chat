@@ -22,15 +22,21 @@ router.get("/api/stream", authMiddleware, handleSseStream);
 
 // Helper to resolve pi settings (global and project-level)
 async function getPiSettings(targetCwd) {
-  const globalPath = path.join(home(), ".pi", "agent", "settings.json");
+  const globalCandidates = [
+    path.join(home(), ".pi", "agent", "settings.json"),
+    path.join(home(), ".pi", "settings.json"),
+  ];
   let globalSettings = {};
   let globalExists = false;
-  try {
-    if (existsSync(globalPath)) {
-      globalSettings = JSON.parse(await readFile(globalPath, "utf8"));
-      globalExists = true;
-    }
-  } catch {}
+  for (const globalPath of globalCandidates) {
+    try {
+      if (existsSync(globalPath)) {
+        globalSettings = JSON.parse(await readFile(globalPath, "utf8"));
+        globalExists = true;
+        break;
+      }
+    } catch {}
+  }
 
   let projectSettings = {};
   let projectExists = false;
@@ -216,10 +222,15 @@ function resolveSessionPath(file) {
 
 function extractText(content) {
   if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
+  if (!Array.isArray(content)) {
+    if (content && typeof content === "object") {
+      return content.text || content.content || "";
+    }
+    return "";
+  }
   return content
-    .filter(c => c && (c.type === "text" || typeof c === "string"))
-    .map(c => typeof c === "string" ? c : (c.text || ""))
+    .filter(c => c && (c.type === "text" || typeof c === "string" || c.text))
+    .map(c => typeof c === "string" ? c : (c.text || c.content || ""))
     .join("");
 }
 
@@ -236,12 +247,16 @@ async function getSessionMetadata(file) {
   for (const line of lines) {
     let o;
     try { o = JSON.parse(line); } catch { continue; }
-    if (o.type === "session") header = o;
+    if (o.type === "session") {
+      header = o;
+      if (o.name) sessionName = o.name.trim();
+    }
     if (o.type === "session_info" && o.name) {
       sessionName = o.name.trim();
     }
-    if (o.type === "message" && o.message && o.message.role === "user" && !title) {
-      title = extractText(o.message.content).slice(0, 80);
+    const msgContent = o.message?.content || (o.type === "message" ? o.content : null);
+    if (o.type === "message" && o.message && o.message.role === "user" && !title && msgContent) {
+      title = extractText(msgContent).slice(0, 80);
     }
     if (o.type === "message") msgCount++;
   }
@@ -257,7 +272,7 @@ async function getSessionMetadata(file) {
       id: header.id,
       sessionName: sessionName || null,
       timestamp: header.timestamp,
-      firstUser: title,
+      firstUser: title || sessionName || (header.name ? header.name.trim() : null),
       messageCount: msgCount,
     },
   };

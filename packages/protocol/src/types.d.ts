@@ -24,12 +24,14 @@ export type ServerMessageType =
   | "agent_stream"
   | "message_update"
   | "remote_user_prompt"
+  | "remote_user_steer"
   | "backfill_start"
   | "backfill_end"
   | "response"
   | "pong"
   | "error"
-  | "pi_exit";
+  | "pi_exit"
+  | "extension_ui_request";
 
 export interface ImageAttachment {
   type: "image";
@@ -147,6 +149,26 @@ export interface ServerErrorMessage {
   code: string;
   message: string;
   details?: unknown;
+}
+
+export interface ServerRemoteUserPromptMessage {
+  type: "remote_user_prompt" | "remote_user_steer";
+  message: string;
+  images?: ImageAttachment[];
+  isSteer?: boolean;
+}
+
+export interface ServerExtensionUiRequestMessage {
+  type: "extension_ui_request";
+  id: string;
+  method: "notify" | "confirm" | "select" | "input" | "editor" | string;
+  title?: string;
+  message?: string;
+  options?: string[];
+  placeholder?: string;
+  prefill?: string;
+  notifyType?: "info" | "warning" | "error";
+  [key: string]: unknown;
 }
 
 export interface ServerResponse<T = unknown> {
