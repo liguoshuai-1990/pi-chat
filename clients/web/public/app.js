@@ -20,6 +20,37 @@ window.onerror = function (message, source, lineno, colno, error) {
 };
 
 const API = ""; // same origin
+
+function getAuthToken() {
+  try {
+    const urlToken = new URLSearchParams(window.location.search).get("token");
+    if (urlToken) {
+      localStorage.setItem("pi_auth_token", urlToken);
+      return urlToken;
+    }
+    return localStorage.getItem("pi_auth_token") || "";
+  } catch {
+    return "";
+  }
+}
+
+function authFetch(url, options = {}) {
+  const token = getAuthToken();
+  const headers = { ...(options.headers || {}) };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return fetch(url, { ...options, headers }).then(async (res) => {
+    if (res.status === 401) {
+      const entered = prompt("Pi Gateway 开启了访问鉴权，请输入访问 Token：");
+      if (entered) {
+        localStorage.setItem("pi_auth_token", entered.trim());
+        window.location.reload();
+      }
+    }
+    return res;
+  });
+}
 const state = {
   ws: null,
   wsConnected: false,
@@ -120,7 +151,7 @@ async function loadServerConfig() {
   }
   try {
     const cwdParam = state.cwd ? `?cwd=${encodeURIComponent(state.cwd)}` : "";
-    const res = await fetch(`${API}/api/config${cwdParam}`);
+    const res = await authFetch(`${API}/api/config${cwdParam}`);
     const data = await res.json();
     if (data.home) state.homeDir = data.home;
     if (data.serverCwd) state.serverCwd = data.serverCwd;
@@ -199,7 +230,7 @@ async function confirmCwdChange() {
   if (!rawPath) return;
 
   try {
-    const res = await fetch(`${API}/api/validate-dir?path=${encodeURIComponent(rawPath)}`);
+    const res = await authFetch(`${API}/api/validate-dir?path=${encodeURIComponent(rawPath)}`);
     const data = await res.json();
     if (data.ok && data.path) {
       let recents = [];
@@ -489,7 +520,7 @@ const el = (tag, props = {}, children = []) => {
 // ---- Sidebar / sessions ----
 async function refreshSessions() {
   const cwd = state.cwd || "";
-  const res = await fetch(`${API}/api/sessions?cwd=${encodeURIComponent(cwd)}`);
+  const res = await authFetch(`${API}/api/sessions?cwd=${encodeURIComponent(cwd)}`);
   const data = await res.json();
   renderSidebar(data.sessions || []);
 }
@@ -579,7 +610,7 @@ async function deleteSession(file, title) {
     return;
   }
   try {
-    const res = await fetch(`${API}/api/session?file=${encodeURIComponent(file)}`, {
+    const res = await authFetch(`${API}/api/session?file=${encodeURIComponent(file)}`, {
       method: "DELETE",
     });
     const data = await res.json();
@@ -633,7 +664,7 @@ function initMobileToolbarFab() {
 async function syncSessionHistory(file, force = false) {
   if (!file) return;
   try {
-    const res = await fetch(`${API}/api/session?file=${encodeURIComponent(file)}`);
+    const res = await authFetch(`${API}/api/session?file=${encodeURIComponent(file)}`);
     if (!res.ok) return;
     const data = await res.json();
     if (!data || data.error) return;
@@ -1567,7 +1598,9 @@ function connectWs(opts = {}) {
     state.activeToolCalls.clear();
   }
 
-  const url = `${proto}://${location.host}/ws?cwd=${cwd}${sess}`;
+  const token = getAuthToken();
+  const tokParam = token ? `&token=${encodeURIComponent(token)}` : "";
+  const url = `${proto}://${location.host}/ws?cwd=${cwd}${sess}${tokParam}`;
   const ws = new WebSocket(url);
   state.ws = ws;
   ws._gen = myGen;
@@ -1617,6 +1650,15 @@ function connectWs(opts = {}) {
     let obj;
     try { obj = JSON.parse(ev.data); } catch { return; }
     if (obj.type === "pong") return;
+
+    if (obj.type === "error" && (obj.code === "unauthorized" || (obj.message && obj.message.toLowerCase().includes("unauthorized")))) {
+      const entered = prompt("Pi Gateway 开启了访问鉴权，请输入访问 Token：");
+      if (entered) {
+        localStorage.setItem("pi_auth_token", entered.trim());
+        initWebSocket({ explicitNewSession: false, isReconnect: true });
+      }
+      return;
+    }
     handlePiMessage(obj);
   };
 }
@@ -2202,7 +2244,7 @@ function updateEmptyStateModelInfo() {
 
 async function setDefaultModel(m) {
   try {
-    const res = await fetch(`${API}/api/set-default-model`, {
+    const res = await authFetch(`${API}/api/set-default-model`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

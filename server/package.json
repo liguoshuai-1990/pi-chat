@@ -3,10 +3,24 @@
   "version": "1.0.0",
   "description": "Pi Agent Gateway server for VPS hosting, bridging Web, Android, and HarmonyOS native apps to pi coding agent subprocesses",
   "type": "module",
-  "main": "src/index.js",
+  "main": "src/server.js",
+  "exports": {
+    ".": "./src/server.js",
+    "./config": "./src/config.js",
+    "./auth": "./src/auth.js",
+    "./agent": "./src/agent.js",
+    "./ws": "./src/ws.js",
+    "./sse": "./src/sse.js",
+    "./routes": "./src/routes.js"
+  },
   "bin": {
     "pi-chat-server": "src/index.js"
   },
+  "files": [
+    "src/",
+    "scripts/",
+    "README.md"
+  ],
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",

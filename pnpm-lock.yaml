@@ -10,6 +10,12 @@ importers:
 
   clients/web:
     dependencies:
+      '@pi-chat/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@pi-chat/server':
+        specifier: workspace:*
+        version: link:../../server
       express:
         specifier: ^4.21.2
         version: 4.22.2

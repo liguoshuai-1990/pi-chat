@@ -10,18 +10,21 @@ import { shutdownAllAgents } from "./agent.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export function createServer() {
+export function createServer(options = {}) {
   const app = express();
 
   // Basic CORS & JSON parser
   app.use(express.json({ limit: "50mb" }));
 
-  // Check static web assets from clients/web/public or local public
-  const webPublicCandidates = [
+  // Check static web assets from explicit option, clients/web/public or local public
+  const staticDirs = [
+    options.staticDir,
     path.join(__dirname, "../../clients/web/public"),
     path.join(__dirname, "../public"),
-  ];
-  for (const pub of webPublicCandidates) {
+    path.join(process.cwd(), "public"),
+  ].filter(Boolean);
+
+  for (const pub of staticDirs) {
     if (existsSync(pub)) {
       app.use(express.static(pub));
       break;
@@ -34,7 +37,7 @@ export function createServer() {
   const httpServer = http.createServer(app);
   const { wss, heartbeatInterval } = setupWebSocketGateway(httpServer);
 
-  function listen(port = config.port, host = config.host) {
+  function listen(port = options.port || config.port, host = options.host || config.host) {
     return new Promise((resolve) => {
       httpServer.listen(port, host, () => {
         console.log(`[Pi-Chat Server] Gateway running on http://${host}:${port}`);
@@ -61,3 +64,9 @@ export function createServer() {
 
   return { app, httpServer, wss, listen, close };
 }
+
+export { config } from "./config.js";
+export { setupWebSocketGateway } from "./ws.js";
+export { shutdownAllAgents, getOrCreateAgent, PiAgent, activeAgents, allAgents } from "./agent.js";
+export { authMiddleware, verifyToken, verifyWsAuth } from "./auth.js";
+export { router } from "./routes.js";

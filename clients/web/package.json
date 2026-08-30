@@ -43,6 +43,8 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@pi-chat/protocol": "workspace:*",
+    "@pi-chat/server": "workspace:*",
     "express": "^4.21.2",
     "ws": "^8.18.0"
   }

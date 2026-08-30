@@ -10,12 +10,12 @@
 |                                                                                   |
 |  +------------------------+  +--------------------------+  +-------------------+  |
 |  |     clients/web        |  |     clients/android      |  |  clients/harmony  |  |
-|  |  (Vue/React/Vanilla)   |  | (Jetpack Compose/Kotlin) |  |   (ArkTS/ArkUI)   |  |
+|  |  (Web UI / npm 交付)   |  | (Jetpack Compose/Kotlin) |  |   (ArkTS/ArkUI)   |  |
 |  +-----------+------------+  +------------+-------------+  +---------+---------+  |
 +--------------|----------------------------|--------------------------|------------+
                |                            |                          |
                | WebSocket / SSE / REST     | WebSocket / REST         | WebSocket
-               | (JSON Protocol)            | (OkHttp + Flow)          | (@ohos.net)
+               | (JSON Protocol + Token)    | (OkHttp + Flow)          | (@ohos.net)
                v                            v                          v
 +-----------------------------------------------------------------------------------+
 |                        packages/protocol (跨端协议共享标准包)                       |
@@ -24,7 +24,7 @@
                                             |
                                             v
 +-----------------------------------------------------------------------------------+
-|                            server/ (VPS 桥接网关服务)                              |
+|                     server/ (VPS 统一桥接网关服务 @pi-chat/server)                   |
 |                                                                                   |
 |   +-----------------------+   +-----------------------+   +--------------------+  |
 |   |   Token 鉴权与安全拦截  |   |   SSE/WS 全双工网关   |   |  30s 心跳与断线重连 |  |
@@ -48,26 +48,38 @@
 
 ---
 
-## 2. 核心模块分工
+## 2. 核心模块定位与解耦协作
 
-1. **`clients/web`**：
-   - 维持既有独立发布流（npm `@liguoshuai/pi-web-chat`）。
-   - 现代化 Web 界面，支持 Markdown 渲染、代码高亮与折叠、附件上传、移动端响应式布局。
-2. **`clients/android`**：
-   - 基于 Android 原生 Jetpack Compose 与 Material 3 设计。
-   - 使用 OkHttp WebSocket 与 Coroutines / StateFlow 实现极速响应和流式增量绘制。
-3. **`clients/harmony`**：
-   - 基于华为 HarmonyOS Next ArkTS 与 ArkUI 框架开发。
-   - 适配 Stage 模型与跨端响应式布局。
-4. **`packages/protocol`**：
-   - 统一全端消息格式，消除各端通信协议不一致的问题。
-   - 包含校验器与别名兼容层（`client_send` -> `prompt`, `heartbeat` -> `ping`）。
-5. **`server`**：
-   - 统一 VPS 部署入口，提供 Token 认证、RESTful 历史会话管理、WebSocket 多路复用和 SSE 流推送。
+### 2.1 `server/` 与 `clients/web/` 的协作关系
+- **单一数据源与统一内核 (Single Source of Truth)**：
+  `server/` 是整个生态**唯一的后端网关核心**，管理所有 Agent 子进程生命周期、Token 鉴权、心跳、SSE 与会话管理。
+- **Web 端的薄封装设计**：
+  `clients/web/server.js` 仅作为针对 npm 交付包 `@liguoshuai/pi-web-chat` 的轻量运行胶水层，直接引用 `@pi-chat/server` 启动并托管 `clients/web/public` 前端资源，消除了代码重复。
+- **全端同等接入地位**：
+  Web 前端 (`clients/web/public/app.js`) 与 Android、鸿蒙移动端一样，原生支持通过 `token` 参数或弹窗输入访问密钥，既可同源一体化部署，亦可跨域独立部署直连 VPS 网关。
 
 ---
 
-## 3. 会话与进程生命周期管理
+## 3. 核心模块分工列表
+
+1. **`server` (`@pi-chat/server`)**：
+   - 统一 VPS 部署入口，提供 Token 认证、RESTful 历史会话管理、WebSocket 多路复用和 SSE 流推送。
+2. **`clients/web` (`@liguoshuai/pi-web-chat`)**：
+   - 维持既有独立发布流（npm `@liguoshuai/pi-web-chat`）。
+   - 现代化 Web 界面，支持 Markdown 渲染、代码高亮与折叠、附件上传、移动端响应式布局与 Token 鉴权提示。
+3. **`clients/android`**：
+   - 基于 Android 原生 Jetpack Compose 与 Material 3 设计。
+   - 使用 OkHttp WebSocket 与 Coroutines / StateFlow 实现极速响应和流式增量绘制。
+4. **`clients/harmony`**：
+   - 基于华为 HarmonyOS Next ArkTS 与 ArkUI 框架开发。
+   - 适配 Stage 模型与跨端响应式布局。
+5. **`packages/protocol` (`@pi-chat/protocol`)**：
+   - 统一全端消息格式，消除各端通信协议不一致的问题。
+   - 包含校验器与别名兼容层（`client_send` -> `prompt`, `heartbeat` -> `ping`）。
+
+---
+
+## 4. 会话与进程生命周期管理
 
 - **连接绑定与解耦**：每个会话由 `cwd` 与 `sessionPath` 唯一确定。客户端断开后，Agent 子进程继续在 VPS 后台运行直至任务完成。
 - **断线无损回填**：当客户端重新连接时，服务端自动回放断开期间缓存在 Ring Buffer 中的事件流。
