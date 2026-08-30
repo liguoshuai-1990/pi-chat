@@ -1,7 +1,7 @@
 // server.js — pi-web-chat runner
-// Thin adapter launching the unified @pi-chat/server gateway engine
-import { createServer } from "@pi-chat/server";
-import { config } from "@pi-chat/server/config";
+// Thin adapter launching the unified @liguoshuai/pi-chat-server gateway engine
+import { createServer } from "@liguoshuai/pi-chat-server";
+import { config } from "@liguoshuai/pi-chat-server/config";
 import path from "path";
 import { fileURLToPath } from "url";
 

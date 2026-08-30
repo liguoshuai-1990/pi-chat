@@ -10,10 +10,10 @@ importers:
 
   clients/web:
     dependencies:
-      '@pi-chat/protocol':
+      '@liguoshuai/pi-chat-protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
-      '@pi-chat/server':
+      '@liguoshuai/pi-chat-server':
         specifier: workspace:*
         version: link:../../server
       express:
@@ -27,7 +27,7 @@ importers:
 
   server:
     dependencies:
-      '@pi-chat/protocol':
+      '@liguoshuai/pi-chat-protocol':
         specifier: workspace:*
         version: link:../packages/protocol
       express:

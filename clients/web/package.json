@@ -39,12 +39,15 @@
   },
   "homepage": "https://github.com/liguoshuai-1990/pi-web-chat#readme",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "@pi-chat/protocol": "workspace:*",
-    "@pi-chat/server": "workspace:*",
+    "@liguoshuai/pi-chat-protocol": "workspace:*",
+    "@liguoshuai/pi-chat-server": "workspace:*",
     "express": "^4.21.2",
     "ws": "^8.18.0"
   }

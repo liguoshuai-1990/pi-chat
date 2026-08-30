@@ -1,9 +1,12 @@
 {
-  "name": "@pi-chat/server",
+  "name": "@liguoshuai/pi-chat-server",
   "version": "2.0.0",
   "description": "Pi Agent Gateway server for VPS hosting, bridging Web, Android, and HarmonyOS native apps to pi coding agent subprocesses",
   "type": "module",
   "main": "src/server.js",
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": "./src/server.js",
     "./config": "./src/config.js",
@@ -37,7 +40,7 @@
   "author": "Guoshuai Li",
   "license": "MIT",
   "dependencies": {
-    "@pi-chat/protocol": "workspace:*",
+    "@liguoshuai/pi-chat-protocol": "workspace:*",
     "express": "^4.21.2",
     "ws": "^8.18.0"
   }

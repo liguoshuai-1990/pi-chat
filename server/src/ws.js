@@ -9,7 +9,7 @@ import {
   createErrorMessage,
   ErrorCode,
   ClientMessageType,
-} from "@pi-chat/protocol";
+} from "@liguoshuai/pi-chat-protocol";
 
 export function isAllowedOrigin(origin, host) {
   if (!origin) return true; // Direct non-browser clients (curl, mobile apps)

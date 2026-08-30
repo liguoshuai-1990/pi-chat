@@ -7,14 +7,15 @@
   "scripts": {
     "start": "pnpm --filter @liguoshuai/pi-web-chat start",
     "start:web": "pnpm --filter @liguoshuai/pi-web-chat start",
-    "start:server": "pnpm --filter @pi-chat/server start",
+    "start:server": "pnpm --filter @liguoshuai/pi-chat-server start",
     "dev": "pnpm --filter @liguoshuai/pi-web-chat dev",
     "dev:web": "pnpm --filter @liguoshuai/pi-web-chat dev",
-    "dev:server": "pnpm --filter @pi-chat/server dev",
-    "test": "pnpm -r --filter @pi-chat/protocol --filter @pi-chat/server --filter @liguoshuai/pi-web-chat test",
+    "dev:server": "pnpm --filter @liguoshuai/pi-chat-server dev",
+    "test": "pnpm -r --filter @liguoshuai/pi-chat-protocol --filter @liguoshuai/pi-chat-server --filter @liguoshuai/pi-web-chat test",
     "test:web": "pnpm --filter @liguoshuai/pi-web-chat test",
-    "test:server": "pnpm --filter @pi-chat/server test",
-    "test:protocol": "pnpm --filter @pi-chat/protocol test",
+    "test:server": "pnpm --filter @liguoshuai/pi-chat-server test",
+    "test:protocol": "pnpm --filter @liguoshuai/pi-chat-protocol test",
+    "publish:all": "pnpm -r publish --access public",
     "publish:web": "pnpm --filter @liguoshuai/pi-web-chat publish"
   },
   "keywords": [
