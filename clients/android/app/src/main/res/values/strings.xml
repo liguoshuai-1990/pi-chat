@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Pi Chat</string>
+    <string name="send_hint">Ask Pi anything or steer the agent…</string>
+    <string name="connecting">Connecting to Pi Gateway…</string>
+    <string name="connected">Connected</string>
+    <string name="disconnected">Disconnected</string>
+</resources>

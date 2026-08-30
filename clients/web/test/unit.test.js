@@ -1,14 +1,19 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 describe("pi-web-chat Unit Tests", () => {
-  test("package.json is valid and version is 1.10.3", () => {
-    const pkg = JSON.parse(readFileSync(path.resolve("package.json"), "utf8"));
-    assert.equal(pkg.version, "1.10.3");
+  test("package.json is valid and package name is @liguoshuai/pi-web-chat", () => {
+    const pkgPath = path.resolve(__dirname, "../package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+    assert.equal(pkg.name, "@liguoshuai/pi-web-chat");
+    assert.match(pkg.version, /^\d+\.\d+\.\d+/);
     assert.equal(pkg.type, "module");
-    assert.ok(pkg.bin["pi-web-chat"]);
+    assert.ok(pkg.bin && pkg.bin["pi-web-chat"]);
   });
 
   test("Origin validation rules against CSWSH", () => {

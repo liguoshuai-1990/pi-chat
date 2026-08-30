@@ -1,49 +1,36 @@
 {
-  "name": "@liguoshuai/pi-web-chat",
-  "version": "1.10.4",
-  "description": "A ChatGPT/Gemini-style web UI for the pi coding agent, powered by pi's RPC mode.",
+  "name": "pi-chat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "pi-chat — Monorepo for multi-client Pi coding agent ecosystem (Web, Android, HarmonyOS, Server Gateway, Protocol)",
   "type": "module",
-  "main": "server.js",
-  "bin": {
-    "pi-web-chat": "bin/pi-web-chat.js"
-  },
-  "files": [
-    "server.js",
-    "bin/",
-    "public/",
-    "docs/",
-    "scripts/",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "test": "node --test",
-    "prepare": "node -e \"import('fs').then(fs => { try { fs.chmodSync('bin/pi-web-chat.js', 0o755); } catch {} })\""
+    "start": "pnpm --filter @liguoshuai/pi-web-chat start",
+    "start:web": "pnpm --filter @liguoshuai/pi-web-chat start",
+    "start:server": "pnpm --filter @pi-chat/server start",
+    "dev": "pnpm --filter @liguoshuai/pi-web-chat dev",
+    "dev:web": "pnpm --filter @liguoshuai/pi-web-chat dev",
+    "dev:server": "pnpm --filter @pi-chat/server dev",
+    "test": "pnpm -r --filter @pi-chat/protocol --filter @pi-chat/server --filter @liguoshuai/pi-web-chat test",
+    "test:web": "pnpm --filter @liguoshuai/pi-web-chat test",
+    "test:server": "pnpm --filter @pi-chat/server test",
+    "test:protocol": "pnpm --filter @pi-chat/protocol test",
+    "publish:web": "pnpm --filter @liguoshuai/pi-web-chat publish"
   },
   "keywords": [
     "pi",
     "coding-agent",
     "chat",
-    "web-ui",
-    "rpc",
-    "ai"
+    "monorepo",
+    "web",
+    "android",
+    "harmony",
+    "gateway"
   ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/liguoshuai-1990/pi-web-chat.git"
-  },
-  "bugs": {
-    "url": "https://github.com/liguoshuai-1990/pi-web-chat/issues"
-  },
-  "homepage": "https://github.com/liguoshuai-1990/pi-web-chat#readme",
+  "author": "Guoshuai Li",
   "license": "MIT",
   "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {
-    "express": "^4.21.2",
-    "ws": "^8.18.0"
+    "node": ">=18",
+    "pnpm": ">=8"
   }
 }

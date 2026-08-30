@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PiChatProtocol",
+  "description": "Unified JSON schema specification for Pi-Chat Monorepo",
+  "definitions": {
+    "ClientMessage": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "auth",
+            "prompt",
+            "client_send",
+            "steer",
+            "abort",
+            "new_session",
+            "switch_session",
+            "set_session_name",
+            "get_entries",
+            "get_state",
+            "get_available_models",
+            "set_model",
+            "set_thinking_level",
+            "cycle_thinking_level",
+            "ping",
+            "extension_ui_response"
+          ]
+        },
+        "token": { "type": "string" },
+        "message": { "type": "string" },
+        "sessionPath": { "type": "string" },
+        "provider": { "type": "string" },
+        "modelId": { "type": "string" },
+        "level": { "type": "string" },
+        "images": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "data": { "type": "string" },
+              "mimeType": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "ServerMessage": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "agent_start",
+            "agent_end",
+            "agent_settled",
+            "agent_status",
+            "agent_stream",
+            "message_update",
+            "remote_user_prompt",
+            "backfill_start",
+            "backfill_end",
+            "response",
+            "pong",
+            "error",
+            "pi_exit"
+          ]
+        },
+        "status": { "type": "string" },
+        "delta": { "type": "string" },
+        "content": { "type": "string" },
+        "isThinking": { "type": "boolean" },
+        "id": { "type": "string" },
+        "success": { "type": "boolean" },
+        "code": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

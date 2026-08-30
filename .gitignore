@@ -1,4 +1,44 @@
+# Node & Monorepo
 node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 .DS_Store
 *.log
 /tmp/
+dist/
+build/
+.cache/
+
+# Android / Gradle
+.gradle/
+clients/android/.gradle/
+clients/android/build/
+clients/android/*/build/
+clients/android/local.properties
+clients/android/.idea/
+clients/android/*.iml
+clients/android/*/*.iml
+clients/android/captures/
+clients/android/.externalNativeBuild/
+clients/android/.cxx/
+
+# HarmonyOS / DevEco Studio
+clients/harmony/.hvigor/
+clients/harmony/.idea/
+clients/harmony/build/
+clients/harmony/*/build/
+clients/harmony/node_modules/
+clients/harmony/oh_modules/
+clients/harmony/.preview/
+clients/harmony/local.properties
+clients/harmony/*.iml
+
+# IDE & Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

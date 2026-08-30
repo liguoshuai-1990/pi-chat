@@ -1,0 +1,8 @@
+{
+  "name": "pi-chat-harmony",
+  "version": "1.0.0",
+  "description": "Pi Chat HarmonyOS ArkTS/ArkUI Native Client",
+  "main": "",
+  "author": "Guoshuai Li",
+  "license": "MIT"
+}

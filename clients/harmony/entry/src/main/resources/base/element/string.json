@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Pi Chat HarmonyOS module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "Pi Chat Main Entry"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Pi Chat"
+    },
+    {
+      "name": "app_name",
+      "value": "Pi Chat"
+    },
+    {
+      "name": "internet_permission_reason",
+      "value": "Connecting to Pi Agent Gateway"
+    }
+  ]
+}

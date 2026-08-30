@@ -1,0 +1,26 @@
+{
+  "name": "@pi-chat/protocol",
+  "version": "1.0.0",
+  "description": "Standard communication protocol schema, types, and validators for pi-chat clients (Web, Android, HarmonyOS) and gateway",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "src/types.d.ts",
+  "files": [
+    "src/",
+    "PROTOCOL.md",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "pi-chat",
+    "protocol",
+    "schema",
+    "websocket",
+    "sse",
+    "rpc"
+  ],
+  "author": "Guoshuai Li",
+  "license": "MIT"
+}

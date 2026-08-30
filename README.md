@@ -1,273 +1,125 @@
-# pi-web-chat
+# 🚀 Pi-Chat: Multi-Client Monorepo for Pi Coding Agent
 
-[![npm version](https://img.shields.io/npm/v/@liguoshuai/pi-web-chat.svg)](https://www.npmjs.com/package/@liguoshuai/pi-web-chat)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![pnpm](https://img.shields.io/badge/pnpm-Workspaces-orange.svg)](https://pnpm.io/)
+[![Web Version](https://img.shields.io/npm/v/@liguoshuai/pi-web-chat.svg?label=npm%20@liguoshuai/pi-web-chat&color=cb3837)](https://www.npmjs.com/package/@liguoshuai/pi-web-chat)
 
-一个 [pi](https://pi.dev) 编程代理的 Web 界面，风格参考 ChatGPT / Gemini ——
-左侧历史会话侧边栏 + 右侧对话区 + 底部输入框。底层通过 pi 的 **RPC 模式**
-(`pi --mode rpc`) 与 pi 子进程通信，前端走 WebSocket 流式渲染。
-
-> 📦 **NPM 软件包**：[`@liguoshuai/pi-web-chat`](https://www.npmjs.com/package/@liguoshuai/pi-web-chat)  
-> 🔗 **项目主页**：https://github.com/liguoshuai-1990/pi-web-chat
+**Pi-Chat** 是一个面向 [Pi 编程智能体 (Pi Coding Agent)](https://github.com/badlogic/pi) 的全多端协同生态大仓库（Monorepo）。它将原有的单体 Web 聊天应用解耦并扩展为包含 **Web 浏览器端**、**Android 原生端**、**鸿蒙 (HarmonyOS Next) 原生端**、**VPS 桥接网关服务端** 以及 **跨端标准化通信协议包** 的多端协同架构。
 
 ---
 
-## 📸 功能特性
+## 🏛️ Monorepo 目录结构
 
-- 💬 **流式对话** —— 文本逐字流式渲染，带打字光标与 Markdown 高亮
-- 🖼️ **多模态图片支持** —— 支持截图粘贴（Ctrl+V）、文件拖拽及附件上传，可在对话中渲染图片缩略图与大图预览
-- 📥 **会话一键导出** —— 顶栏支持一键将当前完整会话导出为标准 Markdown（`.md`）文件
-- ⚡ **后台任务持久化** —— 关闭网页/标签页不中断正在生成的任务，重新进入自动回放（Backfill）追平进度
-- 🌐 **多端/多设备同步协同** —— 多个浏览器标签页或多设备（手机/电脑）可同时连入同一会话，实时双向同步
-- 🧭 **运行时实时插入指令 (Steer)** —— 生成过程中可随时插入转向指令指导 AI 调整后续行动
-- 🗂️ **会话历史与管理** —— 自动读取并显示 `~/.pi/agent/sessions/` 下所有历史会话，实时自动落盘与删除
-- ⚙️ **工具与思考过程折叠** —— bash / read / write / edit 等工具调用与 thinking 思考卡片实时展开/收起
-- 🧩 **动态模型切换** —— 顶栏模型胶囊，零延迟覆盖所有 pi 已配置的模型，支持深度思考级别调节
-- ⌨️ **丰富快捷键** —— 支持 `Ctrl/Cmd+M`（切模型）、`Ctrl/Cmd+Shift+N`（新建）、`Ctrl/Cmd+K`（搜索）、`Ctrl/Cmd+B`（折叠侧边栏）、`Esc`（中断/关闭）
-- 🛡️ **安全加固** —— WebSocket 跨站劫持 (CSWSH) Origin 防护与 Markdown 属性逃逸防御
-- 🔄 **断线自动重连与心跳** —— 带指数退避自动重连、双向心跳 Ping/Pong 检测
-- 📋 **快捷复制** —— 支持代码块、工具指令、回答全文一键复制
-- 📱 **移动端响应式** —— Viewport `100dvh` 优化、顶栏常驻固定、滚动置顶/置底快捷悬浮按钮（FAB）
+```
+pi-chat/
+├── package.json              # 根目录 workspace 全局配置与聚合脚本
+├── pnpm-workspace.yaml       # pnpm 工作区配置
+├── clients/                  # 多端客户端目录
+│   ├── web/                  # Web 前端（原 @liguoshuai/pi-web-chat，保持独立发布）
+│   ├── android/              # Android 原生应用 (Kotlin + Jetpack Compose + OkHttp)
+│   └── harmony/              # 华为鸿蒙原生应用 (ArkTS + ArkUI + @ohos.net.webSocket)
+├── server/                   # 运行在 VPS 上的 Pi Agent 桥接网关 (@pi-chat/server)
+├── packages/                 # 共享标准库
+│   └── protocol/             # 跨端标准化通信协议定义与校验器 (@pi-chat/protocol)
+├── docs/                     # 系统架构与开发文档
+└── LICENSE                   # MIT 开源许可证
+```
 
 ---
 
-## 🚀 快速开始
+## 🧩 模块与子工程说明
+
+### 1. 跨端共享协议 (`packages/protocol`)
+- **包名**：`@pi-chat/protocol`
+- **定位**：定义了 Web、Android、HarmonyOS 与网关通信的统一 JSON 消息契约。
+- **特性**：包含完整 TypeScript 类型声明、JSON Schema 定义、消息构造器与容错校验器（规范化 `client_send` / `prompt`、`heartbeat` / `ping` 等）。
+
+### 2. VPS 桥接网关服务端 (`server/`)
+- **包名**：`@pi-chat/server`
+- **定位**：托管在云端 VPS 或本地的网关服务，负责启动并管理底层的 `pi --mode rpc` 子进程池。
+- **特性**：
+  - **全双工 WebSocket 网关**：支持多端连接、会话隔离与广播。
+  - **SSE 增量推送流** (`/api/stream`)：支持轻量端只读单向打字机流式消费。
+  - **多端统一 Token 鉴权**：通过 `AUTH_TOKEN` 环境变量防止未授权访问。
+  - **断线无损回填**：连接断开时任务在后台继续运行，重连后通过 `backfill_start` / `backfill_end` 无损回放历史增量。
+  - **空闲自动回收**：无人使用且空闲时自动杀掉子进程回收 VPS 内存。
+
+### 3. Web 网页端 (`clients/web/`)
+- **包名**：`@liguoshuai/pi-web-chat`
+- **定位**：原 Web 聊天端，具有 ChatGPT / Gemini 风格现代化界面。
+- **独立交付**：在 Monorepo 内保持原生独立性，可以直接通过 `npm install -g @liguoshuai/pi-web-chat` 或 `npx @liguoshuai/pi-web-chat` 执行运行与构建发布。
+
+### 4. Android 原生端 (`clients/android/`)
+- **技术栈**：Kotlin + Jetpack Compose + Material 3 + OkHttp + Coroutines/StateFlow
+- **特性**：
+  - 基于 OkHttp WebSocket 封装带指数退避的自动断线重连与 30s 心跳保活。
+  - 流式打字机动画渲染与思考过程折叠气泡。
+  - 会话抽屉历史导航与多会话即时无缝切换。
+
+### 5. 鸿蒙原生端 (`clients/harmony/`)
+- **技术栈**：ArkTS + ArkUI (Stage 模型，兼容 HarmonyOS Next / OpenHarmony API 12+)
+- **特性**：
+  - 基于 `@ohos.net.webSocket` 与 `@ohos.net.http` 封装网络通信层。
+  - 声明式 `SideBarContainer` 侧边栏历史抽屉与自适应深色主题。
+  - 原生打字机流式增量合并与实时中止支持。
+
+---
+
+## ⚡ 快速开始 (Quick Start)
 
 ### 1. 环境准备
-- **Node.js**: `>= 18.0.0`
-- **操作系统**: Linux / macOS / WSL (Windows)
+- Node.js >= 18.0.0
+- pnpm >= 8.0.0 (`npm i -g pnpm`)
+- 已安装并配置好 [pi-coding-agent](https://github.com/badlogic/pi)
 
----
-
-### 2. 安装底层 pi 编程代理 (pi agent)
-
-`pi-web-chat` 通过 RPC 模式 (`pi --mode rpc`) 与底层 `pi` 命令行 Agent 子进程通信。若系统中尚未安装 `pi`，请选择以下任一方式进行全局安装：
-
-#### 方式 A：通过 npm / pnpm 全局安装（推荐）
-
+### 2. 安装工作区依赖
 ```bash
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent
-```
-> 💡 `--ignore-scripts` 可跳过依赖包中的生命周期脚本，安装更干净高效。
-
-#### 方式 B：通过 Shell 官方安装脚本
-
-```bash
-curl -fsSL https://pi.dev/install.sh | sh
+# 根目录下执行
+pnpm install
 ```
 
-#### 验证安装
-安装完成后，在终端运行以下命令验证：
-
+### 3. 运行开发服务
 ```bash
-pi --version
-# 输出版本号（例如 0.82.1）即表示安装成功
+# 启动 Web 前端服务
+pnpm dev:web
+
+# 启动 VPS 网关服务
+pnpm dev:server
+```
+
+### 4. 运行全仓库测试
+```bash
+pnpm test
 ```
 
 ---
 
-### 3. 配置模型 Provider 与 API Key
+## 📱 移动端开发与编译
 
-`pi` 支持 Anthropic、OpenAI、OpenRouter、DeepSeek、SiliconFlow 等多种 LLM 模型 Provider。在使用前需配置好 API Key 或授权凭证：
+### Android 应用
+1. 打开 **Android Studio**，选择 `clients/android` 目录导入工程。
+2. 确保已在本地或 VPS 启动了网关（默认端口 3000）。
+3. 如需修改连接地址，可在 `ChatViewModel.kt` 中配置 Gateway IP。
+4. 点击 **Run** 即可在模拟器或真机运行。
 
-#### 方法 A：设置环境变量（推荐）
-在终端或 Shell 配置文件（如 `~/.bashrc` 或 `~/.zshrc`）中导出对应的 API Key：
-
-```bash
-# 使用 Anthropic (Claude)
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-# 使用 OpenRouter
-export OPENROUTER_API_KEY="sk-or-v1-..."
-
-# 使用 OpenAI / DeepSeek / 其它 OpenAI 兼容 API
-export OPENAI_API_KEY="sk-..."
-```
-
-#### 方法 B：使用 pi CLI 交互式登录
-在终端输入 `pi` 命令启动交互模式，然后输入 `/login` 按照提示选择 Provider 并绑定账号或密钥：
-
-```bash
-pi
-# 进入交互界面后输入：
-/login
-# 按照提示选择 Provider 并输入 Key，配置完成后输入 /quit 退出
-```
+### 鸿蒙应用
+1. 打开 **Huawei DevEco Studio**，选择 `clients/harmony` 目录导入工程。
+2. 在 `Index.ets` 或 `ChatViewModel.ets` 中配置目标 Gateway IP。
+3. 连接 HarmonyOS Next 手机或模拟器，点击 **Run 'entry'** 进行运行。
 
 ---
 
-### 4. 安装与启动 pi-web-chat
+## 📦 发布指南 (Release)
 
-#### 方式 A：通过 npm / pnpm 全局安装（推荐，最快捷）
-
+### 发布 Web 端 npm 包
 ```bash
-# 使用 npm 全局安装
-npm install -g @liguoshuai/pi-web-chat
-
-# 或使用 pnpm 全局安装
-pnpm add -g @liguoshuai/pi-web-chat
+pnpm publish:web
 ```
-
-安装完成后，在终端任意目录下直接运行 `pi-web-chat` 命令启动：
-
-```bash
-# 启动 Web 服务（默认监听 3000 端口，工作目录为当前目录）
-pi-web-chat
-
-# 自定义端口和指定工作目录 (cwd)
-pi-web-chat --port 8080 --cwd /path/to/your/project
-```
-
-#### 方式 B：使用 npx 免安装即时运行
-
-无需全局安装，直接通过 npx 快速启动：
-
-```bash
-npx @liguoshuai/pi-web-chat
-# 或指定参数
-npx @liguoshuai/pi-web-chat --port 8080 --cwd /path/to/your/project
-```
-
-#### 方式 C：通过 Git 源码克隆与启动（适合二次开发）
-
-```bash
-git clone https://github.com/liguoshuai-1990/pi-web-chat.git
-cd pi-web-chat
-npm install
-npm start
-```
+该命令会自动在 `clients/web` 目录下执行发布，完全向后兼容现有的 `@liguoshuai/pi-web-chat` npm 交付物。
 
 ---
 
-### 5. 打开浏览器体验
+## 📄 开源许可证
 
-Web 服务启动后，在浏览器中访问：
-👉 **http://localhost:3000** （或自定义的端口）
-
----
-
-### 6. CLI 命令行参数与选项
-
-`pi-web-chat` CLI 提供了便捷的命令行参数与环境变量支持：
-
-```text
-用法:
-  pi-web-chat [选项]
-
-选项:
-  -p, --port <number>    指定 Web 服务监听端口（默认: 3000，或读取 PORT 环境变量）
-  -c, --cwd <path>       指定 pi 会话初始工作目录（默认: 当前终端路径 / 用户主目录）
-  -h, --help             显示帮助信息
-
-环境变量:
-  PORT                   服务端口（同 --port）
-  PI_BIN                 pi 可执行文件绝对路径（未设置时自动探测）
-  PI_SESSIONS_DIR        pi 会话数据存储目录（默认: ~/.pi/agent/sessions）
-
-运行示例:
-  pi-web-chat                                     # 默认端口 3000 启动
-  pi-web-chat --port 8080                         # 指定 8080 端口启动
-  pi-web-chat --port 8080 --cwd ~/projects/my-app # 指定端口与初始工作区
-  PORT=4000 pi-web-chat                           # 通过环境变量指定端口
-```
-
----
-
-## ⚙️ 环境变量配置
-
-| 变量 | 默认值 | 说明 |
-| ---- | ------ | ---- |
-| `PORT` | `3000` | Web 服务监听端口 |
-| `PI_BIN` | 自动探测（`~/.npm-global/bin/pi`、`/usr/local/bin/pi` 或 `PATH`） | 显式指定 pi 可执行文件绝对路径 |
-| `PI_SESSIONS_DIR` | `~/.pi/agent/sessions` | pi 的 session 存储目录 |
-| `IDLE_TIMEOUT_MS` | `300000` (5分钟) | 真正空闲（无连接+非流式）后的进程回收超时（0 为禁用回收） |
-| `MAX_AGENT_LIFETIME_MS` | `1800000` (30分钟) | 单个 Agent 进程后台生存硬上限（0 为无上限） |
-| `EVENT_BUFFER_SIZE` | `2000` | 离线环形 Buffer 允许缓存的最大事件条数 |
-| `MAX_CONCURRENT_AGENTS` | `0` (无限制) | 进程池最大并发 Agent 进程数量 |
-| `IDLE_DROP_HEAP` | `false` | 进入空闲时是否给 V8 引擎 GC 提示（需 `--expose-gc`） |
-
----
-
-## 📁 项目结构
-
-```
-pi-web-chat/
-├── README.md                       本文件
-├── package.json
-├── package-lock.json
-├── server.js                       Express + WebSocket，桥接 pi RPC 与进程池管理
-├── bin/
-│   └── pi-web-chat.js              CLI 可执行入口
-├── public/
-│   ├── index.html                  单页 UI
-│   ├── app.js                      前端逻辑与状态机
-│   └── style.css                   ChatGPT/Gemini 风格样式
-├── scripts/                        Systemd 服务安装与管理脚本
-│   ├── pi-web-chat.service         Systemd user unit 模板
-│   ├── install-service.sh          一键安装与启动脚本
-│   └── uninstall-service.sh        一键卸载脚本
-└── docs/                           项目文档库
-    ├── ARCHITECTURE.md             架构设计文档
-    ├── DESIGN.md                   详细设计与决策文档
-    ├── ISSUES.md                   历次问题排查与修补记录
-    └── CHANGELOG.md                版本变更日志
-```
-
----
-
-## 🏗️ 架构概览
-
-```
- 浏览器 (多 Tab / 多设备) ──WebSocket(/ws?cwd=...&session=...)──► Node server.js
-                                                                (Session Key 进程池 activeAgents)
-                                                                │
-                                                                ├──► pi --mode rpc (后台持久化 Worker)
-                                                                ├──► REST /api/sessions ──► 列会话历史
-                                                                ├──► REST /api/session ────► 构建对话链
-                                                                └──► REST /api/agents ─────► 实时监控看板
-```
-
-详细架构说明与设计决策请参阅 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 与 [docs/DESIGN.md](docs/DESIGN.md)。
-
----
-
-## 📝 License
-
-MIT
-
----
-
-## 🛠️ Systemd 服务（可选）
-
-若希望开机自启、后台常驻、重启自愈，可安装为 user-level systemd 服务（无需 sudo）：
-
-```bash
-# 从项目根目录运行
-./scripts/install-service.sh 3000
-
-# 或自定义端口（默认 3000）：
-./scripts/install-service.sh 8080
-```
-
-查看状态 / 日志：
-```bash
-systemctl --user status pi-web-chat
-journalctl --user -u pi-web-chat -f
-```
-
-> ⚠️ **Linger**：systemd user 服务默认随登录会话结束。若需 **开机自启 / 登出后继续跑**，需一次性启用：
-> ```bash
-> sudo loginctl enable-linger $USER
-> ```
-
-卸载服务：
-```bash
-# 使用一键卸载脚本
-./scripts/uninstall-service.sh
-
-# 或手动清理：
-systemctl --user disable --now pi-web-chat
-rm ~/.config/systemd/user/pi-web-chat.service
-systemctl --user daemon-reload
-```
+本项目遵循 [MIT License](LICENSE)。
