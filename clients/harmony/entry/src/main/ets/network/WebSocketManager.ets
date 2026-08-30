@@ -24,7 +24,7 @@ export class WebSocketManager {
     this.disconnect();
     this.ws = webSocket.createWebSocket();
 
-    let connectUrl = url;
+    let connectUrl = url.replace(/\/$/, '');
     if (connectUrl.startsWith('http://')) {
       connectUrl = connectUrl.replace('http://', 'ws://');
     } else if (connectUrl.startsWith('https://')) {

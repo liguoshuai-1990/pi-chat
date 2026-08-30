@@ -13,19 +13,45 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class ChatViewModel(
-    private val repository: ChatRepository = ChatRepository("http://10.0.2.2:3000")
+    initialServerUrl: String = "http://10.0.2.2:3000",
+    initialToken: String? = null
 ) : ViewModel() {
 
-    val messages: StateFlow<List<ChatMessage>> = repository.messages
-    val sessions: StateFlow<List<SessionInfo>> = repository.sessions
-    val isStreaming: StateFlow<Boolean> = repository.isStreaming
-    val connectionState: StateFlow<ConnectionState> = repository.connectionState
+    private var repository: ChatRepository = ChatRepository(initialServerUrl, initialToken)
+
+    private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
+
+    private val _sessions = MutableStateFlow<List<SessionInfo>>(emptyList())
+    val sessions: StateFlow<List<SessionInfo>> = _sessions.asStateFlow()
+
+    private val _isStreaming = MutableStateFlow(false)
+    val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
+
+    private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
+    val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
     private val _currentSessionTitle = MutableStateFlow("New Chat")
     val currentSessionTitle: StateFlow<String> = _currentSessionTitle.asStateFlow()
 
     init {
+        bindRepository(repository)
         repository.connect()
+    }
+
+    private fun bindRepository(repo: ChatRepository) {
+        viewModelScope.launch {
+            repo.messages.collect { _messages.value = it }
+        }
+        viewModelScope.launch {
+            repo.sessions.collect { _sessions.value = it }
+        }
+        viewModelScope.launch {
+            repo.isStreaming.collect { _isStreaming.value = it }
+        }
+        viewModelScope.launch {
+            repo.connectionState.collect { _connectionState.value = it }
+        }
     }
 
     fun sendMessage(text: String, images: List<ImageAttachment> = emptyList()) {
@@ -54,7 +80,8 @@ class ChatViewModel(
 
     fun reconnect(newServerUrl: String, newToken: String? = null, newCwd: String = "") {
         repository.disconnect()
-        // Connect with new parameters
+        repository = ChatRepository(newServerUrl, newToken)
+        bindRepository(repository)
         repository.connect(newCwd)
     }
 

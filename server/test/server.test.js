@@ -79,6 +79,8 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
     assert.equal(isAllowedOrigin("http://localhost:3000", "localhost:3000"), true);
     assert.equal(isAllowedOrigin("http://127.0.0.1:3000", "127.0.0.1:3000"), true);
     assert.equal(isAllowedOrigin("http://127.0.0.1:8080", "localhost:3000"), true);
+    assert.equal(isAllowedOrigin("http://[::1]:3000", "[::1]:3000"), true);
+    assert.equal(isAllowedOrigin("http://localhost:3000", "[::1]:3000"), true);
 
     // Non-browser direct requests (origin undefined)
     assert.equal(isAllowedOrigin("", "localhost:3000"), true);

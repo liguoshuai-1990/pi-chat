@@ -73,6 +73,30 @@ export interface ClientSetModelMessage {
   modelId: string;
 }
 
+export interface ClientSetThinkingLevelMessage {
+  type: "set_thinking_level";
+  level: string;
+}
+
+export interface ClientCycleThinkingLevelMessage {
+  type: "cycle_thinking_level";
+}
+
+export interface AssistantMessageEvent {
+  type: string;
+  delta?: string;
+  content?: string;
+  contentIndex?: number;
+  toolCall?: { id?: string; name?: string; arguments?: unknown };
+}
+
+export interface ServerMessageUpdateMessage {
+  type: "message_update";
+  assistantMessageEvent?: AssistantMessageEvent;
+  delta?: string;
+  isThinking?: boolean;
+}
+
 export interface ServerAgentStreamMessage {
   type: "agent_stream";
   delta?: string;

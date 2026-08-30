@@ -122,6 +122,19 @@ export function createSetModelMessage(provider, modelId) {
   };
 }
 
+export function createSetThinkingLevelMessage(level) {
+  return {
+    type: ClientMessageType.SET_THINKING_LEVEL,
+    level: String(level || ""),
+  };
+}
+
+export function createCycleThinkingLevelMessage() {
+  return {
+    type: ClientMessageType.CYCLE_THINKING_LEVEL,
+  };
+}
+
 export function createErrorMessage(code, message, details = null) {
   return {
     type: ServerMessageType.ERROR,

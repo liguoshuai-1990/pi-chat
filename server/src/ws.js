@@ -18,8 +18,13 @@ export function isAllowedOrigin(origin, host) {
     const originHost = originUrl.host;
     if (originHost.toLowerCase() === (host || "").toLowerCase()) return true;
 
-    const isLocalOrigin = originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1" || originUrl.hostname === "::1";
-    const hostName = (host || "").split(":")[0].toLowerCase();
+    const isLocalOrigin = originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1" || originUrl.hostname === "::1" || originUrl.hostname === "[::1]";
+    let hostName = (host || "").toLowerCase();
+    if (hostName.startsWith("[")) {
+      hostName = hostName.slice(1).split("]")[0];
+    } else {
+      hostName = hostName.split(":")[0];
+    }
     const isLocalHost = hostName === "localhost" || hostName === "127.0.0.1" || hostName === "::1";
     if (isLocalOrigin && isLocalHost) return true;
 
@@ -187,13 +192,13 @@ export function setupWebSocketGateway(httpServer) {
         case ClientMessageType.PROMPT:
           activeAgent.broadcast({ type: "remote_user_prompt", message: msg.message, images: msg.images }, ws);
           activeAgent.lastUserPrompt = { text: msg.message, isSteer: false, at: nowMs };
-          activeAgent.send({ type: "prompt", message: msg.message, images: msg.images });
+          activeAgent.send({ type: "prompt", message: msg.message, images: msg.images, id: msg.id });
           break;
 
         case ClientMessageType.STEER:
           activeAgent.broadcast({ type: "remote_user_prompt", message: msg.message, isSteer: true }, ws);
           activeAgent.lastUserPrompt = { text: msg.message, isSteer: true, at: nowMs };
-          activeAgent.send({ type: "steer", message: msg.message });
+          activeAgent.send({ type: "steer", message: msg.message, id: msg.id });
           break;
 
         case ClientMessageType.ABORT:
@@ -208,41 +213,41 @@ export function setupWebSocketGateway(httpServer) {
           activeAgent.lastUserPrompt = null;
           activeAgent.eventBuffer = [];
           activeAgent.bufferHead = 0;
-          activeAgent.send({ type: "new_session" });
+          activeAgent.send({ type: "new_session", id: msg.id });
           break;
 
         case ClientMessageType.SWITCH_SESSION:
           if (!msg.sessionPath) break;
           activeAgent.setSessionKey(cwd, msg.sessionPath);
-          activeAgent.send({ type: "switch_session", sessionPath: msg.sessionPath });
+          activeAgent.send({ type: "switch_session", sessionPath: msg.sessionPath, id: msg.id });
           break;
 
         case ClientMessageType.SET_SESSION_NAME:
-          activeAgent.send({ type: "set_session_name", name: msg.name });
+          activeAgent.send({ type: "set_session_name", name: msg.name, id: msg.id });
           break;
 
         case ClientMessageType.GET_ENTRIES:
-          activeAgent.send({ type: "get_entries", since: msg.since });
+          activeAgent.send({ type: "get_entries", since: msg.since, id: msg.id });
           break;
 
         case ClientMessageType.GET_STATE:
-          activeAgent.send({ type: "get_state" });
+          activeAgent.send({ type: "get_state", id: msg.id });
           break;
 
         case ClientMessageType.GET_AVAILABLE_MODELS:
-          activeAgent.send({ type: "get_available_models" });
+          activeAgent.send({ type: "get_available_models", id: msg.id });
           break;
 
         case ClientMessageType.SET_MODEL:
-          activeAgent.send({ type: "set_model", provider: msg.provider, modelId: msg.modelId });
+          activeAgent.send({ type: "set_model", provider: msg.provider, modelId: msg.modelId, id: msg.id });
           break;
 
         case ClientMessageType.SET_THINKING_LEVEL:
-          activeAgent.send({ type: "set_thinking_level", level: msg.level });
+          activeAgent.send({ type: "set_thinking_level", level: msg.level, id: msg.id });
           break;
 
         case ClientMessageType.CYCLE_THINKING_LEVEL:
-          activeAgent.send({ type: "cycle_thinking_level" });
+          activeAgent.send({ type: "cycle_thinking_level", id: msg.id });
           break;
 
         case ClientMessageType.EXTENSION_UI_RESPONSE:

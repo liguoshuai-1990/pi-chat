@@ -131,6 +131,60 @@ class ChatRepository(
             put("sessionPath", sessionPath)
         }
         wsClient.sendRaw(payload.toString())
+        loadSessionHistory(sessionPath)
+    }
+
+    fun loadSessionHistory(sessionPath: String) {
+        scope.launch {
+            val result = apiService.getSession(sessionPath)
+            result.onSuccess { detail ->
+                val reconstructed = mutableListOf<ChatMessage>()
+                for (entry in detail.entries) {
+                    if (entry.type != "message") continue
+                    val m = entry.message ?: continue
+                    val role = when (m.role) {
+                        "user" -> MessageRole.USER
+                        "assistant" -> MessageRole.ASSISTANT
+                        else -> continue
+                    }
+                    val text = extractJsonText(m.content)
+                    if (text.isNotEmpty()) {
+                        reconstructed.add(
+                            ChatMessage(
+                                role = role,
+                                content = text,
+                                status = MessageStatus.DONE,
+                                timestamp = m.timestamp ?: System.currentTimeMillis()
+                            )
+                        )
+                    }
+                }
+                _messages.value = reconstructed
+            }
+        }
+    }
+
+    private fun extractJsonText(elem: kotlinx.serialization.json.JsonElement?): String {
+        if (elem == null) return ""
+        if (elem is kotlinx.serialization.json.JsonPrimitive) {
+            return elem.content
+        }
+        if (elem is kotlinx.serialization.json.JsonArray) {
+            val sb = StringBuilder()
+            for (item in elem) {
+                if (item is kotlinx.serialization.json.JsonObject) {
+                    val type = item["type"]?.let { if (it is kotlinx.serialization.json.JsonPrimitive) it.content else "" }
+                    if (type == "text") {
+                        val text = item["text"]?.let { if (it is kotlinx.serialization.json.JsonPrimitive) it.content else "" } ?: ""
+                        sb.append(text)
+                    }
+                } else if (item is kotlinx.serialization.json.JsonPrimitive) {
+                    sb.append(item.content)
+                }
+            }
+            return sb.toString()
+        }
+        return ""
     }
 
     fun newSession() {
@@ -145,11 +199,19 @@ class ChatRepository(
         when (msg.type) {
             "agent_start" -> {
                 _isStreaming.value = true
+                val list = _messages.value.toMutableList()
+                if (list.isEmpty() || list.last().role != MessageRole.ASSISTANT || list.last().status != MessageStatus.STREAMING) {
+                    list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING))
+                    _messages.value = list
+                }
             }
             "agent_stream", "message_update" -> {
-                val delta = msg.delta ?: ""
-                val isThinking = msg.isThinking == true
-                updateLastAssistantMessage(delta, isThinking)
+                val ev = msg.assistantMessageEvent
+                val delta = ev?.delta ?: msg.delta ?: ""
+                val isThinking = ev?.type == "thinking_delta" || msg.isThinking == true
+                if (delta.isNotEmpty()) {
+                    updateLastAssistantMessage(delta, isThinking)
+                }
             }
             "agent_end", "agent_settled" -> {
                 _isStreaming.value = false
@@ -159,11 +221,18 @@ class ChatRepository(
                 val text = msg.message ?: ""
                 val isSteer = msg.isSteer == true
                 if (!isSteer && text.isNotEmpty()) {
-                    _messages.value = _messages.value + ChatMessage(
+                    val userMsg = ChatMessage(
                         role = MessageRole.USER,
                         content = text,
                         status = MessageStatus.DONE
                     )
+                    val assistantMsg = ChatMessage(
+                        role = MessageRole.ASSISTANT,
+                        content = "",
+                        status = MessageStatus.STREAMING
+                    )
+                    _messages.value = _messages.value + userMsg + assistantMsg
+                    _isStreaming.value = true
                 }
             }
         }
@@ -171,26 +240,29 @@ class ChatRepository(
 
     private fun updateLastAssistantMessage(delta: String, isThinking: Boolean) {
         val list = _messages.value.toMutableList()
-        if (list.isEmpty()) return
-        val lastIdx = list.indexOfLast { it.role == MessageRole.ASSISTANT }
-        if (lastIdx != -1) {
-            val last = list[lastIdx]
-            val updated = if (isThinking) {
-                last.copy(
-                    thinkingContent = last.thinkingContent + delta,
-                    isThinking = true,
-                    status = MessageStatus.STREAMING
-                )
-            } else {
-                last.copy(
-                    content = last.content + delta,
-                    isThinking = false,
-                    status = MessageStatus.STREAMING
-                )
-            }
-            list[lastIdx] = updated
-            _messages.value = list
+        var lastIdx = list.indexOfLast { it.role == MessageRole.ASSISTANT && it.status == MessageStatus.STREAMING }
+        if (lastIdx == -1) {
+            val newAssistant = ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING)
+            list.add(newAssistant)
+            lastIdx = list.size - 1
         }
+
+        val last = list[lastIdx]
+        val updated = if (isThinking) {
+            last.copy(
+                thinkingContent = last.thinkingContent + delta,
+                isThinking = true,
+                status = MessageStatus.STREAMING
+            )
+        } else {
+            last.copy(
+                content = last.content + delta,
+                isThinking = false,
+                status = MessageStatus.STREAMING
+            )
+        }
+        list[lastIdx] = updated
+        _messages.value = list
     }
 
     private fun markLastMessageDone() {

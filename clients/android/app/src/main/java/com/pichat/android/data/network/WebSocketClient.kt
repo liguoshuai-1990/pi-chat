@@ -50,7 +50,8 @@ class WebSocketClient(
         } else serverUrl
 
         val cleanBase = base.removeSuffix("/")
-        val wsUrlBuilder = StringBuilder("$cleanBase/ws?")
+        val pathBase = if (cleanBase.endsWith("/ws")) cleanBase else "$cleanBase/ws"
+        val wsUrlBuilder = StringBuilder("$pathBase?")
         if (cwd.isNotEmpty()) wsUrlBuilder.append("cwd=").append(java.net.URLEncoder.encode(cwd, "UTF-8")).append("&")
         if (!sessionPath.isNullOrEmpty()) wsUrlBuilder.append("session=").append(java.net.URLEncoder.encode(sessionPath, "UTF-8")).append("&")
         if (!token.isNullOrEmpty()) wsUrlBuilder.append("token=").append(java.net.URLEncoder.encode(token, "UTF-8")).append("&")

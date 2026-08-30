@@ -4,8 +4,17 @@ export namespace PiProtocol {
     [key: string]: any;
   }
 
+  export interface AssistantMessageEvent {
+    type?: string;
+    delta?: string;
+    content?: string;
+    contentIndex?: number;
+    toolCall?: any;
+  }
+
   export interface ServerMessage {
     type: string;
+    assistantMessageEvent?: AssistantMessageEvent;
     delta?: string;
     content?: string;
     message?: string;

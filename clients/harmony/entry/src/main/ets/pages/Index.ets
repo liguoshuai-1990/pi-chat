@@ -131,7 +131,7 @@ struct Index {
             ListItem() {
               this.MessageItem(msg)
             }
-          })
+          }, (item: ChatMessage) => item.id + (item.status === 'streaming' ? `_${item.content.length}_${item.thinkingContent.length}` : ''))
         }
         .layoutWeight(1)
         .width('100%')

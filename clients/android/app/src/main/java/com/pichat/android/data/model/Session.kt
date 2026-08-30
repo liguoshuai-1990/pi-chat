@@ -35,3 +35,25 @@ data class ModelSetting(
     val thinkingLevel: String? = null,
     val source: String? = null
 )
+
+@Serializable
+data class SessionEntryMessage(
+    val role: String? = null,
+    val content: kotlinx.serialization.json.JsonElement? = null,
+    val model: String? = null,
+    val timestamp: Long? = null
+)
+
+@Serializable
+data class SessionEntry(
+    val type: String,
+    val id: String? = null,
+    val parentId: String? = null,
+    val message: SessionEntryMessage? = null
+)
+
+@Serializable
+data class SessionDetailResponse(
+    val entries: List<SessionEntry> = emptyList(),
+    val sessionName: String? = null
+)

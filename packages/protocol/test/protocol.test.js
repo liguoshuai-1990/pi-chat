@@ -11,6 +11,8 @@ import {
   createPingMessage,
   createPongMessage,
   createSetModelMessage,
+  createSetThinkingLevelMessage,
+  createCycleThinkingLevelMessage,
   createSwitchSessionMessage,
   createErrorMessage,
   normalizeClientMessage,
@@ -47,6 +49,13 @@ describe("Pi-Chat Protocol Unit Tests", () => {
     assert.equal(setModelMsg.type, ClientMessageType.SET_MODEL);
     assert.equal(setModelMsg.provider, "openai");
     assert.equal(setModelMsg.modelId, "gpt-4o");
+
+    const setThinkingMsg = createSetThinkingLevelMessage("high");
+    assert.equal(setThinkingMsg.type, ClientMessageType.SET_THINKING_LEVEL);
+    assert.equal(setThinkingMsg.level, "high");
+
+    const cycleThinkingMsg = createCycleThinkingLevelMessage();
+    assert.equal(cycleThinkingMsg.type, ClientMessageType.CYCLE_THINKING_LEVEL);
 
     const switchMsg = createSwitchSessionMessage("/path/to/session.jsonl");
     assert.equal(switchMsg.type, ClientMessageType.SWITCH_SESSION);

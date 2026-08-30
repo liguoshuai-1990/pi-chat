@@ -65,8 +65,16 @@ data class SetThinkingLevelMessage(
 ) : ClientMessage()
 
 @Serializable
+data class AssistantMessageEvent(
+    val type: String? = null,
+    val delta: String? = null,
+    val content: String? = null
+)
+
+@Serializable
 data class GenericServerMessage(
     val type: String,
+    val assistantMessageEvent: AssistantMessageEvent? = null,
     val delta: String? = null,
     val content: String? = null,
     val message: String? = null,

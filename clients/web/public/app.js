@@ -1655,7 +1655,7 @@ function connectWs(opts = {}) {
       const entered = prompt("Pi Gateway 开启了访问鉴权，请输入访问 Token：");
       if (entered) {
         localStorage.setItem("pi_auth_token", entered.trim());
-        initWebSocket({ explicitNewSession: false, isReconnect: true });
+        connectWs({ explicitNewSession: false, isReconnect: true });
       }
       return;
     }

@@ -35,6 +35,30 @@ export class HttpService {
     }
   }
 
+  public async getSession(file: string): Promise<any> {
+    const httpRequest = http.createHttp();
+    try {
+      let url = `${this.baseUrl}/api/session?file=${encodeURIComponent(file)}`;
+      if (this.token) url += `&token=${encodeURIComponent(this.token)}`;
+
+      const response = await httpRequest.request(url, {
+        method: http.RequestMethod.GET,
+        header: this.token ? { 'Authorization': `Bearer ${this.token}` } : {},
+        readTimeout: 15000,
+        connectTimeout: 10000,
+      });
+
+      if (response.responseCode === 200 && response.result) {
+        return JSON.parse(response.result as string);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    } finally {
+      httpRequest.destroy();
+    }
+  }
+
   public async getConfig(): Promise<ServerConfig | null> {
     const httpRequest = http.createHttp();
     try {

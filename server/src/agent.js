@@ -83,6 +83,10 @@ export class PiAgent {
     if (this.sessionKey && this.sessionKey !== key) {
       activeAgents.delete(this.sessionKey);
     }
+    const existing = activeAgents.get(key);
+    if (existing && existing !== this && !existing.hasListeners && !existing.isBusy) {
+      try { existing.stop(); } catch {}
+    }
     this.sessionKey = key;
     activeAgents.set(key, this);
   }
@@ -294,11 +298,18 @@ export class PiAgent {
   broadcast(obj, skipWs = null) {
     const str = JSON.stringify(obj);
     for (const ws of this.sockets) {
-      if (ws === skipWs || ws.readyState !== 1) continue;
+      if (ws.readyState !== 1) {
+        if (ws.readyState === 2 || ws.readyState === 3) this.sockets.delete(ws);
+        continue;
+      }
+      if (ws === skipWs) continue;
       try { ws.send(str); } catch {}
     }
     for (const res of this.sseListeners) {
-      if (res.destroyed || res.writableEnded) continue;
+      if (res.destroyed || res.writableEnded) {
+        this.sseListeners.delete(res);
+        continue;
+      }
       try { res.write(`data: ${str}\n\n`); } catch {}
     }
   }
@@ -308,7 +319,7 @@ export class PiAgent {
       if (!this.alive || !this.proc || !this.proc.stdin || this.proc.stdin.destroyed) {
         return resolve({ type: "response", id: cmd.id || "0", success: false, error: "pi process not alive" });
       }
-      const id = String(++this.reqId);
+      const id = cmd.id !== undefined && cmd.id !== null ? String(cmd.id) : String(++this.reqId);
       const payload = { ...cmd, id };
       const longRunning = cmd.type === "prompt" || cmd.type === "steer" || cmd.type === "client_send";
       let timeoutId = null;
@@ -358,9 +369,10 @@ export class PiAgent {
     if (this.proc) {
       try { this.proc.kill("SIGTERM"); } catch {}
       const p = this.proc;
-      setTimeout(() => {
+      const killTimer = setTimeout(() => {
         try { p.kill("SIGKILL"); } catch {}
       }, 2000);
+      killTimer.unref();
       this.proc = null;
     }
     this.closeAllListeners();

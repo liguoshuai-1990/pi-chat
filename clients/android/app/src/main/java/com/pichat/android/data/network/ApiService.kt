@@ -1,6 +1,7 @@
 package com.pichat.android.data.network
 
 import com.pichat.android.data.model.ServerConfig
+import com.pichat.android.data.model.SessionDetailResponse
 import com.pichat.android.data.model.SessionsResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -49,6 +50,27 @@ class ApiService(
                 val body = response.body?.string() ?: ""
                 val sessions = json.decodeFromString<SessionsResponse>(body)
                 Result.success(sessions)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getSession(file: String): Result<SessionDetailResponse> = withContext(Dispatchers.IO) {
+        try {
+            var url = "$baseUrl/api/session?file=${java.net.URLEncoder.encode(file, "UTF-8")}"
+            if (!token.isNullOrEmpty()) url += "&token=${java.net.URLEncoder.encode(token, "UTF-8")}"
+
+            val request = Request.Builder()
+                .url(url)
+                .apply { if (!token.isNullOrEmpty()) header("Authorization", "Bearer $token") }
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(Exception("HTTP ${response.code}"))
+                val body = response.body?.string() ?: ""
+                val sessionDetail = json.decodeFromString<SessionDetailResponse>(body)
+                Result.success(sessionDetail)
             }
         } catch (e: Exception) {
             Result.failure(e)

@@ -334,9 +334,11 @@ router.get("/api/session", authMiddleware, async (req, res) => {
       cur = e.parentId;
     }
 
+    const activeEntries = entryChain.length > 0 ? entryChain : entries;
+
     let sessionModel = null;
-    for (let i = entryChain.length - 1; i >= 0; i--) {
-      const e = entryChain[i];
+    for (let i = activeEntries.length - 1; i >= 0; i--) {
+      const e = activeEntries[i];
       if (e.type === "model_change" && (e.modelId || e.model)) {
         sessionModel = {
           provider: e.provider || "",
@@ -355,7 +357,7 @@ router.get("/api/session", authMiddleware, async (req, res) => {
       }
     }
 
-    res.json({ header, entries: entryChain, model: sessionModel, sessionName });
+    res.json({ header, entries: activeEntries, model: sessionModel, sessionName });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: String(e) });

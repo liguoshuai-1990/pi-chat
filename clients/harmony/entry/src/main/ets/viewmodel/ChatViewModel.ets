@@ -106,19 +106,78 @@ export class ChatViewModel {
     this.currentTitle = session.sessionName || session.firstUser || session.name;
     this.wsManager.send(PiProtocol.createSwitchSession(session.file));
     this.notifyUI();
+    this.loadSessionHistory(session.file);
+  }
+
+  public async loadSessionHistory(sessionPath: string) {
+    const detail = await this.httpService.getSession(sessionPath);
+    if (detail && Array.isArray(detail.entries)) {
+      const reconstructed: ChatMessage[] = [];
+      for (const entry of detail.entries) {
+        if (entry.type !== 'message' || !entry.message) continue;
+        const m = entry.message;
+        const role = m.role === 'user' ? MessageRole.USER : (m.role === 'assistant' ? MessageRole.ASSISTANT : null);
+        if (!role) continue;
+        const text = this.extractTextContent(m.content);
+        if (text) {
+          reconstructed.push({
+            id: entry.id || `msg_${Date.now()}_${Math.random()}`,
+            role: role,
+            content: text,
+            thinkingContent: '',
+            isThinking: false,
+            images: [],
+            status: MessageStatus.DONE,
+            timestamp: m.timestamp || Date.now()
+          });
+        }
+      }
+      this.messages = reconstructed;
+      this.notifyUI();
+    }
+  }
+
+  private extractTextContent(content: any): string {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      let result = '';
+      for (const item of content) {
+        if (typeof item === 'string') {
+          result += item;
+        } else if (item && item.type === 'text' && typeof item.text === 'string') {
+          result += item.text;
+        }
+      }
+      return result;
+    }
+    return '';
   }
 
   private handleServerMessage(msg: PiProtocol.ServerMessage) {
     switch (msg.type) {
       case 'agent_start':
         this.isStreaming = true;
+        if (this.messages.length === 0 || this.messages[this.messages.length - 1].role !== MessageRole.ASSISTANT || this.messages[this.messages.length - 1].status !== MessageStatus.STREAMING) {
+          this.messages.push({
+            id: `assistant_${Date.now()}`,
+            role: MessageRole.ASSISTANT,
+            content: '',
+            thinkingContent: '',
+            isThinking: false,
+            images: [],
+            status: MessageStatus.STREAMING,
+            timestamp: Date.now()
+          });
+        }
         this.notifyUI();
         break;
       case 'agent_stream':
       case 'message_update':
-        const delta = msg.delta || '';
-        const isThinking = msg.isThinking === true;
-        this.updateAssistantStream(delta, isThinking);
+        const delta = msg.assistantMessageEvent?.delta || msg.delta || '';
+        const isThinking = msg.assistantMessageEvent?.type === 'thinking_delta' || msg.isThinking === true;
+        if (delta) {
+          this.updateAssistantStream(delta, isThinking);
+        }
         break;
       case 'agent_end':
       case 'agent_settled':
@@ -137,6 +196,17 @@ export class ChatViewModel {
             status: MessageStatus.DONE,
             timestamp: Date.now()
           });
+          this.messages.push({
+            id: `assistant_${Date.now()}`,
+            role: MessageRole.ASSISTANT,
+            content: '',
+            thinkingContent: '',
+            isThinking: false,
+            images: [],
+            status: MessageStatus.STREAMING,
+            timestamp: Date.now()
+          });
+          this.isStreaming = true;
           this.notifyUI();
         }
         break;
@@ -144,20 +214,39 @@ export class ChatViewModel {
   }
 
   private updateAssistantStream(delta: string, isThinking: boolean) {
+    let lastIdx = -1;
     for (let i = this.messages.length - 1; i >= 0; i--) {
-      if (this.messages[i].role === MessageRole.ASSISTANT) {
-        if (isThinking) {
-          this.messages[i].thinkingContent += delta;
-          this.messages[i].isThinking = true;
-        } else {
-          this.messages[i].content += delta;
-          this.messages[i].isThinking = false;
-        }
-        this.messages[i].status = MessageStatus.STREAMING;
-        this.notifyUI();
+      if (this.messages[i].role === MessageRole.ASSISTANT && this.messages[i].status === MessageStatus.STREAMING) {
+        lastIdx = i;
         break;
       }
     }
+
+    if (lastIdx === -1) {
+      this.messages.push({
+        id: `assistant_${Date.now()}`,
+        role: MessageRole.ASSISTANT,
+        content: '',
+        thinkingContent: '',
+        isThinking: false,
+        images: [],
+        status: MessageStatus.STREAMING,
+        timestamp: Date.now()
+      });
+      lastIdx = this.messages.length - 1;
+    }
+
+    const last = this.messages[lastIdx];
+    if (isThinking) {
+      last.thinkingContent += delta;
+      last.isThinking = true;
+    } else {
+      last.content += delta;
+      last.isThinking = false;
+    }
+    last.status = MessageStatus.STREAMING;
+    this.messages = [...this.messages];
+    this.notifyUI();
   }
 
   private markAssistantDone() {
@@ -165,10 +254,11 @@ export class ChatViewModel {
       if (this.messages[i].role === MessageRole.ASSISTANT) {
         this.messages[i].status = MessageStatus.DONE;
         this.messages[i].isThinking = false;
-        this.notifyUI();
         break;
       }
     }
+    this.messages = [...this.messages];
+    this.notifyUI();
   }
 
   private notifyUI() {
