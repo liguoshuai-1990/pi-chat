@@ -937,7 +937,7 @@ body {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 24px;
-  padding: 6px 8px 6px 14px;
+  padding: 6px 8px 6px 8px;
   display: flex; align-items: flex-end; gap: 8px;
   transition: border-color .15s, box-shadow .15s;
 }
@@ -951,21 +951,25 @@ body {
   box-shadow: 0 0 0 1px var(--danger);
 }
 .composer .attach-btn {
+  width: 32px;
+  height: 32px;
   background: transparent;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.1s ease;
   flex-shrink: 0;
 }
 .composer .attach-btn:hover {
   color: var(--text);
   background: var(--bg-hover);
+}
+.composer .attach-btn:active {
+  transform: scale(0.92);
 }
 .composer textarea {
   flex: 1; background: transparent; border: none; outline: none; resize: none;

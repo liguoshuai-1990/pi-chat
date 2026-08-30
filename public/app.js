@@ -828,9 +828,29 @@ function renderImagePreviews() {
   });
 }
 
+function detectImageMimeType(file) {
+  if (file.type && file.type.startsWith("image/")) return file.type;
+  const ext = file.name ? file.name.split(".").pop().toLowerCase() : "";
+  const map = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    gif: "image/gif",
+    bmp: "image/bmp",
+    svg: "image/svg+xml",
+    ico: "image/x-icon",
+    avif: "image/avif"
+  };
+  return map[ext] || "image/png";
+}
+
 function handleImageFiles(files) {
   if (!files || files.length === 0) return;
-  const imageFiles = Array.from(files).filter(f => f.type && f.type.startsWith("image/"));
+  const imageFiles = Array.from(files).filter(f => {
+    return (f.type && f.type.startsWith("image/")) ||
+      (f.name && /\.(png|jpe?g|webp|gif|bmp|svg|ico|avif)$/i.test(f.name));
+  });
   if (imageFiles.length === 0) return;
 
   imageFiles.forEach(file => {
@@ -840,9 +860,10 @@ function handleImageFiles(files) {
       if (typeof result !== "string") return;
       const commaIdx = result.indexOf(",");
       const base64 = commaIdx !== -1 ? result.slice(commaIdx + 1) : result;
+      const mimeType = detectImageMimeType(file);
       state.attachedImages.push({
         data: base64,
-        mimeType: file.type || "image/png",
+        mimeType,
         url: result
       });
       renderImagePreviews();
@@ -2707,18 +2728,26 @@ async function init() {
     }
   });
 
+  // Global preventDefault to avoid browser opening dragged images in new tab
+  window.addEventListener("dragover", (e) => e.preventDefault(), false);
+  window.addEventListener("drop", (e) => e.preventDefault(), false);
+
   // Drag and drop images to composer
-  const composerBox = $("#composerInner");
+  const composerBox = $("#composerInner") || $(".composer");
   if (composerBox) {
     composerBox.addEventListener("dragover", (e) => {
       e.preventDefault();
+      e.stopPropagation();
       composerBox.classList.add("drag-over");
     });
-    composerBox.addEventListener("dragleave", () => {
+    composerBox.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       composerBox.classList.remove("drag-over");
     });
     composerBox.addEventListener("drop", (e) => {
       e.preventDefault();
+      e.stopPropagation();
       composerBox.classList.remove("drag-over");
       if (e.dataTransfer?.files) {
         handleImageFiles(e.dataTransfer.files);

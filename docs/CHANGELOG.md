@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.1] - 2026-08-30
+
+### Improved
+- **附件上传图标与交互优化 (Attachment Icon & UX)**：
+  - 将输入框上传图标更换为美观清晰的标准曲别针附件矢量图标（Paperclip 📎）。
+  - 优化按钮尺寸（`32px × 32px` 标准圆形）、对称内边距与悬停/按压交互动效。
+- **文件与拖拽兼容性增强 (Upload Compatibility)**：
+  - 完善文件类型扩展（支持 `image/*` 及 `.png, .jpg, .jpeg, .webp, .gif, .bmp, .svg, .ico, .avif`）。
+  - 增强 MIME 类型缺失时的扩展名自动推断与回退处理机制。
+  - 增加全局 Drag & Drop 默认事件拦截，防止图片拖拽偏离输入框时误触浏览器页面跳转。
+
+---
+
 ## [1.10.0] - 2026-08-30
 
 ### Security
