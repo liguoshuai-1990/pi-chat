@@ -1,4 +1,4 @@
-# Pi Chat Android App
+# Pi Chat Android App (v2.0.0)
 
 Pi Chat Android 原生移动客户端工程，采用现代 Android 全家桶技术栈构建：
 - **UI 框架**：Jetpack Compose + Material 3
@@ -28,7 +28,10 @@ clients/android/
 │               ├── screen/ChatScreen.kt       # Compose 聊天界面与抽屉历史
 │               ├── viewmodel/ChatViewModel.kt # StateFlow 状态管理
 │               └── theme/                     # 统一主题配色
-└── build.gradle.kts
+├── gradle/
+│   └── libs.versions.toml                     # Version Catalog 统一版本管理
+├── build.gradle.kts
+└── gradlew
 ```
 
 ---
@@ -36,6 +39,30 @@ clients/android/
 ## 快速运行与调试
 
 1. 使用 **Android Studio (Ladybug / Iguana 或更高版本)** 打开 `clients/android` 目录。
-2. 确保已在 VPS 或本地启动 Pi Gateway 网关服务（例如 `pnpm --filter @pi-chat/server start`）。
+2. 确保已在 VPS 或本地启动 Pi Gateway 网关服务（例如 `pnpm dev:server`）。
 3. 如果在 Android 模拟器上运行，默认连接本地网关 `http://10.0.2.2:3000`；如果是真机调试，请修改 `ChatViewModel.kt` 中的 Gateway IP 为你的局域网/VPS 公网地址。
 4. 点击 Run (Shift + F10) 进行编译并在设备/模拟器中安装体验。
+
+---
+
+## 📦 编译与打包 APK 安装包
+
+### 方式 1：使用 Android Studio 图形界面打包
+1. 顶部菜单栏选择 **Build** -> **Build Bundle(s) / APK(s)** -> **Build APK(s)**。
+2. 编译完成后，右下角弹出通知点击 **locate**，即可获取生成的 `app-debug.apk`。
+
+### 方式 2：使用命令行快速打包
+```bash
+cd clients/android
+
+# 编译 Debug APK 安装包
+./gradlew assembleDebug
+
+# 生成的安装包输出路径：
+# app/build/outputs/apk/debug/app-debug.apk
+```
+
+直接安装到连接的手机：
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```

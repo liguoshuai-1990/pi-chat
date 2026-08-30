@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.10.3] - 2026-08-30
+## [2.0.0] - 2026-08-30
+
+### Major Architecture Refactoring (Monorepo & Multi-Client Ecosystem)
+- **Monorepo 多端大仓库架构升级**：
+  - 项目重构为 `pi-chat` Monorepo，采用 pnpm Workspaces 进行多包统一管理。
+  - 核心架构拆分为 `clients/web`、`clients/android`、`clients/harmony`、`server`（VPS 网关）与 `packages/protocol`（跨端共享协议）。
+- **服务端网关统一解耦与单真源设计 (`@pi-chat/server`)**：
+  - 提取 `@pi-chat/server` 为统一后端网关核心，支持全双工 WebSocket、SSE 打字机增量推送（`/api/stream`）、多端统一 Token 鉴权（`AUTH_TOKEN`）、30s 心跳保活与空闲进程内存自动回收。
+  - `clients/web/server.js` 瘦身为极简适配层，保持对 `@liguoshuai/pi-web-chat` npm 发行版及 `pi-web-chat` 全局 CLI 的 100% 独立向后兼容。
+- **Android 原生端应用骨架 (`clients/android`)**：
+  - 基于 Kotlin + Jetpack Compose + Material 3 + OkHttp WebSocket + Coroutines/StateFlow 搭建，支持生成 APK 安装包。
+- **华为鸿蒙 OS 原生端应用骨架 (`clients/harmony`)**：
+  - 基于 ArkTS + 声明式 ArkUI (Stage 模型，API 12+) + `@ohos.net.webSocket` 搭建，支持生成 HAP 安装包。
+- **跨端标准通信协议 (`@pi-chat/protocol`)**：
+  - 统一 JSON Schema 标准、TypeScript 定义与自动容错校验器，三端交互格式完全对齐。
+
+---
 
 ### Added & Published
 - **NPM 官方包发布与全局命令行安装支持 (Official NPM Package & Global CLI)**：
