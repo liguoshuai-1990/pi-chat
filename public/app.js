@@ -2515,7 +2515,7 @@ function updateComposerUI() {
     if (sendBtn) {
       sendBtn.classList.add("stop");
       sendBtn.disabled = !state.wsConnected;
-      sendBtn.textContent = "■";
+      sendBtn.textContent = "";
       sendBtn.title = "中止当前生成";
     }
     if (steerBtn) {

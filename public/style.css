@@ -1026,6 +1026,14 @@ body {
 .composer .send-btn.stop { background: var(--danger); }
 .composer .send-btn.stop:hover:not(:disabled) { background: #f87171; }
 .composer .send-btn.stop:active:not(:disabled) { transform: scale(0.95); }
+.composer .send-btn.stop:empty::after {
+  content: "";
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 2px;
+  display: block;
+}
 .composer .steer-btn {
   display: inline-flex;
   align-items: center;
