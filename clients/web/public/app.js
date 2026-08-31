@@ -546,6 +546,17 @@ function renderSidebar(sessions) {
       },
     });
 
+    const isRunning = Boolean(s.isStreaming || (s.file === state.currentSessionFile && state.streaming));
+    const runningBadge = isRunning ? el("span", { class: "session-running-badge", title: "任务正在后台生成中…" }, [
+      el("span", { class: "spinner-dot" }),
+      el("span", { text: "运行中" }),
+    ]) : null;
+
+    const titleEl = el("div", { class: "session-item-name" }, [
+      el("span", { text: title }),
+      ...(runningBadge ? [runningBadge] : []),
+    ]);
+
     const item = el("div", {
       class: "session-item" + (s.file === state.currentSessionFile ? " active" : ""),
       dataset: { file: s.file },
@@ -553,7 +564,7 @@ function renderSidebar(sessions) {
       onclick: () => loadSession(s.file),
     }, [
       el("div", { class: "title" }, [
-        el("div", { class: "session-item-name", text: title }),
+        titleEl,
         el("div", { class: "meta", text: `${when} · ${s.messageCount || 0} 条` }),
       ]),
       btnDelete,
@@ -587,19 +598,25 @@ function filterSessions(query) {
   }
 }
 
-function startNewSession(askConfirm = true) {
-  if (state.streaming) {
-    if (askConfirm && !confirm("正在生成中，新建会话会终止当前操作，确定吗？")) return;
-    abortGeneration();
-  }
+function startNewSession() {
+  const wasStreaming = state.streaming;
   clearChat();
   showEmptyState(true);
   state.currentSessionFile = null;
+  state.streaming = false;
+  state.aborting = false;
+  state.streamingItems = [];
+  state.streamingMsg = null;
+  state.activeToolCalls.clear();
+  setComposerAborting(false);
   try {
     window.history.replaceState({}, "", window.location.pathname);
   } catch {}
   connectWs({ explicitNewSession: true }); // no session -> pi creates a new one
   $("#topSessionName").textContent = "新对话";
+  if (wasStreaming) {
+    showToast("前一个会话已转入后台继续运行");
+  }
   // Mobile: close sidebar on new session
   if (window.innerWidth <= 768) closeSidebar();
   refreshSessions();
@@ -683,8 +700,8 @@ async function syncSessionHistory(file, force = false) {
     const topName = data.sessionName || (data.header?.id ? baseName(file) : "新对话");
     $("#topSessionName").textContent = topName;
 
-    // Only overwrite chat if force is true or we're not actively streaming mid-turn live
-    if (force || !state.streaming) {
+    // Only overwrite chat if not actively backfilling
+    if (!state.isBackfilling && (force || !state.streaming)) {
       clearChat();
       const msgs = reconstructFromEntries(data.entries || []);
       showEmptyState(msgs.length === 0);
@@ -700,9 +717,8 @@ async function syncSessionHistory(file, force = false) {
 }
 
 async function loadSession(file) {
-  if (state.streaming) {
-    abortGeneration();
-  }
+  if (file === state.currentSessionFile) return;
+  const wasStreaming = state.streaming;
   state.currentSessionFile = file;
   state.streaming = false;
   state.aborting = false;
@@ -721,6 +737,9 @@ async function loadSession(file) {
   await syncSessionHistory(file, true);
   // Reconnect websocket pointed at this session so new prompts continue history.
   connectWs({ session: file });
+  if (wasStreaming) {
+    showToast("前一个会话已转入后台继续运行");
+  }
 }
 
 function reconstructFromEntries(entries) {
@@ -3084,6 +3103,7 @@ async function init() {
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
+      refreshSessions();
       if (!state.wsConnected) {
         reconnectAttempts = 0;
         scheduleReconnect(0);
@@ -3097,6 +3117,7 @@ async function init() {
   });
 
   window.addEventListener("pageshow", () => {
+    refreshSessions();
     if (!state.wsConnected) {
       reconnectAttempts = 0;
       scheduleReconnect(0);
@@ -3104,6 +3125,13 @@ async function init() {
       syncSessionHistory(state.currentSessionFile, true);
     }
   });
+
+  // Background session status polling
+  setInterval(() => {
+    if (document.visibilityState === "visible") {
+      refreshSessions();
+    }
+  }, 10000);
 
   // Global event delegation for code block copy buttons
   document.addEventListener("click", async (e) => {

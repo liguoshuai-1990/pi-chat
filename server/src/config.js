@@ -64,15 +64,15 @@ export const config = {
   })(),
   maxAgentLifetimeMs: (() => {
     const raw = process.env.MAX_AGENT_LIFETIME_MS;
-    if (raw === undefined || raw === "") return 30 * 60 * 1000;
+    if (raw === undefined || raw === "") return 0;
     const n = Number(raw);
-    return !Number.isFinite(n) || n < 0 ? 30 * 60 * 1000 : n;
+    return !Number.isFinite(n) || n < 0 ? 0 : n;
   })(),
   eventBufferSize: (() => {
     const raw = process.env.EVENT_BUFFER_SIZE;
-    if (raw === undefined || raw === "") return 2000;
+    if (raw === undefined || raw === "") return 5000;
     const n = Number(raw);
-    return !Number.isInteger(n) || n < 0 ? 2000 : n;
+    return !Number.isInteger(n) || n < 0 ? 5000 : n;
   })(),
   maxConcurrentAgents: (() => {
     const raw = process.env.MAX_CONCURRENT_AGENTS;

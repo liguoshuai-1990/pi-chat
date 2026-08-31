@@ -128,6 +128,29 @@ export class PiAgent {
     }
   }
 
+  maybeScheduleLifetimeKill() {
+    if (config.maxAgentLifetimeMs <= 0) return;
+    this.cancelLifetimeKill();
+    this.lifetimeTimer = setTimeout(() => {
+      this.lifetimeTimer = null;
+      if (!this.alive) return;
+      if (this.isBusy || this.hasListeners) {
+        console.log(`[PiAgent] Max lifetime reached for ${this.sessionKey || "unkeyed"}, but agent is busy or active. Deferring stop.`);
+        this.maybeScheduleLifetimeKill();
+        return;
+      }
+      console.warn(`[PiAgent] Max lifetime reached and idle for ${this.sessionKey || "unkeyed"}, stopping`);
+      this.stop();
+    }, config.maxAgentLifetimeMs);
+  }
+
+  cancelLifetimeKill() {
+    if (this.lifetimeTimer) {
+      clearTimeout(this.lifetimeTimer);
+      this.lifetimeTimer = null;
+    }
+  }
+
   start() {
     const args = [config.piBin, "--mode", "rpc", "--session-dir", config.sessionsDir];
     this.proc = spawn(args[0], args.slice(1), {
@@ -140,10 +163,7 @@ export class PiAgent {
     this.lastActivityAt = this.startedAt;
 
     if (config.maxAgentLifetimeMs > 0) {
-      this.lifetimeTimer = setTimeout(() => {
-        console.warn(`[PiAgent] Max lifetime reached for ${this.sessionKey || "unkeyed"}, stopping`);
-        this.stop();
-      }, config.maxAgentLifetimeMs);
+      this.maybeScheduleLifetimeKill();
     }
 
     this.proc.on("error", (err) => {

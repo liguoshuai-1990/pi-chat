@@ -141,9 +141,44 @@ body {
   line-height: 1.35;
 }
 .session-item .session-item-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.session-item .session-item-name > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.session-running-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--accent, #3b82f6);
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  padding: 2px 5px;
+  border-radius: 9999px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.session-running-badge .spinner-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent, #3b82f6);
+  animation: pulse-dot 1.2s infinite ease-in-out;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
 }
 .session-item .meta {
   font-size: 11px;

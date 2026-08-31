@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.0] - 2026-08-31
+
+### Fixed & Improved
+- **后台异步长任务稳定性与持久化机制全面强化 (Background Async Persistence & Lifetime Fix)**：
+  - **移除 30 分钟无条件强杀定时器**：将 `MAX_AGENT_LIFETIME_MS` 默认设为 `0`（禁用硬超时杀进程）。若用户配置了正数生命周期上限，也会严格判断 `isBusy`（正在生成/执行工具中）与 `hasListeners`（仍有客户端监听），任务执行期间绝不强杀子进程。
+  - **扩大离线事件环形缓冲区**：将 `EVENT_BUFFER_SIZE` 默认容量从 2000 提升至 5000，保障长时间后台离线输出不丢帧。
+- **Web 端平滑多任务切换与静默转入后台 (Seamless Background Session Switch)**：
+  - 移除了在生成过程中新建会话（`startNewSession`）或侧边栏切换会话（`loadSession`）时的强制中断（`abortGeneration()`）逻辑。
+  - 切换或新建会话时，原会话平滑转入后台静默继续执行，并弹出轻提示告知用户。
+  - 修复了断线重连（`ws.onopen`）与离线事件增量回放（Backfill）之间的 DOM 渲染竞态条件，避免流式内容被意外清除。
+- **侧边栏会话后台执行状态感知 (Sidebar Background Execution Indicator)**：
+  - 服务端 `/api/sessions` 接口扩展返回 `isStreaming` 状态字段，精准反馈每个会话对应的后台 Agent 是否正在忙碌。
+  - Web 端侧边栏为正在后台生成中的会话实时展示 `⚡ 运行中` 呼吸动画状态徽标。
+  - 页面可见性恢复（`visibilitychange`）及定时后台状态轮询自动刷新各会话状态。
+
+---
+
 ## [2.2.0] - 2026-08-30
 
 ### Fixed & Improved
