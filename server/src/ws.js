@@ -229,21 +229,34 @@ export function setupWebSocketGateway(httpServer) {
           break;
 
         case ClientMessageType.NEW_SESSION:
-          if (activeAgent.sessionKey) {
-            activeAgents.delete(activeAgent.sessionKey);
-            activeAgent.sessionKey = null;
+          if (activeAgent.sessionKey || activeAgent.isBusy) {
+            activeAgent.detachWs(ws);
+            const newAgent = getOrCreateAgent(activeAgent.cwd || cwd, null);
+            newAgent.attachWs(ws);
+            ws.piAgent = newAgent;
+            newAgent.send({ type: "new_session", id: msg.id });
+          } else {
+            activeAgent.lastUserPrompt = null;
+            activeAgent.eventBuffer = [];
+            activeAgent.bufferHead = 0;
+            activeAgent.send({ type: "new_session", id: msg.id });
           }
-          activeAgent.lastUserPrompt = null;
-          activeAgent.eventBuffer = [];
-          activeAgent.bufferHead = 0;
-          activeAgent.send({ type: "new_session", id: msg.id });
           break;
 
-        case ClientMessageType.SWITCH_SESSION:
+        case ClientMessageType.SWITCH_SESSION: {
           if (!msg.sessionPath) break;
-          activeAgent.setSessionKey(activeAgent.cwd || cwd, msg.sessionPath);
-          activeAgent.send({ type: "switch_session", sessionPath: msg.sessionPath, id: msg.id });
+          const targetKey = `${normalizeCwd(activeAgent.cwd || cwd)}:${normalizePath(msg.sessionPath)}`;
+          if (activeAgent.sessionKey === targetKey) {
+            activeAgent.send({ type: "get_state", id: msg.id });
+          } else {
+            activeAgent.detachWs(ws);
+            const targetAgent = getOrCreateAgent(activeAgent.cwd || cwd, msg.sessionPath);
+            targetAgent.attachWs(ws);
+            ws.piAgent = targetAgent;
+            targetAgent.send({ type: "get_state", id: msg.id });
+          }
           break;
+        }
 
         case ClientMessageType.SET_SESSION_NAME:
           activeAgent.send({ type: "set_session_name", name: msg.name, id: msg.id });

@@ -34,7 +34,11 @@ export class PiAgent {
   }
 
   get isBusy() {
-    return this.state === "streaming" || this.pending.size > 0;
+    return this.isStreaming || this.pending.size > 0;
+  }
+
+  get isStreaming() {
+    return this.state === "streaming";
   }
 
   attachWs(ws) {
@@ -257,9 +261,16 @@ export class PiAgent {
           this.send({ type: "get_state" });
         }
         break;
+      case "error":
       case "pi_exit":
-        this.state = "idle";
+        this.setStreaming(false);
+        this.eventBuffer = [];
+        this.bufferHead = 0;
         break;
+    }
+
+    if (obj.type === "response" && (obj.command === "prompt" || obj.command === "abort") && !obj.success) {
+      this.setStreaming(false);
     }
 
     if (obj.type === "remote_user_prompt" || obj.type === "remote_user_steer") {
@@ -278,7 +289,9 @@ export class PiAgent {
 
     this.broadcast(obj);
 
-    if (!this.hasListeners || this.isBusy) {
+    // Only buffer live streaming turn events (agent_start, message deltas, tool calls, agent_end)
+    // When agent is idle or settled, eventBuffer is empty since full transcript is saved on disk.
+    if (this.isStreaming || obj.type === "agent_start" || obj.type === "agent_end") {
       this.bufferEvent(obj);
     }
   }
@@ -304,8 +317,8 @@ export class PiAgent {
       const ev = this.eventBuffer[idx];
       try { ws.send(JSON.stringify(ev)); } catch {}
     }
-    try { ws.send(JSON.stringify({ type: "backfill_end", streaming: this.isBusy, state: this.state })); } catch {}
-    if (!this.isBusy) {
+    try { ws.send(JSON.stringify({ type: "backfill_end", streaming: this.isStreaming, state: this.state })); } catch {}
+    if (!this.isStreaming) {
       this.eventBuffer = [];
       this.bufferHead = 0;
     }
@@ -321,7 +334,7 @@ export class PiAgent {
       const ev = this.eventBuffer[idx];
       try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch {}
     }
-    try { res.write(`data: ${JSON.stringify({ type: "backfill_end", streaming: this.isBusy, state: this.state })}\n\n`); } catch {}
+    try { res.write(`data: ${JSON.stringify({ type: "backfill_end", streaming: this.isStreaming, state: this.state })}\n\n`); } catch {}
   }
 
   broadcast(obj, skipWs = null) {
@@ -395,6 +408,7 @@ export class PiAgent {
 
   stop() {
     this.alive = false;
+    this.state = "idle";
     allAgents.delete(this);
     if (this.sessionKey) activeAgents.delete(this.sessionKey);
     this.cancelIdleKill();
@@ -422,6 +436,7 @@ export class PiAgent {
       alive: this.alive,
       state: this.state,
       isBusy: this.isBusy,
+      isStreaming: this.isStreaming,
       listenersCount: this.sockets.size + this.sseListeners.size,
       startedAt: this.startedAt,
       lastActivityAt: this.lastActivityAt,

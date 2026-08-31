@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.3.0] - 2026-08-31
+## [2.4.1] - 2026-09-01
+
+### Fixed
+- **彻底解决新建对话中断已有后台任务的问题**：
+  - 修复了 `startNewSession` 在已有活动 WebSocket 连接上直接发送 `new_session` RPC 指令导致原有会话子进程被重置与中断的问题。新建会话时安全断开当前连接（原会话保持后台运行），并为新会话连接独立的无状态 Agent。
+  - 服务端网关 `NEW_SESSION` 与 `SWITCH_SESSION` 消息处理器增加安全解绑（detach）逻辑，避免跨会话指令误触或覆盖已有活跃 Agent 进程。
+- **精准修复老会话误判为“运行中”的状态异常**：
+  - 严格区分进程资源防回收判定（`isBusy`，包含 pending 异步请求）与真实 AI 流式生成状态（`isStreaming`，严格对应 `state === 'streaming'`）。
+  - 服务端 `/api/sessions` 接口与 `backfill_end` 状态同步均修正为读取 `isStreaming`，彻底杜绝老会话连接时因 `get_state`/`get_available_models` 临时 pending 导致误判为“运行中”的问题。
+  - 优化了事件环形缓存机制：会话生成结束收敛（`agent_settled`）后彻底清空缓冲区，且仅在流式生成期间缓存事件，避免非流式 RPC 响应污染回放缓冲区导致前端误进入流式状态。
+  - 前端 `updateState` 及侧边栏会话路径比对增加统一路径规范化匹配（`sameSession`），避免路径形式差异导致草稿会话残留或状态错乱。
+
+---
+
+## [2.4.0] - 2026-08-31
 
 ### Fixed & Improved
 - **后台异步长任务稳定性与持久化机制全面强化 (Background Async Persistence & Lifetime Fix)**：

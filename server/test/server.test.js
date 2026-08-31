@@ -5,6 +5,7 @@ import { isAllowedOrigin } from "../src/ws.js";
 import { verifyToken, verifyWsAuth, authMiddleware } from "../src/auth.js";
 import { config, normalizePath, home } from "../src/config.js";
 import { createServer } from "../src/server.js";
+import { PiAgent, activeAgents } from "../src/agent.js";
 
 describe("Pi-Chat Server Gateway Unit Tests", () => {
   test("verifyToken validates correctly when AUTH_TOKEN is unset or set", () => {
@@ -142,6 +143,75 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
           ws.close();
           resolve();
         }, 50);
+      });
+      ws.on("error", reject);
+    });
+
+    await serverInstance.close();
+  });
+
+  test("PiAgent tracks isStreaming vs isBusy accurately without false positives", () => {
+    const agent = new PiAgent(process.cwd());
+    assert.equal(agent.state, "idle");
+    assert.equal(agent.isStreaming, false);
+    assert.equal(agent.isBusy, false);
+
+    // Simulated pending RPC command (like get_state or get_available_models)
+    agent.pending.set("1", () => {});
+    assert.equal(agent.isStreaming, false); // Pending RPC should NOT make isStreaming true!
+    assert.equal(agent.isBusy, true);       // But isBusy is true (for GC / reclamation)
+
+    agent.pending.clear();
+    assert.equal(agent.isBusy, false);
+
+    // Turn starts
+    agent.onPiMessage({ type: "agent_start" });
+    assert.equal(agent.isStreaming, true);
+    assert.equal(agent.isBusy, true);
+
+    // Turn ends
+    agent.onPiMessage({ type: "agent_end" });
+    assert.equal(agent.isStreaming, false);
+    assert.equal(agent.isBusy, false);
+
+    // agent_settled
+    agent.onPiMessage({ type: "agent_settled" });
+    assert.equal(agent.isStreaming, false);
+    assert.equal(agent.isBusy, false);
+    assert.equal(agent.eventBuffer.length, 0);
+
+    // Non-streaming response when idle should NOT be buffered
+    agent.onPiMessage({ type: "response", command: "get_state", success: true, data: { isStreaming: false } });
+    assert.equal(agent.eventBuffer.length, 0);
+  });
+
+  test("WebSocket gateway NEW_SESSION preserves busy background agent and attaches to new agent", async () => {
+    const serverInstance = createServer();
+    const { httpServer } = await serverInstance.listen(0, "127.0.0.1");
+    const port = httpServer.address().port;
+    const sessionFile = "test_background_session.jsonl";
+    const expectedKey = `${normalizePath(process.cwd())}:${normalizePath(sessionFile)}`;
+
+    await new Promise((resolve, reject) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?cwd=${encodeURIComponent(process.cwd())}&session=${encodeURIComponent(sessionFile)}`);
+      ws.on("open", () => {
+        const firstAgent = activeAgents.get(expectedKey);
+        if (firstAgent) {
+          firstAgent.setStreaming(true); // Simulate background streaming
+        }
+
+        // Send new_session
+        ws.send(JSON.stringify({ type: "new_session", id: "test_new" }));
+
+        setTimeout(() => {
+          // The previous background agent should still exist in activeAgents
+          const prevAgent = activeAgents.get(expectedKey);
+          assert.ok(prevAgent, "Previous busy agent must remain in activeAgents");
+          assert.equal(prevAgent.isStreaming, true);
+
+          ws.close();
+          resolve();
+        }, 100);
       });
       ws.on("error", reject);
     });

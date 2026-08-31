@@ -303,7 +303,7 @@ router.get("/api/sessions", authMiddleware, async (req, res) => {
           if (meta && meta.cwd === cwd) {
             const key = `${cwd}:${normalizePath(full)}`;
             const agent = activeAgents.get(key);
-            const isStreaming = agent ? Boolean(agent.isBusy) : false;
+            const isStreaming = agent ? Boolean(agent.isStreaming) : false;
             return {
               ...meta.sessionInfo,
               isStreaming,

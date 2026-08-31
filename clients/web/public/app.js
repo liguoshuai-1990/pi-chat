@@ -547,6 +547,12 @@ function formatMessageTime(ts) {
   return `${year}-${month}-${date} ${timeStr}`;
 }
 
+function sameSession(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return a.replace(/^[.~]\//, "") === b.replace(/^[.~]\//, "");
+}
+
 // ---- Sidebar / sessions ----
 async function refreshSessions() {
   const cwd = state.cwd || "";
@@ -565,7 +571,7 @@ function renderSidebar(sessions) {
   if (!list) return;
   list.innerHTML = "";
 
-  const hasCurrentInSessions = Boolean(state.currentSessionFile && sessions.some(s => s.file === state.currentSessionFile));
+  const hasCurrentInSessions = Boolean(state.currentSessionFile && sessions.some(s => sameSession(s.file, state.currentSessionFile)));
 
   // If current session is a new/draft session not yet in the session list from REST API:
   if (!hasCurrentInSessions && (!state.currentSessionFile || $("#emptyState")?.style.display !== "none" || state.streaming)) {
@@ -603,7 +609,7 @@ function renderSidebar(sessions) {
   }
 
   sessions.forEach((s) => {
-    if (s.file === state.currentSessionFile && !hasCurrentInSessions) return;
+    if (sameSession(s.file, state.currentSessionFile) && !hasCurrentInSessions) return;
     const title = s.sessionName || s.firstUser || "新对话";
     const when = s.timestamp ? new Date(s.timestamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
     
@@ -617,7 +623,7 @@ function renderSidebar(sessions) {
       },
     });
 
-    const isRunning = Boolean(s.isStreaming || (s.file === state.currentSessionFile && state.streaming));
+    const isRunning = Boolean(s.isStreaming || (sameSession(s.file, state.currentSessionFile) && state.streaming));
     const runningBadge = isRunning ? el("span", { class: "session-running-badge", title: "任务正在后台生成中…" }, [
       el("span", { class: "spinner-dot" }),
       el("span", { text: "运行中" }),
@@ -629,7 +635,7 @@ function renderSidebar(sessions) {
     ]);
 
     const item = el("div", {
-      class: "session-item" + (s.file === state.currentSessionFile ? " active" : ""),
+      class: "session-item" + (sameSession(s.file, state.currentSessionFile) ? " active" : ""),
       dataset: { file: s.file },
       title: s.file,                       // hover tooltip = raw jsonl path
       onclick: () => loadSession(s.file),
@@ -690,13 +696,7 @@ function startNewSession() {
   // Mobile: close sidebar on new session
   if (window.innerWidth <= 768) closeSidebar();
 
-  // If WebSocket is already live, request new session directly without reconnect overhead
-  if (state.ws && state.ws.readyState === 1) {
-    sendWs({ type: "new_session" });
-    sendWs({ type: "get_state" });
-  } else {
-    connectWs({ explicitNewSession: true }); // no session -> pi creates a new one
-  }
+  connectWs({ explicitNewSession: true }); // no session -> pi creates a new one
   // Instantly render optimistic new session at the top of left sidebar
   renderSidebar([]);
   refreshSessions();
@@ -797,7 +797,7 @@ async function syncSessionHistory(file, force = false) {
 }
 
 async function loadSession(file) {
-  if (file === state.currentSessionFile) return;
+  if (sameSession(file, state.currentSessionFile)) return;
   const wasStreaming = state.streaming;
   state.currentSessionFile = file;
   state.streaming = false;
@@ -1804,7 +1804,7 @@ function sendWs(obj) {
 function handlePiMessage(obj) {
   // Automatically bind to the session file as soon as pi allocates it on disk
   const sessionFile = obj.data?.sessionFile || obj.sessionFile || obj.data?.sessionPath || obj.sessionPath;
-  if (sessionFile && sessionFile !== state.currentSessionFile) {
+  if (sessionFile && !sameSession(sessionFile, state.currentSessionFile)) {
     state.currentSessionFile = sessionFile;
     try {
       const newUrl = window.location.pathname + "?session=" + encodeURIComponent(sessionFile);
@@ -1820,8 +1820,6 @@ function handlePiMessage(obj) {
   // that happened in the background while no browser was attached.
   if (obj.type === "backfill_start") {
     state.isBackfilling = true;
-    state.streaming = true;
-    setComposerAborting(true);
     state.streamingItems = [];
     state.streamingMsg = null;
     state.activeToolCalls.clear();
@@ -1838,11 +1836,15 @@ function handlePiMessage(obj) {
     } else {
       finalizeStreamingMsg();
       state.streaming = false;
+      state.aborting = false;
       setComposerAborting(false);
-      refreshSessions();
+      if (state.currentSessionFile) {
+        syncSessionHistory(state.currentSessionFile, true);
+      }
     }
     // jump to the latest content once the replay is done
     requestAnimationFrame(scrollBottom);
+    refreshSessions();
     return;
   }
   // Responses to commands we issued (get_state etc.) come back with success+data.
@@ -2149,16 +2151,12 @@ function updateState(d) {
         setComposerAborting(true);
         ensureStreamingMsg();
       }
-    } else if (state.streaming) {
+    } else if (state.streaming && !state.isBackfilling) {
       finalizeStreamingMsg();
       state.streaming = false;
       state.aborting = false;
       setComposerAborting(false);
-      if (state.currentSessionFile) {
-        syncSessionHistory(state.currentSessionFile, true);
-      } else {
-        refreshSessions();
-      }
+      refreshSessions();
     }
   }
 }
