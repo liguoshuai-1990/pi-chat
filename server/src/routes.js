@@ -235,13 +235,23 @@ function extractText(content) {
 }
 
 async function getSessionMetadata(file) {
-  const fileStat = await stat(file);
+  let fileStat;
+  try {
+    fileStat = await stat(file);
+  } catch {
+    return null;
+  }
   const cached = sessionMetadataCache.get(file);
   if (cached && cached.mtimeMs === fileStat.mtimeMs) {
     return cached;
   }
 
-  const content = await readFile(file, "utf8");
+  let content;
+  try {
+    content = await readFile(file, "utf8");
+  } catch {
+    return null;
+  }
   const lines = content.split("\n").filter(Boolean);
   let header = null, title = null, sessionName = null, msgCount = 0;
   for (const line of lines) {
@@ -341,7 +351,15 @@ router.get("/api/session", authMiddleware, async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const content = await readFile(resolvedFile, "utf8");
+    let content;
+    try {
+      content = await readFile(resolvedFile, "utf8");
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        return res.status(404).json({ header: null, entries: [], model: null, sessionName: null, error: "Session file not found" });
+      }
+      throw err;
+    }
     const lines = content.split("\n").filter(Boolean);
     const entries = [];
     let header = null;
