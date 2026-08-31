@@ -16,6 +16,22 @@ enum class MessageStatus {
     ERROR
 }
 
+enum class ToolCallState {
+    RUNNING,
+    DONE,
+    ERROR
+}
+
+data class ToolCall(
+    val id: String,
+    val name: String,
+    val args: String = "",
+    val output: String = "",
+    val state: ToolCallState = ToolCallState.RUNNING,
+    val startedAt: Long = System.currentTimeMillis(),
+    val endedAt: Long? = null
+)
+
 @Serializable
 data class ImageAttachment(
     val type: String = "image",
@@ -30,6 +46,7 @@ data class ChatMessage(
     val thinkingContent: String = "",
     val isThinking: Boolean = false,
     val images: List<ImageAttachment> = emptyList(),
+    val toolCalls: List<ToolCall> = emptyList(),
     val status: MessageStatus = MessageStatus.DONE,
     val timestamp: Long = System.currentTimeMillis()
 )

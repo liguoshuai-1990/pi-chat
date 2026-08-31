@@ -1,4 +1,4 @@
-# Pi Chat Android App (v2.4.0)
+# Pi Chat Android App (v2.5.0)
 
 Pi Chat Android 原生移动客户端工程，采用现代 Android 全家桶技术栈构建：
 - **UI 框架**：Jetpack Compose + Material 3

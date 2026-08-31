@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,6 +37,8 @@ import com.pichat.android.data.model.ImageAttachment
 import com.pichat.android.data.model.MessageRole
 import com.pichat.android.data.model.MessageStatus
 import com.pichat.android.data.model.SessionInfo
+import com.pichat.android.data.model.ToolCall
+import com.pichat.android.data.model.ToolCallState
 import com.pichat.android.data.network.ConnectionState
 import com.pichat.android.ui.theme.*
 import com.pichat.android.ui.viewmodel.ChatViewModel
@@ -493,10 +496,7 @@ private fun Composer(
 @Composable
 fun MessageBubble(message: ChatMessage) {
     val isUser = message.role == MessageRole.USER
-    val timeText = remember(message.timestamp) {
-        val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-        sdf.format(java.util.Date(message.timestamp))
-    }
+    val timeText = formatTimestamp(message.timestamp)
 
     if (isUser) {
         Column(
@@ -572,9 +572,18 @@ fun MessageBubble(message: ChatMessage) {
 @Composable
 private fun AssistantContent(message: ChatMessage) {
     if (message.thinkingContent.isNotEmpty()) {
-        ThinkingBlock(message.thinkingContent, message.isThinking)
+        ThinkingBlock(message.thinkingContent, message.isThinking, message.timestamp)
         Spacer(Modifier.height(8.dp))
     }
+
+    // Tool execution blocks with their own timestamps.
+    if (message.toolCalls.isNotEmpty()) {
+        message.toolCalls.forEach { tool ->
+            ToolCallBlock(tool)
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+
     if (message.content.isNotEmpty()) {
         Text(
             text = message.content,
@@ -582,7 +591,7 @@ private fun AssistantContent(message: ChatMessage) {
             fontSize = 14.sp,
             lineHeight = 22.sp
         )
-    } else if (message.status == MessageStatus.STREAMING) {
+    } else if (message.status == MessageStatus.STREAMING && message.toolCalls.isEmpty()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -602,8 +611,9 @@ private fun AssistantContent(message: ChatMessage) {
 }
 
 @Composable
-private fun ThinkingBlock(content: String, active: Boolean) {
+private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long) {
     var expanded by remember { mutableStateOf(false) }
+    val timeText = formatTimestamp(timestamp)
 
     Column(
         modifier = Modifier
@@ -625,6 +635,10 @@ private fun ThinkingBlock(content: String, active: Boolean) {
                 fontWeight = if (active) FontWeight.Medium else FontWeight.Normal
             )
             Spacer(Modifier.weight(1f))
+            if (timeText.isNotEmpty()) {
+                Text(timeText, fontSize = 11.sp, color = TextDim)
+                Spacer(Modifier.width(6.dp))
+            }
             Icon(
                 if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                 contentDescription = null,
@@ -641,6 +655,107 @@ private fun ThinkingBlock(content: String, active: Boolean) {
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun ToolCallBlock(tool: ToolCall) {
+    var expanded by remember { mutableStateOf(false) }
+    val startTime = formatTimestamp(tool.startedAt)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(ToolBg)
+            .border(androidx.compose.foundation.BorderStroke(1.dp, Border), RoundedCornerShape(10.dp))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Build,
+                contentDescription = null,
+                tint = Accent,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                tool.name.ifEmpty { "工具" },
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            Spacer(Modifier.width(8.dp))
+            if (startTime.isNotEmpty()) {
+                Text(startTime, fontSize = 11.sp, color = TextDim)
+                Spacer(Modifier.width(6.dp))
+            }
+            val stateText = when (tool.state) {
+                ToolCallState.RUNNING -> "执行中…"
+                ToolCallState.DONE -> "完成"
+                ToolCallState.ERROR -> "错误"
+            }
+            Text(
+                stateText,
+                fontSize = 11.sp,
+                color = if (tool.state == ToolCallState.ERROR) Danger else TextSecondary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(BgHover)
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = TextDim,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 0.dp)) {
+                if (tool.args.isNotEmpty()) {
+                    Text(
+                        tool.args,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                if (tool.output.isNotEmpty()) {
+                    HorizontalDivider(color = Border)
+                    Text(
+                        tool.output,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        color = Color(0xFFCFCFCF),
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatTimestamp(ts: Long): String {
+    if (ts <= 0) return ""
+    return try {
+        val zone = java.time.ZoneId.systemDefault()
+        val dt = java.time.Instant.ofEpochMilli(ts).atZone(zone)
+        val now = java.time.ZonedDateTime.now(zone)
+        val pattern = if (dt.toLocalDate() == now.toLocalDate()) "HH:mm" else "MM-dd HH:mm"
+        java.time.format.DateTimeFormatter.ofPattern(pattern).format(dt)
+    } catch (e: Exception) {
+        ""
     }
 }
 

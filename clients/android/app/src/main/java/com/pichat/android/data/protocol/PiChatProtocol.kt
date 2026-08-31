@@ -88,5 +88,12 @@ data class GenericServerMessage(
     val streaming: Boolean? = null,
     val state: String? = null,
     val data: JsonElement? = null,
-    val error: String? = null
+    val error: String? = null,
+    val command: String? = null,
+    val toolCallId: String? = null,
+    val toolName: String? = null,
+    val args: JsonElement? = null,
+    val result: JsonElement? = null,
+    val partialResult: JsonElement? = null,
+    val isError: Boolean? = null
 )

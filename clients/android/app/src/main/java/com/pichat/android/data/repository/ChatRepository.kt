@@ -5,6 +5,8 @@ import com.pichat.android.data.model.ImageAttachment
 import com.pichat.android.data.model.MessageRole
 import com.pichat.android.data.model.MessageStatus
 import com.pichat.android.data.model.SessionInfo
+import com.pichat.android.data.model.ToolCall
+import com.pichat.android.data.model.ToolCallState
 import com.pichat.android.data.network.ApiService
 import com.pichat.android.data.network.ConnectionState
 import com.pichat.android.data.network.WebSocketClient
@@ -17,6 +19,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -42,6 +47,8 @@ class ChatRepository(
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
+    private var currentCwd: String = ""
+
     init {
         scope.launch {
             wsClient.connectionState.collect { _connectionState.value = it }
@@ -54,15 +61,17 @@ class ChatRepository(
     }
 
     fun connect(cwd: String = "", sessionPath: String? = null) {
+        currentCwd = cwd
         wsClient.connect(cwd, sessionPath)
-        loadSessions(cwd)
+        loadSessions()
     }
 
     fun disconnect() {
         wsClient.disconnect()
     }
 
-    fun loadSessions(cwd: String = "") {
+    fun loadSessions() {
+        val cwd = currentCwd
         scope.launch {
             val result = apiService.getSessions(cwd)
             result.onSuccess { res ->
@@ -129,6 +138,7 @@ class ChatRepository(
         }
         wsClient.sendRaw(payload.toString())
         loadSessionHistory(sessionPath)
+        loadSessions()
     }
 
     fun loadSessionHistory(sessionPath: String) {
@@ -190,10 +200,19 @@ class ChatRepository(
             put("type", "new_session")
         }
         wsClient.sendRaw(payload.toString())
+        // Refresh the session list immediately so a newly created session
+        // shows up in the sidebar without waiting for a reconnect.
         loadSessions()
     }
 
     private fun handleServerMessage(msg: GenericServerMessage) {
+        // Pi allocates a session file (nested under data.sessionFile) once the
+        // first prompt of a new conversation is persisted. React to it right away
+        // so the sidebar list updates immediately.
+        if (extractSessionFile(msg) != null) {
+            loadSessions()
+        }
+
         when (msg.type) {
             "agent_start" -> {
                 _isStreaming.value = true
@@ -202,6 +221,7 @@ class ChatRepository(
                     list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING))
                     _messages.value = list
                 }
+                loadSessions()
             }
             "agent_stream", "message_update" -> {
                 val ev = msg.assistantMessageEvent
@@ -211,9 +231,30 @@ class ChatRepository(
                     updateLastAssistantMessage(delta, isThinking)
                 }
             }
+            "tool_execution_start" -> {
+                val id = msg.toolCallId ?: ""
+                val name = msg.toolName ?: ""
+                if (id.isNotEmpty()) {
+                    startToolCall(id, name, jsonToString(msg.args))
+                }
+            }
+            "tool_execution_update" -> {
+                val id = msg.toolCallId ?: ""
+                if (id.isNotEmpty()) {
+                    updateToolCallOutput(id, extractResultText(msg.partialResult))
+                }
+            }
+            "tool_execution_end" -> {
+                val id = msg.toolCallId ?: ""
+                if (id.isNotEmpty()) {
+                    finishToolCall(id, extractResultText(msg.result), msg.isError == true)
+                }
+            }
             "agent_end", "agent_settled" -> {
                 _isStreaming.value = false
                 markLastMessageDone()
+                // Session titles may change after the agent settles.
+                loadSessions()
             }
             "remote_user_prompt" -> {
                 val text = msg.message ?: ""
@@ -233,6 +274,97 @@ class ChatRepository(
                     _isStreaming.value = true
                 }
             }
+        }
+    }
+
+    private fun extractSessionFile(msg: GenericServerMessage): String? {
+        val data = msg.data as? JsonObject ?: return null
+        for (key in listOf("sessionFile", "sessionPath")) {
+            val v = data[key]
+            if (v is JsonPrimitive && v.isString && v.content.isNotEmpty()) return v.content
+        }
+        return null
+    }
+
+    private fun jsonToString(elem: JsonElement?): String {
+        return when (elem) {
+            null -> ""
+            is JsonPrimitive -> elem.content
+            else -> elem.toString()
+        }
+    }
+
+    private fun extractResultText(elem: JsonElement?): String {
+        if (elem == null) return ""
+        if (elem is JsonObject) {
+            val content = elem["content"]
+            if (content != null) return extractJsonText(content)
+            val text = elem["text"]
+            if (text != null) return extractJsonText(text)
+        }
+        return extractJsonText(elem)
+    }
+
+    private fun indexOfLastAssistantMessage(): Int {
+        return _messages.value.indexOfLast { it.role == MessageRole.ASSISTANT }
+    }
+
+    private fun startToolCall(id: String, name: String, args: String) {
+        val list = _messages.value.toMutableList()
+        var idx = indexOfLastAssistantMessage()
+        if (idx == -1) {
+            list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING))
+            idx = list.size - 1
+        } else {
+            val last = list[idx]
+            if (last.status != MessageStatus.STREAMING) {
+                list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING))
+                idx = list.size - 1
+            }
+        }
+        val message = list[idx]
+        val toolCalls = message.toolCalls.toMutableList()
+        val existing = toolCalls.indexOfFirst { it.id == id }
+        if (existing == -1) {
+            toolCalls.add(ToolCall(id = id, name = name, args = args))
+        } else {
+            toolCalls[existing] = toolCalls[existing].copy(name = name, args = args)
+        }
+        list[idx] = message.copy(toolCalls = toolCalls, status = MessageStatus.STREAMING)
+        _messages.value = list
+        _isStreaming.value = true
+    }
+
+    private fun updateToolCallOutput(id: String, output: String) {
+        val list = _messages.value.toMutableList()
+        val idx = indexOfLastAssistantMessage()
+        if (idx == -1) return
+        val message = list[idx]
+        val toolCalls = message.toolCalls.toMutableList()
+        val ti = toolCalls.indexOfFirst { it.id == id }
+        if (ti != -1 && output.isNotEmpty()) {
+            toolCalls[ti] = toolCalls[ti].copy(output = output)
+            list[idx] = message.copy(toolCalls = toolCalls)
+            _messages.value = list
+        }
+    }
+
+    private fun finishToolCall(id: String, output: String, isError: Boolean) {
+        val list = _messages.value.toMutableList()
+        val idx = indexOfLastAssistantMessage()
+        if (idx == -1) return
+        val message = list[idx]
+        val toolCalls = message.toolCalls.toMutableList()
+        val ti = toolCalls.indexOfFirst { it.id == id }
+        if (ti != -1) {
+            val tc = toolCalls[ti]
+            toolCalls[ti] = tc.copy(
+                output = if (output.isNotEmpty()) output else tc.output,
+                state = if (isError) ToolCallState.ERROR else ToolCallState.DONE,
+                endedAt = System.currentTimeMillis()
+            )
+            list[idx] = message.copy(toolCalls = toolCalls)
+            _messages.value = list
         }
     }
 
