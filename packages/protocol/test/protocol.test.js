@@ -148,5 +148,8 @@ describe("Pi-Chat Protocol Unit Tests", () => {
 
     assert.equal(validateClientMessage({ type: "set_thinking_level", level: "high" }).valid, true);
     assert.equal(validateClientMessage({ type: "set_thinking_level", level: {} }).valid, false);
+
+    assert.equal(validateClientMessage({ type: "extension_ui_response", id: "req-1" }).valid, true);
+    assert.equal(validateClientMessage({ type: "extension_ui_response" }).valid, false);
   });
 });

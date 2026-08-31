@@ -130,6 +130,13 @@ export function setupWebSocketGateway(httpServer) {
         return;
       }
 
+      if (!rawMsg || typeof rawMsg !== "object") {
+        try {
+          ws.send(JSON.stringify(createErrorMessage(ErrorCode.INVALID_MESSAGE, "Message must be a JSON object")));
+        } catch {}
+        return;
+      }
+
       // Handle auth message during handshake
       if (rawMsg.type === ClientMessageType.AUTH) {
         if (verifyToken(rawMsg.token)) {

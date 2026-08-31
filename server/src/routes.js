@@ -86,7 +86,7 @@ router.get("/api/config", authMiddleware, async (req, res) => {
 // Endpoint to set default model in global or project settings.json
 router.post("/api/set-default-model", authMiddleware, async (req, res) => {
   try {
-    const { provider, modelId, thinkingLevel, scope, cwd: reqCwd } = req.body;
+    const { provider, modelId, thinkingLevel, scope, cwd: reqCwd } = req.body || {};
     if (!provider || !modelId) {
       return res.status(400).json({ ok: false, error: "缺少 provider 或 modelId 参数" });
     }
@@ -182,7 +182,7 @@ async function listAllSessionFiles() {
   const files = [];
 
   async function walk(dir, depth = 0) {
-    if (depth > 5) return;
+    if (depth > 2) return;
     const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
     for (const e of entries) {
       const full = path.join(dir, e.name);
@@ -257,6 +257,7 @@ async function getSessionMetadata(file) {
   for (const line of lines) {
     let o;
     try { o = JSON.parse(line); } catch { continue; }
+    if (!o || typeof o !== "object") continue;
     if (o.type === "session") {
       header = o;
       if (o.name) sessionName = o.name.trim();
@@ -366,6 +367,7 @@ router.get("/api/session", authMiddleware, async (req, res) => {
     let sessionName = null;
     for (const line of lines) {
       let o; try { o = JSON.parse(line); } catch { continue; }
+      if (!o || typeof o !== "object") continue;
       if (o.type === "session") header = o;
       if (o.type === "session_info" && o.name) {
         sessionName = o.name.trim();

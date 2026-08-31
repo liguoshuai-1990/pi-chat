@@ -235,6 +235,8 @@ export class PiAgent {
   }
 
   onPiMessage(obj) {
+    if (!obj || typeof obj !== "object") return;
+
     const sessFile = obj.data?.sessionFile || obj.sessionFile || obj.data?.sessionPath || obj.sessionPath;
     if (sessFile) {
       this.setSessionKey(this.cwd, sessFile);

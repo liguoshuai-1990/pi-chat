@@ -190,6 +190,7 @@ class ChatRepository(
             put("type", "new_session")
         }
         wsClient.sendRaw(payload.toString())
+        loadSessions()
     }
 
     private fun handleServerMessage(msg: GenericServerMessage) {

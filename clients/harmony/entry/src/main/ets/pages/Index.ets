@@ -18,6 +18,14 @@ struct Index {
     this.viewModel.init('http://192.168.1.100:3000');
   }
 
+  formatTime(ts: number): string {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+
   scrollToBottom() {
     setTimeout(() => {
       this.scroller.scrollEdge(Edge.Bottom);
@@ -201,6 +209,22 @@ struct Index {
       }
 
       Column() {
+        Row() {
+          Text(msg.role === MessageRole.USER ? 'user' : 'pi')
+            .fontSize(12)
+            .fontWeight(FontWeight.SemiBold)
+            .fontColor('#9CA3AF')
+
+          Blank()
+
+          Text(this.formatTime(msg.timestamp))
+            .fontSize(11)
+            .fontColor('#6B7280')
+            .margin({ left: 6 })
+        }
+        .width('100%')
+        .margin({ bottom: 4 })
+
         if (msg.thinkingContent && msg.thinkingContent.length > 0) {
           Column() {
             Text(msg.isThinking ? 'Thinking in progress…' : 'Thinking Process')

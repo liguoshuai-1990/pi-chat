@@ -286,6 +286,12 @@ export function validateClientMessage(msg) {
       }
       return { valid: true };
 
+    case ClientMessageType.EXTENSION_UI_RESPONSE:
+      if (!msg.id || typeof msg.id !== "string") {
+        return { valid: false, error: "Extension UI response requires string 'id'" };
+      }
+      return { valid: true };
+
     case ClientMessageType.ABORT:
     case ClientMessageType.NEW_SESSION:
     case ClientMessageType.GET_STATE:
@@ -294,7 +300,6 @@ export function validateClientMessage(msg) {
     case ClientMessageType.CYCLE_THINKING_LEVEL:
     case ClientMessageType.PING:
     case "heartbeat":
-    case ClientMessageType.EXTENSION_UI_RESPONSE:
       return { valid: true };
 
     default:

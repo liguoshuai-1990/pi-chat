@@ -529,6 +529,17 @@ body {
 .msg.user {
   align-items: flex-end;
 }
+.msg.user .role-tag {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+  letter-spacing: .3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+  padding-right: 4px;
+}
 .msg.user .bubble {
   background: var(--bg-user-bubble);
   color: var(--user-text);
@@ -554,8 +565,18 @@ body {
 .msg.assistant { align-items: stretch; }
 .msg.assistant .role-tag {
   font-size: 12px; color: var(--text-dim); font-weight: 600; letter-spacing: .3px;
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 8px;
   margin-bottom: 2px;
+}
+.role-name {
+  font-weight: 600;
+}
+.msg-time {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  letter-spacing: 0;
+  user-select: none;
 }
 .msg.assistant .content {
   font-size: 15px; line-height: 1.65; color: var(--text);
@@ -1795,8 +1816,13 @@ body {
     border-radius: 16px;
   }
 
+  .msg.user .role-tag,
   .msg.assistant .role-tag {
     font-size: 11px;
+  }
+
+  .msg-time {
+    font-size: 10px;
   }
 
   .msg.assistant .content {

@@ -448,7 +448,10 @@ function renderInlineMd(text) {
   flushList();
   flushPara();
   // restore inline code
-  outHtml = outHtml.replace(/\u0000CODE(\d+)\u0000/g, (_, n) => `<code>${escapeHtml(codeChunks[+n].slice(1, -1))}</code>`);
+  outHtml = outHtml.replace(/\u0000CODE(\d+)\u0000/g, (_, n) => {
+    const chunk = codeChunks[+n];
+    return chunk ? `<code>${escapeHtml(chunk.slice(1, -1))}</code>` : "";
+  });
   return outHtml;
 }
 
@@ -517,22 +520,90 @@ const el = (tag, props = {}, children = []) => {
   return n;
 };
 
+// ---- Message Time Formatter ----
+function formatMessageTime(ts) {
+  if (!ts) return "";
+  const d = (typeof ts === "number" || typeof ts === "string") ? new Date(ts) : ts;
+  if (!d || isNaN(d.getTime())) return "";
+
+  const now = new Date();
+  const isToday = d.getFullYear() === now.getFullYear() &&
+                  d.getMonth() === now.getMonth() &&
+                  d.getDate() === now.getDate();
+
+  const timeStr = d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+  if (isToday) {
+    return timeStr;
+  }
+  const isThisYear = d.getFullYear() === now.getFullYear();
+  if (isThisYear) {
+    const month = d.getMonth() + 1;
+    const date = d.getDate();
+    return `${month}月${date}日 ${timeStr}`;
+  }
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const date = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${date} ${timeStr}`;
+}
+
 // ---- Sidebar / sessions ----
 async function refreshSessions() {
   const cwd = state.cwd || "";
-  const res = await authFetch(`${API}/api/sessions?cwd=${encodeURIComponent(cwd)}`);
-  const data = await res.json();
-  renderSidebar(data.sessions || []);
+  try {
+    const res = await authFetch(`${API}/api/sessions?cwd=${encodeURIComponent(cwd)}`);
+    const data = await res.json();
+    renderSidebar(data.sessions || []);
+  } catch (err) {
+    console.warn("refreshSessions error:", err);
+    renderSidebar([]);
+  }
 }
 
 function renderSidebar(sessions) {
   const list = $("#sessionList");
+  if (!list) return;
   list.innerHTML = "";
-  if (sessions.length === 0) {
+
+  const hasCurrentInSessions = Boolean(state.currentSessionFile && sessions.some(s => s.file === state.currentSessionFile));
+
+  // If current session is a new/draft session not yet in the session list from REST API:
+  if (!hasCurrentInSessions && (!state.currentSessionFile || $("#emptyState")?.style.display !== "none" || state.streaming)) {
+    const draftTitle = $("#topSessionName")?.textContent || "新对话";
+    const isRunning = Boolean(state.streaming);
+    const runningBadge = isRunning ? el("span", { class: "session-running-badge", title: "任务正在后台生成中…" }, [
+      el("span", { class: "spinner-dot" }),
+      el("span", { text: "运行中" }),
+    ]) : null;
+
+    const titleEl = el("div", { class: "session-item-name" }, [
+      el("span", { text: draftTitle }),
+      ...(runningBadge ? [runningBadge] : []),
+    ]);
+
+    const draftItem = el("div", {
+      class: "session-item active draft-session",
+      dataset: { file: state.currentSessionFile || "" },
+      title: state.currentSessionFile || "新对话",
+      onclick: () => {
+        if (state.currentSessionFile) loadSession(state.currentSessionFile);
+      },
+    }, [
+      el("div", { class: "title" }, [
+        titleEl,
+        el("div", { class: "meta", text: `刚刚 · ${state.streaming ? 1 : 0} 条` }),
+      ]),
+    ]);
+    list.appendChild(draftItem);
+  }
+
+  if (sessions.length === 0 && list.children.length === 0) {
     list.appendChild(el("div", { class: "sidebar-empty", text: "没有会话记录" }));
     return;
   }
+
   sessions.forEach((s) => {
+    if (s.file === state.currentSessionFile && !hasCurrentInSessions) return;
     const title = s.sessionName || s.firstUser || "新对话";
     const when = s.timestamp ? new Date(s.timestamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
     
@@ -612,13 +683,22 @@ function startNewSession() {
   try {
     window.history.replaceState({}, "", window.location.pathname);
   } catch {}
-  connectWs({ explicitNewSession: true }); // no session -> pi creates a new one
   $("#topSessionName").textContent = "新对话";
   if (wasStreaming) {
     showToast("前一个会话已转入后台继续运行");
   }
   // Mobile: close sidebar on new session
   if (window.innerWidth <= 768) closeSidebar();
+
+  // If WebSocket is already live, request new session directly without reconnect overhead
+  if (state.ws && state.ws.readyState === 1) {
+    sendWs({ type: "new_session" });
+    sendWs({ type: "get_state" });
+  } else {
+    connectWs({ explicitNewSession: true }); // no session -> pi creates a new one
+  }
+  // Instantly render optimistic new session at the top of left sidebar
+  renderSidebar([]);
   refreshSessions();
 }
 
@@ -771,7 +851,7 @@ function reconstructFromEntries(entries) {
             url: c.data ? `data:${c.mimeType || "image/png"};base64,${c.data}` : (c.url || "")
           }));
       }
-      out.push({ role: "user", text: extractContentText(m.content), images, ts: m.timestamp });
+      out.push({ role: "user", text: extractContentText(m.content), images, ts: m.timestamp || e.timestamp });
     } else if (m.role === "assistant") {
       const rawContent = Array.isArray(m.content) ? m.content : (m.content ? [{ type: "text", text: String(m.content) }] : []);
       const content = rawContent.map(part => {
@@ -789,7 +869,7 @@ function reconstructFromEntries(entries) {
         } catch {}
         content.push({ type: "text", text: `⚠️ **生成失败**: ${errMsg}` });
       }
-      out.push({ role: "assistant", content, ts: m.timestamp, usage: m.usage });
+      out.push({ role: "assistant", content, ts: m.timestamp || e.timestamp, usage: m.usage });
     }
     // toolResult entries are attached directly to assistant toolCall parts, so they don't produce standalone messages
   }
@@ -1080,13 +1160,15 @@ function exportCurrentSession() {
 
   const msgs = chatInner.querySelectorAll(".msg");
   msgs.forEach(msg => {
+    const time = msg.querySelector(".msg-time")?.innerText || "";
+    const timeInfo = time ? ` (${time})` : "";
     if (msg.classList.contains("user")) {
       const isSteer = !!msg.querySelector(".steer-badge");
       const bubble = msg.querySelector(".bubble");
       const text = bubble ? bubble.innerText.replace("🧭 指导指令", "").trim() : "";
-      md += `### 👤 User${isSteer ? " (🧭 指导指令)" : ""}\n\n${text}\n\n`;
+      md += `### 👤 user${timeInfo}${isSteer ? " (🧭 指导指令)" : ""}\n\n${text}\n\n`;
     } else if (msg.classList.contains("assistant")) {
-      md += `### 🤖 pi\n\n`;
+      md += `### 🤖 pi${timeInfo}\n\n`;
       const thinking = msg.querySelector(".thinking-body");
       if (thinking && thinking.innerText.trim()) {
         md += `<details><summary>💭 思考过程</summary>\n\n${thinking.innerText.trim()}\n\n</details>\n\n`;
@@ -1121,6 +1203,10 @@ function exportCurrentSession() {
 function appendMessageNode(role, m) {
   if (role === "user") {
     const isSteer = m.isSteer || false;
+    const ts = m.ts || m.timestamp || Date.now();
+    const timeStr = formatMessageTime(ts);
+    const fullTimeStr = (ts && !isNaN(new Date(ts).getTime())) ? new Date(ts).toLocaleString("zh-CN") : "";
+
     const steerBadge = isSteer ? el("span", { class: "steer-badge", text: "🧭 指导指令" }) : null;
     const bubbleChildren = [steerBadge];
     if (m.text) {
@@ -1143,7 +1229,16 @@ function appendMessageNode(role, m) {
       bubbleChildren.push(imgsContainer);
     }
     const bubble = el("div", { class: "bubble" + (isSteer ? " steer" : "") }, bubbleChildren);
-    const node = el("div", { class: "msg user" }, [bubble]);
+
+    const roleChildren = [
+      el("span", { class: "role-name", text: "user" }),
+    ];
+    if (timeStr) {
+      roleChildren.push(el("span", { class: "msg-time", text: timeStr, title: fullTimeStr }));
+    }
+    const roleTag = el("div", { class: "role-tag user-role-tag" }, roleChildren);
+
+    const node = el("div", { class: "msg user" }, [roleTag, bubble]);
     $("#chat-inner").appendChild(node);
     scrollBottom();
     return node;
@@ -1152,6 +1247,10 @@ function appendMessageNode(role, m) {
 }
 
 function renderAssistantBlock(m) {
+  const ts = m.ts || m.timestamp || null;
+  const timeStr = formatMessageTime(ts);
+  const fullTimeStr = (ts && !isNaN(new Date(ts).getTime())) ? new Date(ts).toLocaleString("zh-CN") : "";
+
   // m.content is array of {type:text|thinking|toolCall}
   const fullText = extractContentText(m.content);
   const copyMsgBtn = el("button", {
@@ -1169,11 +1268,16 @@ function renderAssistantBlock(m) {
     el("span", { text: "复制全文" })
   ]);
 
+  const roleChildren = [
+    el("span", { class: "role-name", text: "pi" }),
+  ];
+  if (timeStr) {
+    roleChildren.push(el("span", { class: "msg-time", text: timeStr, title: fullTimeStr }));
+  }
+  roleChildren.push(copyMsgBtn);
+
   const node = el("div", { class: "msg assistant" }, [
-    el("div", { class: "role-tag" }, [
-      el("span", { text: "pi" }),
-      copyMsgBtn
-    ]),
+    el("div", { class: "role-tag" }, roleChildren),
     el("div", { class: "content" }),
   ]);
   const content = node.querySelector(".content");
@@ -1374,28 +1478,38 @@ function getStreamingFullText() {
 }
 
 // ---- Streaming: handle live assistant message ----
-function ensureStreamingMsg() {
+function ensureStreamingMsg(ts = Date.now()) {
   if (state.streamingMsg) return state.streamingMsg;
   showEmptyState(false);
+  const timeStr = formatMessageTime(ts);
+  const fullTimeStr = (ts && !isNaN(new Date(ts).getTime())) ? new Date(ts).toLocaleString("zh-CN") : "";
+
+  const copyBtn = el("button", {
+    class: "btn-copy-msg",
+    type: "button",
+    title: "复制回答全文",
+    onclick: async (e) => {
+      e.stopPropagation();
+      const text = getStreamingFullText();
+      if (await copyToClipboard(text)) {
+        showToast("已复制回答全文");
+      }
+    }
+  }, [
+    el("svg", { html: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>' }),
+    el("span", { text: "复制全文" })
+  ]);
+
+  const roleChildren = [
+    el("span", { class: "role-name", text: "pi" }),
+  ];
+  if (timeStr) {
+    roleChildren.push(el("span", { class: "msg-time", text: timeStr, title: fullTimeStr }));
+  }
+  roleChildren.push(copyBtn);
+
   const node = el("div", { class: "msg assistant" }, [
-    el("div", { class: "role-tag" }, [
-      el("span", { text: "pi" }),
-      el("button", {
-        class: "btn-copy-msg",
-        type: "button",
-        title: "复制回答全文",
-        onclick: async (e) => {
-          e.stopPropagation();
-          const text = getStreamingFullText();
-          if (await copyToClipboard(text)) {
-            showToast("已复制回答全文");
-          }
-        }
-      }, [
-        el("svg", { html: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>' }),
-        el("span", { text: "复制全文" })
-      ])
-    ]),
+    el("div", { class: "role-tag" }, roleChildren),
     el("div", { class: "content" }),
   ]);
   state.streamingMsg = node;
@@ -1640,8 +1754,8 @@ function connectWs(opts = {}) {
     wasDisconnected = false;
     reconnectAttempts = 0;
 
-    setTimeout(() => sendWs({ type: "get_state" }), 300);
-    setTimeout(() => sendWs({ type: "get_available_models" }), 500);
+    sendWs({ type: "get_state" });
+    sendWs({ type: "get_available_models" });
   };
 
   ws.onclose = () => {
@@ -1800,7 +1914,7 @@ function handlePiMessage(obj) {
       }
       break;
     case "remote_user_prompt":
-      appendMessageNode("user", { text: obj.message, images: obj.images, isSteer: obj.isSteer });
+      appendMessageNode("user", { text: obj.message, images: obj.images, isSteer: obj.isSteer, ts: obj.timestamp || Date.now() });
       break;
     case "agent_start":
       state.streaming = true;
@@ -2644,7 +2758,7 @@ function submitSteer() {
     return;
   }
 
-  appendMessageNode("user", { text, isSteer: true });
+  appendMessageNode("user", { text, isSteer: true, ts: Date.now() });
   ta.value = "";
   autoResize();
   updateComposerUI();
@@ -2690,8 +2804,9 @@ function submitPrompt() {
   }
 
   if (hint) hint.textContent = "pi 会执行命令与读写你的文件 —— 请注意操作内容。"; // restore default
+  const now = Date.now();
   // Render the user's message locally for instant feedback.
-  appendMessageNode("user", { text, images: state.attachedImages ? [...state.attachedImages] : [] });
+  appendMessageNode("user", { text, images: state.attachedImages ? [...state.attachedImages] : [], ts: now });
   
   ta.value = "";
   state.attachedImages = [];
@@ -2701,12 +2816,34 @@ function submitPrompt() {
   state.streaming = true;
   state.aborting = false;
   setComposerAborting(true);
-  ensureStreamingMsg();
+  ensureStreamingMsg(now);
   refreshStreamingContent();
 
   // Set session name from the first prompt of a brand-new session.
   if (state.currentSessionFile == null && text) {
-    sendWs({ type: "set_session_name", name: text.slice(0, 60).replace(/\s+/g, " ") });
+    const promptTitle = text.slice(0, 60).replace(/\s+/g, " ");
+    $("#topSessionName").textContent = promptTitle;
+    sendWs({ type: "set_session_name", name: promptTitle });
+
+    // Update draft session item in sidebar immediately
+    const list = $("#sessionList");
+    if (list) {
+      const draftItem = list.querySelector(".session-item.draft-session") || list.querySelector(".session-item.active");
+      if (draftItem) {
+        const nameSpan = draftItem.querySelector(".session-item-name span");
+        if (nameSpan) nameSpan.textContent = promptTitle;
+        let badge = draftItem.querySelector(".session-running-badge");
+        if (!badge) {
+          badge = el("span", { class: "session-running-badge", title: "任务正在后台生成中…" }, [
+            el("span", { class: "spinner-dot" }),
+            el("span", { text: "运行中" }),
+          ]);
+          draftItem.querySelector(".session-item-name")?.appendChild(badge);
+        }
+        const meta = draftItem.querySelector(".meta");
+        if (meta) meta.textContent = "刚刚 · 1 条";
+      }
+    }
   }
   sendWs({ type: "prompt", message: text, images: imagesToSend });
 }

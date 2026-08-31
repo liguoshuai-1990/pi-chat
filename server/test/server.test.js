@@ -1,5 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { WebSocket } from "ws";
 import { isAllowedOrigin } from "../src/ws.js";
 import { verifyToken, verifyWsAuth, authMiddleware } from "../src/auth.js";
 import { config, normalizePath, home } from "../src/config.js";
@@ -121,6 +122,30 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
     assert.ok(serverInstance.wss);
     assert.equal(typeof serverInstance.listen, "function");
     assert.equal(typeof serverInstance.close, "function");
+    await serverInstance.close();
+  });
+
+  test("WebSocket server handles non-object JSON messages safely without crashing", async () => {
+    const serverInstance = createServer();
+    const { httpServer } = await serverInstance.listen(0, "127.0.0.1");
+    const port = httpServer.address().port;
+
+    await new Promise((resolve, reject) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+      ws.on("open", () => {
+        // Send non-object JSON payloads
+        ws.send("null");
+        ws.send("123");
+        ws.send("true");
+        ws.send("\"string\"");
+        setTimeout(() => {
+          ws.close();
+          resolve();
+        }, 50);
+      });
+      ws.on("error", reject);
+    });
+
     await serverInstance.close();
   });
 });

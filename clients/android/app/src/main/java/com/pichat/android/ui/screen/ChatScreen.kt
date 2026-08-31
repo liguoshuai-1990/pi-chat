@@ -493,12 +493,34 @@ private fun Composer(
 @Composable
 fun MessageBubble(message: ChatMessage) {
     val isUser = message.role == MessageRole.USER
+    val timeText = remember(message.timestamp) {
+        val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+        sdf.format(java.util.Date(message.timestamp))
+    }
 
     if (isUser) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
+            horizontalAlignment = Alignment.End
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End,
+                modifier = Modifier.padding(end = 4.dp, bottom = 2.dp)
+            ) {
+                Text(
+                    "user",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextDim
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    timeText,
+                    fontSize = 11.sp,
+                    color = TextDim
+                )
+            }
             Column(
                 modifier = Modifier
                     .widthIn(max = 300.dp)
@@ -525,15 +547,24 @@ fun MessageBubble(message: ChatMessage) {
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 2.dp)
+        ) {
             Text(
                 "pi",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = TextDim
             )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                timeText,
+                fontSize = 11.sp,
+                color = TextDim
+            )
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         AssistantContent(message)
     }
 }
