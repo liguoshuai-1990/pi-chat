@@ -40,8 +40,9 @@ clients/android/
 
 1. 使用 **Android Studio (Ladybug / Iguana 或更高版本)** 打开 `clients/android` 目录。
 2. 确保已在 VPS 或本地启动 Pi Gateway 网关服务（例如 `pnpm dev:server`）。
-3. 如果在 Android 模拟器上运行，默认连接本地网关 `http://10.0.2.2:3000`；如果是真机调试，请修改 `ChatViewModel.kt` 中的 Gateway IP 为你的局域网/VPS 公网地址。
-4. 点击 Run (Shift + F10) 进行编译并在设备/模拟器中安装体验。
+3. 默认连接本地网关 `http://10.0.2.2:3000`（模拟器回环地址）。
+4. 无需修改源码即可切换后端：打开应用后点击顶部操作栏或左侧抽屉中的 **设置（齿轮）图标**，在“后端配置”对话框中填写 Pi Gateway 服务地址与访问 Token，点击“保存并连接”即可直连局域网 / VPS 公网网关（配置会持久化保存）。
+5. 点击 Run (Shift + F10) 进行编译并在设备/模拟器中安装体验。
 
 ---
 
