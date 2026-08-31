@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { WebSocket } from "ws";
+import WebSocket from "ws";
 import { isAllowedOrigin } from "../src/ws.js";
 import { verifyToken, verifyWsAuth, authMiddleware } from "../src/auth.js";
 import { config, normalizePath, home } from "../src/config.js";

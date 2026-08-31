@@ -54,7 +54,6 @@ export function setupWebSocketGateway(httpServer) {
 
       // If token is provided in upgrade request, verify it immediately
       if (config.authToken && !verifyWsAuth(info.req)) {
-        const url = new URL(info.req.url, "http://localhost");
         // If client connects without token in URL, allow connection temporarily for handshake auth message
         // within 3 seconds, or reject if strict header/query requirement.
       }
