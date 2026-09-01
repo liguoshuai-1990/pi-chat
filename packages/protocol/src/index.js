@@ -1,5 +1,5 @@
 /**
- * @pi-chat/protocol
+ * @liguoshuai/pi-chat-protocol
  * Standardized communication protocol definitions, helpers, and validators
  * for Web, Android, and HarmonyOS clients connecting to the Pi Agent Gateway.
  */

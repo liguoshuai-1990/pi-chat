@@ -19,9 +19,9 @@ pi-chat/
 │   ├── web/                  # Web 前端（原 @liguoshuai/pi-web-chat，保持独立发布）
 │   ├── android/              # Android 原生应用 (Kotlin + Jetpack Compose + OkHttp)
 │   └── harmony/              # 华为鸿蒙原生应用 (ArkTS + ArkUI + @ohos.net.webSocket)
-├── server/                   # 运行在 VPS 上的 Pi Agent 桥接网关 (@pi-chat/server)
+├── server/                   # 运行在 VPS 上的 Pi Agent 桥接网关 (@liguoshuai/pi-chat-server)
 ├── packages/                 # 共享标准库
-│   └── protocol/             # 跨端标准化通信协议定义与校验器 (@pi-chat/protocol)
+│   └── protocol/             # 跨端标准化通信协议定义与校验器 (@liguoshuai/pi-chat-protocol)
 ├── docs/                     # 系统架构与开发文档
 └── LICENSE                   # MIT 开源许可证
 ```
@@ -31,12 +31,12 @@ pi-chat/
 ## 🧩 模块与子工程说明
 
 ### 1. 跨端共享协议 (`packages/protocol`)
-- **包名**：`@pi-chat/protocol`
+- **包名**：`@liguoshuai/pi-chat-protocol`
 - **定位**：定义了 Web、Android、HarmonyOS 与网关通信的统一 JSON 消息契约。
 - **特性**：包含完整 TypeScript 类型声明、JSON Schema 定义、消息构造器与容错校验器（规范化 `client_send` / `prompt`、`heartbeat` / `ping` 等）。
 
 ### 2. VPS 桥接网关服务端 (`server/`)
-- **包名**：`@pi-chat/server`
+- **包名**：`@liguoshuai/pi-chat-server`
 - **定位**：托管在云端 VPS 或本地的网关服务，负责启动并管理底层的 `pi --mode rpc` 子进程池。
 - **特性**：
   - **全双工 WebSocket 网关**：支持多端连接、会话隔离与广播。

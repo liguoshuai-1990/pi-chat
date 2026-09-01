@@ -10,7 +10,15 @@ pnpm-debug.log*
 /tmp/
 dist/
 build/
+coverage/
 .cache/
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.env.local
+!*.example
 
 # Android / Gradle
 release-builds/

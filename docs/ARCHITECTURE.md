@@ -24,7 +24,7 @@
                                             |
                                             v
 +-----------------------------------------------------------------------------------+
-|                     server/ (VPS 统一桥接网关服务 @pi-chat/server)                   |
+|                     server/ (VPS 统一桥接网关服务 @liguoshuai/pi-chat-server)       |
 |                                                                                   |
 |   +-----------------------+   +-----------------------+   +--------------------+  |
 |   |   Token 鉴权与安全拦截  |   |   SSE/WS 全双工网关   |   |  30s 心跳与断线重连 |  |
@@ -54,7 +54,7 @@
 - **单一数据源与统一内核 (Single Source of Truth)**：
   `server/` 是整个生态**唯一的后端网关核心**，管理所有 Agent 子进程生命周期、Token 鉴权、心跳、SSE 与会话管理。
 - **Web 端的薄封装设计**：
-  `clients/web/server.js` 仅作为针对 npm 交付包 `@liguoshuai/pi-web-chat` 的轻量运行胶水层，直接引用 `@pi-chat/server` 启动并托管 `clients/web/public` 前端资源，消除了代码重复。
+  `clients/web/server.js` 仅作为针对 npm 交付包 `@liguoshuai/pi-web-chat` 的轻量运行胶水层，直接引用 `@liguoshuai/pi-chat-server` 启动并托管 `clients/web/public` 前端资源，消除了代码重复。
 - **全端同等接入地位**：
   Web 前端 (`clients/web/public/app.js`) 与 Android、鸿蒙移动端一样，原生支持通过 `token` 参数或弹窗输入访问密钥，既可同源一体化部署，亦可跨域独立部署直连 VPS 网关。
 
@@ -62,7 +62,7 @@
 
 ## 3. 核心模块分工列表
 
-1. **`server` (`@pi-chat/server`)**：
+1. **`server` (`@liguoshuai/pi-chat-server`)**：
    - 统一 VPS 部署入口，提供 Token 认证、RESTful 历史会话管理、WebSocket 多路复用和 SSE 流推送。
 2. **`clients/web` (`@liguoshuai/pi-web-chat`)**：
    - 维持既有独立发布流（npm `@liguoshuai/pi-web-chat`）。
@@ -73,7 +73,7 @@
 4. **`clients/harmony`**：
    - 基于华为 HarmonyOS Next ArkTS 与 ArkUI 框架开发。
    - 适配 Stage 模型与跨端响应式布局。
-5. **`packages/protocol` (`@pi-chat/protocol`)**：
+5. **`packages/protocol` (`@liguoshuai/pi-chat-protocol`)**：
    - 统一全端消息格式，消除各端通信协议不一致的问题。
    - 包含校验器与别名兼容层（`client_send` -> `prompt`, `heartbeat` -> `ping`）。
 

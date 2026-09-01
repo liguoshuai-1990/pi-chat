@@ -1,6 +1,6 @@
-# @pi-chat/server — Pi Agent Gateway
+# @liguoshuai/pi-chat-server — Pi Agent Gateway
 
-`@pi-chat/server` 是运行在 VPS 上的 Pi Agent 桥接网关服务，负责协调管理底层 `pi --mode rpc` 子进程，为 Web 前端、Android 原生端以及鸿蒙原生端提供统一的 WebSocket、SSE、RESTful API 与 Token 鉴权。
+`@liguoshuai/pi-chat-server` 是运行在 VPS 上的 Pi Agent 桥接网关服务，负责协调管理底层 `pi --mode rpc` 子进程，为 Web 前端、Android 原生端以及鸿蒙原生端提供统一的 WebSocket、SSE、RESTful API 与 Token 鉴权。
 
 ---
 
@@ -34,8 +34,8 @@
 
 ```bash
 # 启动网关服务
-pnpm --filter @pi-chat/server start
+pnpm --filter @liguoshuai/pi-chat-server start
 
 # 开发模式（监听热重载）
-pnpm --filter @pi-chat/server dev
+pnpm --filter @liguoshuai/pi-chat-server dev
 ```
