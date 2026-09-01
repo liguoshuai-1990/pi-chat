@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.0] - 2026-09-01
+
+### Added
+- Android 端聊天消息、思考过程与工具执行块均显示时间戳（当天 `HH:mm`，跨天 `MM-dd HH:mm`）。
+- Android 端新增工具执行渲染（`tool_execution_start/update/end`）：展示工具名、参数、结果与执行状态（执行中/完成/错误）。
+- 用户消息头部显示 `user`，助手消息头部显示 `pi`。
+
+### Changed
+- Android 端会话列表在新建会话、`agent_start`/`agent_settled`、切换会话及服务端返回 `sessionFile` 时即时刷新，新会话更快出现在侧边栏。
+- 全端版本号统一升级至 2.5.0。
+
 ## [2.4.1] - 2026-09-01
 
 ### Fixed
