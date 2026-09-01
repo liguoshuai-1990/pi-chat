@@ -315,7 +315,14 @@ private fun HistoryDrawer(
             Column(modifier = Modifier.padding(16.dp)) {
                 ConnectionStatus(connState = connState, onReconnect = onReconnect)
                 Spacer(Modifier.height(12.dp))
-                Text("pi-chat · Android", fontSize = 11.sp, color = TextDim)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("pi-chat · Android", fontSize = 11.sp, color = TextDim)
+                    Text("v${com.pichat.android.BuildConfig.VERSION_NAME}", fontSize = 11.sp, color = TextDim)
+                }
             }
         }
     }
@@ -817,6 +824,12 @@ private fun SettingsDialog(
                         focusedLabelColor = Accent,
                         unfocusedLabelColor = TextSecondary
                     )
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "客户端版本：v${com.pichat.android.BuildConfig.VERSION_NAME}",
+                    fontSize = 11.sp,
+                    color = TextDim
                 )
             }
         },

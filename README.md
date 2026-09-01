@@ -110,6 +110,16 @@ pnpm test
 
 ---
 
+## 🤖 AI Agent 开发与贡献规范 (Agent Guidelines)
+
+本项目面向 AI Coding Agent（Pi Coding Agent、Claude Code、Cursor 等）制定了严格的开发工作流与三大铁律，详情请参阅 **[`AGENTS.md`](./AGENTS.md)**：
+
+1. **工作前必拉取最新主干代码**：执行任何分析与开发前必须运行 `git fetch origin && git pull origin main` 同步远端最新基线。
+2. **遵循语义化版本规范递增版本号**：每次修改均需累加 SemVer 版本号（如 `2.5.0` -> `2.5.1`），全仓各模块同步升级，并确保 Web 及各客户端正确展示版本号。
+3. **完成修改必通过全量测试并推送远端**：所有改动需经过 `pnpm test` 及相关端构建校验，并通过 `git push origin main` 及时提交推送。
+
+---
+
 ## 📦 发布指南 (Release)
 
 ### 发布 Web 端 npm 包

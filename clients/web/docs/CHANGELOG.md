@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.1] - 2026-09-01
+
+### Added
+- **AI Coding Agent 工作指南与工程规范 (`AGENTS.md` & `CLAUDE.md`)**：
+  - 确立三大强制铁律：工作前必拉取远端主干（`git pull origin main`）、任何修改必递增 SemVer 语义化版本号并在 Web 与各客户端正确呈现、任务完成必通过全量测试并提交推送至远端。
+  - 制定 Monorepo 全仓版本同步清单（Lockstep）与多端版本呈现规范。
+- **客户端版本号呈现强化**：
+  - Android 原生端：启用 `buildConfig = true`，在侧边栏抽屉底部及后端配置对话框中通过 `BuildConfig.VERSION_NAME` 实时展示客户端版本号（`v2.5.1`）。
+  - HarmonyOS 鸿蒙原生端：在侧边栏底部展示应用版本号（`v2.5.1`）。
+  - Web 端：通过网关 `/api/config` 动态获取并在侧边栏底部 `#appVersion` 区域正确展示当前版本号（`v2.5.1`）。
+
+### Changed
+- 全端版本号统一升级至 2.5.1（Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.5.0] - 2026-09-01
 
 ### Added

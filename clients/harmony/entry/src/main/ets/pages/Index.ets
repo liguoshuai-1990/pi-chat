@@ -81,6 +81,20 @@ struct Index {
         .width('100%')
         .layoutWeight(1)
         .padding(12)
+
+        Divider().color('#282830')
+
+        Row() {
+          Text('pi-chat · HarmonyOS')
+            .fontSize(11)
+            .fontColor('#6B7280')
+          Blank()
+          Text('v2.5.1')
+            .fontSize(11)
+            .fontColor('#6B7280')
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 10, bottom: 12 })
       }
       .width('80%')
       .height('100%')

@@ -128,4 +128,19 @@ describe("pi-web-chat Unit Tests", () => {
     assert.equal(isTextFile({ type: "application/zip", name: "archive.zip" }), false);
     assert.equal(isTextFile({ type: "application/octet-stream", name: "binary.exe" }), false);
   });
+
+  test("Monorepo version lockstep and SemVer compliance across packages", () => {
+    const rootPkg = JSON.parse(readFileSync(path.resolve(__dirname, "../../../package.json"), "utf8"));
+    const webPkg = JSON.parse(readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+    const serverPkg = JSON.parse(readFileSync(path.resolve(__dirname, "../../../server/package.json"), "utf8"));
+    const protocolPkg = JSON.parse(readFileSync(path.resolve(__dirname, "../../../packages/protocol/package.json"), "utf8"));
+    const harmonyPkg = JSON.parse(readFileSync(path.resolve(__dirname, "../../../clients/harmony/package.json"), "utf8"));
+
+    const semverRegex = /^\d+\.\d+\.\d+$/;
+    assert.match(rootPkg.version, semverRegex, "Root version must follow SemVer");
+    assert.equal(webPkg.version, rootPkg.version, "Web package version must match root");
+    assert.equal(serverPkg.version, rootPkg.version, "Server package version must match root");
+    assert.equal(protocolPkg.version, rootPkg.version, "Protocol package version must match root");
+    assert.equal(harmonyPkg.version, rootPkg.version, "Harmony package version must match root");
+  });
 });
