@@ -171,6 +171,30 @@ export interface ServerExtensionUiRequestMessage {
   [key: string]: unknown;
 }
 
+export interface ServerBackfillStartMessage {
+  type: "backfill_start";
+  count: number;
+}
+
+export interface ServerBackfillEndMessage {
+  type: "backfill_end";
+  streaming: boolean;
+  state: "idle" | "streaming" | "settled" | string;
+  overflowed?: boolean;
+}
+
+export interface ToolCallPayload {
+  id?: string;
+  name?: string;
+  arguments?: Record<string, unknown> | string;
+}
+
+export interface ToolResultPayload {
+  toolCallId?: string;
+  isError?: boolean;
+  content?: string | Array<{ type: string; text?: string; [key: string]: unknown }>;
+}
+
 export interface ServerResponse<T = unknown> {
   type: "response";
   id?: string;

@@ -1833,6 +1833,10 @@ function handlePiMessage(obj) {
       setComposerAborting(true);
       ensureStreamingMsg();
       refreshStreamingContent();
+      // If ring buffer overflowed while client was away, sync full session history in background
+      if (obj.overflowed && state.currentSessionFile) {
+        syncSessionHistory(state.currentSessionFile, false);
+      }
     } else {
       finalizeStreamingMsg();
       state.streaming = false;
@@ -1989,7 +1993,7 @@ function handlePiMessage(obj) {
             state.streamingItems.push({ type: "text", text: ev.content });
           }
         }
-        refreshStreamingContent();
+        refreshStreamingContentDebounced();
       } else if (ev.type === "thinking_delta" || ev.type === "thinking_start" || ev.type === "thinking_end") {
         // For thinking we accumulate deltas; thinking_delta carries .delta
         if (ev.type === "thinking_delta" && ev.delta) {
@@ -2996,7 +3000,7 @@ async function init() {
     const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
     const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
 
-    if (isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === "n") {
+    if (isCmdOrCtrl && e.shiftKey && (e.key.toLowerCase() === "n" || e.key.toLowerCase() === "o")) {
       e.preventDefault();
       startNewSession(true);
       return;

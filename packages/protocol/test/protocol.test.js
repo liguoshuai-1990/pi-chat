@@ -23,6 +23,8 @@ import {
   createRemoteUserSteerMessage,
   createExtensionUiRequestMessage,
   createErrorMessage,
+  createBackfillStartMessage,
+  createBackfillEndMessage,
   normalizeClientMessage,
   validateClientMessage,
 } from "../src/index.js";
@@ -107,6 +109,16 @@ describe("Pi-Chat Protocol Unit Tests", () => {
     assert.equal(errorMsg.type, ServerMessageType.ERROR);
     assert.equal(errorMsg.code, ErrorCode.UNAUTHORIZED);
     assert.equal(errorMsg.message, "Invalid token");
+
+    const backfillStart = createBackfillStartMessage(5);
+    assert.equal(backfillStart.type, ServerMessageType.BACKFILL_START);
+    assert.equal(backfillStart.count, 5);
+
+    const backfillEnd = createBackfillEndMessage(true, "streaming", true);
+    assert.equal(backfillEnd.type, ServerMessageType.BACKFILL_END);
+    assert.equal(backfillEnd.streaming, true);
+    assert.equal(backfillEnd.state, "streaming");
+    assert.equal(backfillEnd.overflowed, true);
   });
 
   test("normalizeClientMessage normalizes alias types", () => {

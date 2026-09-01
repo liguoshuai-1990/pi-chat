@@ -193,6 +193,22 @@ export function createExtensionUiRequestMessage(id, method, options = {}) {
   };
 }
 
+export function createBackfillStartMessage(count) {
+  return {
+    type: ServerMessageType.BACKFILL_START,
+    count: Number(count || 0),
+  };
+}
+
+export function createBackfillEndMessage(streaming = false, state = "idle", overflowed = false) {
+  return {
+    type: ServerMessageType.BACKFILL_END,
+    streaming: Boolean(streaming),
+    state: String(state || "idle"),
+    overflowed: Boolean(overflowed),
+  };
+}
+
 export function createErrorMessage(code, message, details = null) {
   return {
     type: ServerMessageType.ERROR,

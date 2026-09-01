@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.6.0] - 2026-09-01
+
+### Added
+- **跨端协议增强与强类型声明 (`@liguoshuai/pi-chat-protocol`)**：
+  - 新增 `createBackfillStartMessage` 与 `createBackfillEndMessage` 协议消息构造器，支持在断线重连回放中透传 `overflowed` 标志。
+  - 新增 `ToolCallPayload` 与 `ToolResultPayload` 强类型接口，增强跨端工具调用的类型安全性。
+  - 在 Android (`PiChatProtocol.kt`) 与 HarmonyOS (`PiProtocol.ets`) 客户端协议模型中同步补齐 `overflowed` 等字段。
+- **网关断线溢出检测与客户端自愈补偿 (`server` & `clients/web`)**：
+  - 网关 `PiAgent` 增加事件环形缓冲区溢出状态跟踪（`hasBufferOverflowed`），在客户端重连事件回放结束（`backfill_end`）时明确通知客户端。
+  - Web 客户端侦测到 `overflowed: true` 时，自动在后台触发增量/完整历史记录无感同步（`syncSessionHistory`），彻底杜绝网络严重抖动或长时间离线导致的消息截断。
+- **Web 前端流式渲染性能与快捷键体验优化 (`clients/web`)**：
+  - 流式更新渲染全面统一采用 `requestAnimationFrame` 防抖批量刷新（`refreshStreamingContentDebounced`），消除高频 token 吐出时的页面重排重绘瓶颈。
+  - 新增 `Cmd/Ctrl + Shift + O` 快捷新建会话别名，适配主流 AI 交互习惯。
+
+### Changed
+- 全端版本号统一升级至 2.6.0（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.5.1] - 2026-09-01
 
 ### Added

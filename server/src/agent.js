@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import { StringDecoder } from "string_decoder";
 import { config, normalizeCwd, normalizePath } from "./config.js";
+import { createBackfillStartMessage, createBackfillEndMessage } from "@liguoshuai/pi-chat-protocol";
 
 export const activeAgents = new Map();
 export const allAgents = new Set();
@@ -26,6 +27,7 @@ export class PiAgent {
     this.lastActivityAt = 0;
     this.eventBuffer = [];
     this.bufferHead = 0;
+    this.hasBufferOverflowed = false;
     this.lastUserPrompt = null;
   }
 
@@ -249,6 +251,7 @@ export class PiAgent {
     switch (obj.type) {
       case "agent_start":
         this.setStreaming(true);
+        this.hasBufferOverflowed = false;
         break;
       case "agent_end":
         this.setStreaming(false);
@@ -257,6 +260,7 @@ export class PiAgent {
         this.setStreaming(false);
         this.eventBuffer = [];
         this.bufferHead = 0;
+        this.hasBufferOverflowed = false;
         if (!this.sessionKey) {
           this.send({ type: "get_state" });
         }
@@ -266,6 +270,7 @@ export class PiAgent {
         this.setStreaming(false);
         this.eventBuffer = [];
         this.bufferHead = 0;
+        this.hasBufferOverflowed = false;
         break;
     }
 
@@ -302,6 +307,7 @@ export class PiAgent {
     if (this.eventBuffer.length < size) {
       this.eventBuffer.push(obj);
     } else {
+      this.hasBufferOverflowed = true;
       this.eventBuffer[this.bufferHead] = obj;
       this.bufferHead = (this.bufferHead + 1) % size;
     }
@@ -310,31 +316,36 @@ export class PiAgent {
   replayBufferedWs(ws) {
     if (this.eventBuffer.length === 0 || ws.readyState !== 1) return;
     const count = this.eventBuffer.length;
-    try { ws.send(JSON.stringify({ type: "backfill_start", count })); } catch {}
+    try { ws.send(JSON.stringify(createBackfillStartMessage(count))); } catch {}
     const start = count === config.eventBufferSize ? this.bufferHead : 0;
     for (let i = 0; i < count; i++) {
       const idx = (start + i) % config.eventBufferSize;
       const ev = this.eventBuffer[idx];
       try { ws.send(JSON.stringify(ev)); } catch {}
     }
-    try { ws.send(JSON.stringify({ type: "backfill_end", streaming: this.isStreaming, state: this.state })); } catch {}
+    try {
+      ws.send(JSON.stringify(createBackfillEndMessage(this.isStreaming, this.state, this.hasBufferOverflowed)));
+    } catch {}
     if (!this.isStreaming) {
       this.eventBuffer = [];
       this.bufferHead = 0;
+      this.hasBufferOverflowed = false;
     }
   }
 
   replayBufferedSse(res) {
     if (this.eventBuffer.length === 0 || res.destroyed || res.writableEnded) return;
     const count = this.eventBuffer.length;
-    try { res.write(`data: ${JSON.stringify({ type: "backfill_start", count })}\n\n`); } catch {}
+    try { res.write(`data: ${JSON.stringify(createBackfillStartMessage(count))}\n\n`); } catch {}
     const start = count === config.eventBufferSize ? this.bufferHead : 0;
     for (let i = 0; i < count; i++) {
       const idx = (start + i) % config.eventBufferSize;
       const ev = this.eventBuffer[idx];
       try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch {}
     }
-    try { res.write(`data: ${JSON.stringify({ type: "backfill_end", streaming: this.isStreaming, state: this.state })}\n\n`); } catch {}
+    try {
+      res.write(`data: ${JSON.stringify(createBackfillEndMessage(this.isStreaming, this.state, this.hasBufferOverflowed))}\n\n`);
+    } catch {}
   }
 
   broadcast(obj, skipWs = null) {

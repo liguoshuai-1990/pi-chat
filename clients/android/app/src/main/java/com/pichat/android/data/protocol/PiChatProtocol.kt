@@ -87,6 +87,7 @@ data class GenericServerMessage(
     val count: Int? = null,
     val streaming: Boolean? = null,
     val state: String? = null,
+    val overflowed: Boolean? = null,
     val data: JsonElement? = null,
     val error: String? = null,
     val command: String? = null,

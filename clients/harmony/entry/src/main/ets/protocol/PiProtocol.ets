@@ -27,6 +27,7 @@ export namespace PiProtocol {
     count?: number;
     streaming?: boolean;
     state?: string;
+    overflowed?: boolean;
     data?: any;
     error?: string;
   }
