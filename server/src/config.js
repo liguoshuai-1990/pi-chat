@@ -5,6 +5,39 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Auto-load .env file if present in working directory or package roots
+function loadDotEnv() {
+  const envCandidates = [
+    path.join(process.cwd(), ".env"),
+    path.join(__dirname, "../.env"),
+    path.join(__dirname, "../../.env"),
+  ];
+  for (const envPath of envCandidates) {
+    try {
+      if (existsSync(envPath)) {
+        const content = readFileSync(envPath, "utf8");
+        for (const line of content.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#")) continue;
+          const eqIdx = trimmed.indexOf("=");
+          if (eqIdx > 0) {
+            const key = trimmed.slice(0, eqIdx).trim();
+            let val = trimmed.slice(eqIdx + 1).trim();
+            if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+              val = val.slice(1, -1);
+            }
+            if (process.env[key] === undefined) {
+              process.env[key] = val;
+            }
+          }
+        }
+        break;
+      }
+    } catch {}
+  }
+}
+loadDotEnv();
+
 export function home() {
   return os.homedir();
 }
@@ -29,6 +62,7 @@ export function normalizeCwd(dir) {
 
 export function resolvePiBin() {
   if (process.env.PI_BIN && existsSync(process.env.PI_BIN)) return process.env.PI_BIN;
+  const isWin = process.platform === "win32";
   const h = home();
   const candidates = [
     path.join(h, ".npm-global/bin/pi"),
@@ -39,6 +73,16 @@ export function resolvePiBin() {
     "/usr/bin/pi",
     "/opt/homebrew/bin/pi",
   ];
+  if (isWin) {
+    const appData = process.env.APPDATA || path.join(h, "AppData", "Roaming");
+    const localAppData = process.env.LOCALAPPDATA || path.join(h, "AppData", "Local");
+    candidates.unshift(
+      path.join(appData, "npm", "pi.cmd"),
+      path.join(appData, "npm", "pi.exe"),
+      path.join(localAppData, "pnpm", "pi.cmd"),
+      path.join(localAppData, "pnpm", "pi.exe")
+    );
+  }
   for (const c of candidates) if (existsSync(c)) return c;
   return "pi";
 }

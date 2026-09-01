@@ -159,9 +159,11 @@ export class PiAgent {
 
   start() {
     const args = [config.piBin, "--mode", "rpc", "--session-dir", config.sessionsDir];
+    const isWin = process.platform === "win32";
     this.proc = spawn(args[0], args.slice(1), {
       cwd: this.cwd,
       env: { ...process.env, PI_SKIP_VERSION_CHECK: "1" },
+      shell: isWin,
     });
     this.alive = true;
     allAgents.add(this);

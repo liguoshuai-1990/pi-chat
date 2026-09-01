@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.7.0] - 2026-09-01
+
+### Added
+- **网关 REST CORS 跨域支持与预检支持 (`server`)**：
+  - 在 Express 网关服务中增加标准 CORS 拦截器，支持自定义 `ALLOWED_ORIGINS` 配置与通配放行，支持 `OPTIONS` preflight 预检请求与相关请求头（`Authorization`, `Content-Type`, `x-api-token`）。
+- **服务端环境变量自动检测与多宿主兼容 (`server`)**：
+  - 服务端配置模块增加自动检测并读取根目录或包内 `.env` 文件的能力。
+  - 完善 Windows 宿主机上的 `pi` 执行文件解析（`.cmd` / `.exe`）与 `spawn` 平台兼容性。
+- **Web 端 PWA (Progressive Web App) 支持 (`clients/web`)**：
+  - 新增 `manifest.webmanifest` 与高清矢量 `icon.svg`，支持在手机与桌面浏览器中一键“添加到主屏幕”，享受沉浸式应用体验。
+- **移动端指数退避断线重连 (`clients/android` & `clients/harmony`)**：
+  - Android 原生端 (`WebSocketClient.kt`) 与 HarmonyOS 鸿蒙原生端 (`WebSocketManager.ets`) 统一引入 Exponential Backoff + Jitter（指数退避与随机抖动重连算法），有效防止服务端重启或网络抖动时的瞬时并发重连风暴。
+- **CI 工作流强化 (`.github/workflows/ci.yml`)**：
+  - 在 GitHub Actions 中增加 Android 原生端自动化构建与依赖检查（`gradlew assembleDebug`）。
+
+### Changed
+- 全端版本号统一升级至 2.7.0（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.6.0] - 2026-09-01
 
 ### Added

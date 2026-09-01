@@ -126,6 +126,34 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
     await serverInstance.close();
   });
 
+  test("CORS middleware handles cross-origin requests and OPTIONS preflight correctly", async () => {
+    const serverInstance = createServer();
+    const { httpServer } = await serverInstance.listen(0, "127.0.0.1");
+    const port = httpServer.address().port;
+
+    // OPTIONS preflight
+    const optRes = await fetch(`http://127.0.0.1:${port}/api/config`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "http://example.com",
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "authorization,content-type",
+      },
+    });
+    assert.equal(optRes.status, 204);
+    assert.equal(optRes.headers.get("access-control-allow-origin"), "http://example.com");
+    assert.ok(optRes.headers.get("access-control-allow-methods")?.includes("OPTIONS"));
+
+    // GET with origin
+    const getRes = await fetch(`http://127.0.0.1:${port}/api/config`, {
+      headers: { Origin: "http://example.com" },
+    });
+    assert.equal(getRes.status, 200);
+    assert.equal(getRes.headers.get("access-control-allow-origin"), "http://example.com");
+
+    await serverInstance.close();
+  });
+
   test("WebSocket server handles non-object JSON messages safely without crashing", async () => {
     const serverInstance = createServer();
     const { httpServer } = await serverInstance.listen(0, "127.0.0.1");

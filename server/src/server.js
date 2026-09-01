@@ -13,7 +13,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function createServer(options = {}) {
   const app = express();
 
-  // Basic CORS & JSON parser
+  // CORS middleware supporting allowed origins and preflight requests
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      if (config.allowedOrigins) {
+        const allowed = config.allowedOrigins.split(",").map((s) => s.trim().toLowerCase());
+        if (allowed.includes("*") || allowed.includes(origin.toLowerCase())) {
+          res.setHeader("Access-Control-Allow-Origin", origin);
+        }
+      } else {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+      }
+    } else {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-token");
+    res.setHeader("Access-Control-Max-Age", "86400");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
+    next();
+  });
+
+  // JSON parser
   app.use(express.json({ limit: "50mb" }));
 
   // Check static web assets from explicit option, clients/web/public or local public

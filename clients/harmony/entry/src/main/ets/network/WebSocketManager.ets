@@ -12,6 +12,13 @@ export class WebSocketManager {
   private stateListeners: StateCallback[] = [];
   private pingInterval: number = -1;
   private currentUrl: string = '';
+  private reconnectTimer: number = -1;
+  private reconnectAttempts: number = 0;
+  private isManualClose: boolean = false;
+  private lastUrl: string = '';
+  private lastToken?: string;
+  private lastCwd?: string;
+  private lastSession?: string;
 
   public static getInstance(): WebSocketManager {
     if (!WebSocketManager.instance) {
@@ -21,7 +28,13 @@ export class WebSocketManager {
   }
 
   public connect(url: string, token?: string, cwd?: string, session?: string) {
-    this.disconnect();
+    this.isManualClose = false;
+    this.lastUrl = url;
+    this.lastToken = token;
+    this.lastCwd = cwd;
+    this.lastSession = session;
+    this.stopReconnect();
+    this.disconnectInternal();
     this.ws = webSocket.createWebSocket();
 
     let connectUrl = url.replace(/\/$/, '');
@@ -47,6 +60,7 @@ export class WebSocketManager {
 
     this.ws.on('open', (err, value) => {
       this.isConnected = true;
+      this.reconnectAttempts = 0;
       this.notifyState(true);
       this.startHeartbeat();
     });
@@ -64,12 +78,18 @@ export class WebSocketManager {
       this.isConnected = false;
       this.notifyState(false);
       this.stopHeartbeat();
+      if (!this.isManualClose) {
+        this.scheduleReconnect();
+      }
     });
 
     this.ws.on('error', (err) => {
       this.isConnected = false;
       this.notifyState(false);
       this.stopHeartbeat();
+      if (!this.isManualClose) {
+        this.scheduleReconnect();
+      }
     });
 
     this.ws.connect(connectUrl, {
@@ -128,7 +148,27 @@ export class WebSocketManager {
     }
   }
 
-  public disconnect() {
+  private scheduleReconnect() {
+    this.stopReconnect();
+    const baseDelay = 1000 * Math.pow(2, Math.min(this.reconnectAttempts, 5));
+    const jitter = Math.floor(Math.random() * 1000);
+    const delayMs = Math.min(30000, baseDelay + jitter);
+    this.reconnectAttempts++;
+    this.reconnectTimer = setTimeout(() => {
+      if (!this.isManualClose && this.lastUrl) {
+        this.connect(this.lastUrl, this.lastToken, this.lastCwd, this.lastSession);
+      }
+    }, delayMs);
+  }
+
+  private stopReconnect() {
+    if (this.reconnectTimer !== -1) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = -1;
+    }
+  }
+
+  private disconnectInternal() {
     this.stopHeartbeat();
     if (this.ws) {
       try {
@@ -137,6 +177,13 @@ export class WebSocketManager {
       this.ws = null;
     }
     this.isConnected = false;
+  }
+
+  public disconnect() {
+    this.isManualClose = true;
+    this.reconnectAttempts = 0;
+    this.stopReconnect();
+    this.disconnectInternal();
     this.notifyState(false);
   }
 }

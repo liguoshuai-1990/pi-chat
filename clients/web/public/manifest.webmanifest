@@ -1,0 +1,17 @@
+{
+  "name": "pi-chat",
+  "short_name": "pi-chat",
+  "description": "ChatGPT/Gemini style web UI for the pi coding agent",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#18181b",
+  "theme_color": "#18181b",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

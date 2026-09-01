@@ -38,6 +38,7 @@ class WebSocketClient(
 
     private var heartbeatJob: Job? = null
     private var isManualClose = false
+    private var reconnectAttempts = 0
 
     fun connect(cwd: String = "", sessionPath: String? = null) {
         isManualClose = false
@@ -67,6 +68,7 @@ class WebSocketClient(
 
         webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                reconnectAttempts = 0
                 _connectionState.tryEmit(ConnectionState.CONNECTED)
                 startHeartbeat()
             }
@@ -119,7 +121,11 @@ class WebSocketClient(
 
     private fun scheduleReconnect(cwd: String, sessionPath: String?) {
         scope.launch {
-            delay(3000)
+            val baseDelay = (1000L * (1L shl minOf(reconnectAttempts, 5)))
+            val jitter = (0..1000).random().toLong()
+            val delayMs = minOf(30000L, baseDelay + jitter)
+            reconnectAttempts++
+            delay(delayMs)
             if (!isManualClose) {
                 connect(cwd, sessionPath)
             }
@@ -128,6 +134,7 @@ class WebSocketClient(
 
     fun disconnect() {
         isManualClose = true
+        reconnectAttempts = 0
         stopHeartbeat()
         webSocket?.close(1000, "User disconnected")
         webSocket = null
