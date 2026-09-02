@@ -29,6 +29,18 @@ data class ServerConfig(
 )
 
 @Serializable
+data class ModelInfo(
+    val id: String,
+    val name: String? = null,
+    val provider: String? = null,
+    val reasoning: Boolean = false,
+    val supportsImages: Boolean = false,
+    val inputModalities: List<String> = emptyList(),
+    val contextWindow: Long? = null,
+    val isDefault: Boolean = false
+)
+
+@Serializable
 data class ModelSetting(
     val provider: String? = null,
     val id: String? = null,

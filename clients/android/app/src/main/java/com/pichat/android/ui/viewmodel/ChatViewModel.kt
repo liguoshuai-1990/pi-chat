@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pichat.android.data.model.ChatMessage
 import com.pichat.android.data.model.ImageAttachment
+import com.pichat.android.data.model.ModelInfo
+import com.pichat.android.data.model.ServerConfig
 import com.pichat.android.data.model.SessionInfo
 import com.pichat.android.data.network.ConnectionState
 import com.pichat.android.data.repository.ChatRepository
@@ -35,11 +37,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
-    private val _currentSessionTitle = MutableStateFlow("New Chat")
+    private val _currentSessionTitle = MutableStateFlow("新对话")
     val currentSessionTitle: StateFlow<String> = _currentSessionTitle.asStateFlow()
 
     private val _serverUrl = MutableStateFlow(settings.getServerUrl())
     val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
+
+    private val _currentModel = MutableStateFlow<ModelInfo?>(null)
+    val currentModel: StateFlow<ModelInfo?> = _currentModel.asStateFlow()
+
+    private val _availableModels = MutableStateFlow<List<ModelInfo>>(emptyList())
+    val availableModels: StateFlow<List<ModelInfo>> = _availableModels.asStateFlow()
+
+    private val _thinkingLevel = MutableStateFlow("medium")
+    val thinkingLevel: StateFlow<String> = _thinkingLevel.asStateFlow()
+
+    private val _currentCwd = MutableStateFlow("~")
+    val currentCwd: StateFlow<String> = _currentCwd.asStateFlow()
+
+    private val _serverConfig = MutableStateFlow<ServerConfig?>(null)
+    val serverConfig: StateFlow<ServerConfig?> = _serverConfig.asStateFlow()
 
     init {
         bindRepository(repository)
@@ -59,10 +76,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repo.connectionState.collect { _connectionState.value = it }
         }
+        viewModelScope.launch {
+            repo.currentModel.collect { _currentModel.value = it }
+        }
+        viewModelScope.launch {
+            repo.availableModels.collect { _availableModels.value = it }
+        }
+        viewModelScope.launch {
+            repo.thinkingLevel.collect { _thinkingLevel.value = it }
+        }
+        viewModelScope.launch {
+            repo.currentCwd.collect { _currentCwd.value = it }
+        }
+        viewModelScope.launch {
+            repo.serverConfig.collect { _serverConfig.value = it }
+        }
     }
 
     fun sendMessage(text: String, images: List<ImageAttachment> = emptyList()) {
         if (text.isBlank() && images.isEmpty()) return
+        if (_messages.value.isEmpty()) {
+            _currentSessionTitle.value = if (text.length > 20) text.take(20) + "…" else text
+        }
         repository.sendPrompt(text, images)
     }
 
@@ -76,13 +111,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun switchSession(session: SessionInfo) {
-        _currentSessionTitle.value = session.sessionName ?: session.firstUser ?: session.name ?: "Chat"
+        _currentSessionTitle.value = session.sessionName ?: session.firstUser ?: session.name ?: "对话"
         repository.switchSession(session.file)
     }
 
     fun newSession() {
-        _currentSessionTitle.value = "New Chat"
+        _currentSessionTitle.value = "新对话"
         repository.newSession()
+    }
+
+    fun setModel(provider: String, modelId: String) {
+        repository.setModel(provider, modelId)
+    }
+
+    fun setThinkingLevel(level: String) {
+        repository.setThinkingLevel(level)
+    }
+
+    fun changeCwd(newCwd: String) {
+        settings.save(settings.getServerUrl(), settings.getAuthToken(), newCwd)
+        repository.changeCwd(newCwd)
+    }
+
+    fun refreshModels() {
+        repository.fetchAvailableModels()
     }
 
     fun reconnect() {
@@ -99,6 +151,57 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         repository = ChatRepository(settings.getServerUrl(), settings.getAuthToken())
         bindRepository(repository)
         repository.connect(newCwd)
+    }
+
+    fun exportChatMarkdown(): String {
+        val msgs = _messages.value
+        if (msgs.isEmpty()) return ""
+
+        val sb = java.lang.StringBuilder()
+        sb.append("# pi-chat 对话记录\n\n")
+        sb.append("- **会话**: ${_currentSessionTitle.value}\n")
+        val modelName = _currentModel.value?.name ?: _currentModel.value?.id ?: "pi"
+        sb.append("- **模型**: $modelName\n")
+        sb.append("- **工作目录**: ${_currentCwd.value}\n")
+        sb.append("- **导出时间**: ${java.time.LocalDateTime.now()}\n\n")
+        sb.append("---\n\n")
+
+        for (msg in msgs) {
+            when (msg.role) {
+                com.pichat.android.data.model.MessageRole.USER -> {
+                    sb.append("### 👤 User\n\n")
+                    sb.append(msg.content).append("\n\n")
+                    if (msg.images.isNotEmpty()) {
+                        sb.append("*(含 ${msg.images.size} 张图片附件)*\n\n")
+                    }
+                }
+                com.pichat.android.data.model.MessageRole.ASSISTANT -> {
+                    sb.append("### 🤖 pi\n\n")
+                    if (msg.thinkingContent.isNotEmpty()) {
+                        sb.append("> **🧠 思考过程**\n>\n")
+                        msg.thinkingContent.lines().forEach { line ->
+                            sb.append("> ").append(line).append("\n")
+                        }
+                        sb.append("\n")
+                    }
+                    if (msg.toolCalls.isNotEmpty()) {
+                        for (tc in msg.toolCalls) {
+                            sb.append("```tool:").append(tc.name).append("\n")
+                            if (tc.args.isNotEmpty()) sb.append(tc.args).append("\n")
+                            if (tc.output.isNotEmpty()) {
+                                sb.append("--- 输出 ---\n").append(tc.output).append("\n")
+                            }
+                            sb.append("```\n\n")
+                        }
+                    }
+                    if (msg.content.isNotEmpty()) {
+                        sb.append(msg.content).append("\n\n")
+                    }
+                }
+                else -> {}
+            }
+        }
+        return sb.toString().trim()
     }
 
     override fun onCleared() {

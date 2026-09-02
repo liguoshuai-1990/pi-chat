@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.10.0] - 2026-09-02
+
+### Added & Aligned
+- **Android 原生客户端与移动 Web 端全要素对齐 (`clients/android`)**：
+  - **顶部栏元素完整对齐 (TopBar Alignment)**：
+    - 新增 **工作目录胶囊按钮 (CWD Pill)**：展示当前工作目录，点击弹出工作目录切换对话框（包含路径输入与 `~`, `~/.pi`, `/tmp` 快捷芯片）。
+    - 新增 **模型选择胶囊按钮 (Model Pill)**：展示当前模型名称与 `★ 默认` 徽章，点击弹出支持搜索、厂商归类、能力标签（🧠 推理、👁️ 视觉、🛠️ 工具）的模型选择对话框。
+    - 新增 **深度思考级别胶囊按钮 (Thinking Pill)**：展示当前思考深度，点击弹出 `Off`、`Minimal`、`Low`、`Medium`、`High`、`Max` 等推理级别选择对话框。
+    - 新增 **会话导出按钮 (Export Chat)**：一键将完整对话导出为标准 Markdown 格式并唤起系统分享。
+    - **设置入口单点统一**：移除侧边抽屉顶部多余的重复设置按钮，保留顶部栏统一单一设置入口，避免操作歧义。
+  - **空白引导页全要素对齐 (Empty State Alignment)**：
+    - 引入 `π` 经典头像与提示文案。
+    - 引入 **当前模型信息横幅 (Empty Model Banner)**：展示当前模型名称、默认徽章、🧠 思考 / 👁️ 视觉 / 🛠️ 工具能力标签及“切换模型”快捷按钮。
+    - 引入 **快捷指令芯片 (Suggestion Chips)**：提供“列出当前目录文件”、“总结这个项目”、“代码审查”等一键触发指令。
+  - **底部输入区域与富文本展示对齐 (Composer & Message Bubbles)**：
+    - 增加待发送附件预览栏（带缩略图与删除 `✕` 按钮）。
+    - 增加图片全屏查看画廊模式 (Image Lightbox Modal)。
+    - 助手回复内容 Markdown 解析优化，代码块增加语言标签与“复制代码”独立按钮。
+    - 增加底部操作提示文案：“pi 会执行命令与读写你的文件 —— 请注意操作内容。”
+
+### Changed
+- 全端版本号统一递增至 2.10.0（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.9.1] - 2026-09-02
 
 ### Fixed & Optimized

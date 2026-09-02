@@ -4,6 +4,8 @@ import com.pichat.android.data.model.ChatMessage
 import com.pichat.android.data.model.ImageAttachment
 import com.pichat.android.data.model.MessageRole
 import com.pichat.android.data.model.MessageStatus
+import com.pichat.android.data.model.ModelInfo
+import com.pichat.android.data.model.ServerConfig
 import com.pichat.android.data.model.SessionInfo
 import com.pichat.android.data.model.ToolCall
 import com.pichat.android.data.model.ToolCallState
@@ -17,12 +19,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
@@ -47,11 +51,34 @@ class ChatRepository(
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
-    private var currentCwd: String = ""
+    private val _currentModel = MutableStateFlow<ModelInfo?>(null)
+    val currentModel: StateFlow<ModelInfo?> = _currentModel.asStateFlow()
+
+    private val _availableModels = MutableStateFlow<List<ModelInfo>>(emptyList())
+    val availableModels: StateFlow<List<ModelInfo>> = _availableModels.asStateFlow()
+
+    private val _thinkingLevel = MutableStateFlow("medium")
+    val thinkingLevel: StateFlow<String> = _thinkingLevel.asStateFlow()
+
+    private val _currentCwd = MutableStateFlow("~")
+    val currentCwd: StateFlow<String> = _currentCwd.asStateFlow()
+
+    private val _serverConfig = MutableStateFlow<ServerConfig?>(null)
+    val serverConfig: StateFlow<ServerConfig?> = _serverConfig.asStateFlow()
+
+    private var activeCwd: String = ""
 
     init {
         scope.launch {
-            wsClient.connectionState.collect { _connectionState.value = it }
+            wsClient.connectionState.collect { state ->
+                _connectionState.value = state
+                if (state == ConnectionState.CONNECTED) {
+                    fetchConfig()
+                    fetchState()
+                    fetchAvailableModels()
+                    loadSessions()
+                }
+            }
         }
         scope.launch {
             wsClient.incomingMessages.collect { msg ->
@@ -61,7 +88,10 @@ class ChatRepository(
     }
 
     fun connect(cwd: String = "", sessionPath: String? = null) {
-        currentCwd = cwd
+        activeCwd = cwd
+        if (cwd.isNotEmpty()) {
+            _currentCwd.value = cwd
+        }
         wsClient.connect(cwd, sessionPath)
         loadSessions()
     }
@@ -70,8 +100,72 @@ class ChatRepository(
         wsClient.disconnect()
     }
 
+    fun fetchConfig() {
+        scope.launch {
+            val result = apiService.getConfig()
+            result.onSuccess { cfg ->
+                _serverConfig.value = cfg
+                if (_currentModel.value == null && cfg.defaultModel != null) {
+                    val def = cfg.defaultModel
+                    if (!def.id.isNullOrEmpty()) {
+                        _currentModel.value = ModelInfo(
+                            id = def.id,
+                            name = def.id,
+                            provider = def.provider,
+                            isDefault = true
+                        )
+                    }
+                    if (!def.thinkingLevel.isNullOrEmpty()) {
+                        _thinkingLevel.value = def.thinkingLevel
+                    }
+                }
+            }
+        }
+    }
+
+    fun fetchState() {
+        wsClient.sendRaw("""{"type":"get_state"}""")
+    }
+
+    fun fetchAvailableModels() {
+        wsClient.sendRaw("""{"type":"get_available_models"}""")
+    }
+
+    fun setModel(provider: String, modelId: String) {
+        val payload = buildJsonObject {
+            put("type", "set_model")
+            put("provider", provider)
+            put("modelId", modelId)
+        }
+        wsClient.sendRaw(payload.toString())
+        // Optimistically update local model
+        val found = _availableModels.value.find { it.id == modelId && (it.provider == null || it.provider == provider) }
+        if (found != null) {
+            _currentModel.value = found
+        } else {
+            _currentModel.value = ModelInfo(id = modelId, name = modelId, provider = provider)
+        }
+    }
+
+    fun setThinkingLevel(level: String) {
+        _thinkingLevel.value = level
+        val payload = buildJsonObject {
+            put("type", "set_thinking_level")
+            put("level", level)
+        }
+        wsClient.sendRaw(payload.toString())
+    }
+
+    fun changeCwd(newCwd: String) {
+        activeCwd = newCwd
+        _currentCwd.value = newCwd.ifEmpty { "~" }
+        _messages.value = emptyList()
+        disconnect()
+        connect(cwd = newCwd)
+    }
+
     fun loadSessions() {
-        val cwd = currentCwd
+        val cwd = activeCwd
         scope.launch {
             val result = apiService.getSessions(cwd)
             result.onSuccess { res ->
@@ -189,7 +283,7 @@ class ChatRepository(
                         var thinkingContent = ""
                         val toolCallsList = mutableListOf<ToolCall>()
 
-                        if (m.content is kotlinx.serialization.json.JsonArray) {
+                        if (m.content is JsonArray) {
                             for (item in m.content) {
                                 if (item is JsonObject) {
                                     val type = item["type"]?.let { (it as? JsonPrimitive)?.content }
@@ -250,21 +344,21 @@ class ChatRepository(
         }
     }
 
-    private fun extractJsonText(elem: kotlinx.serialization.json.JsonElement?): String {
+    private fun extractJsonText(elem: JsonElement?): String {
         if (elem == null) return ""
-        if (elem is kotlinx.serialization.json.JsonPrimitive) {
+        if (elem is JsonPrimitive) {
             return elem.content
         }
-        if (elem is kotlinx.serialization.json.JsonArray) {
+        if (elem is JsonArray) {
             val sb = StringBuilder()
             for (item in elem) {
-                if (item is kotlinx.serialization.json.JsonObject) {
-                    val type = item["type"]?.let { if (it is kotlinx.serialization.json.JsonPrimitive) it.content else "" }
+                if (item is JsonObject) {
+                    val type = item["type"]?.let { if (it is JsonPrimitive) it.content else "" }
                     if (type == "text") {
-                        val text = item["text"]?.let { if (it is kotlinx.serialization.json.JsonPrimitive) it.content else "" } ?: ""
+                        val text = item["text"]?.let { if (it is JsonPrimitive) it.content else "" } ?: ""
                         sb.append(text)
                     }
-                } else if (item is kotlinx.serialization.json.JsonPrimitive) {
+                } else if (item is JsonPrimitive) {
                     sb.append(item.content)
                 }
             }
@@ -279,20 +373,92 @@ class ChatRepository(
             put("type", "new_session")
         }
         wsClient.sendRaw(payload.toString())
-        // Refresh the session list immediately so a newly created session
-        // shows up in the sidebar without waiting for a reconnect.
         loadSessions()
     }
 
+    private fun parseModelInfo(obj: JsonObject?): ModelInfo? {
+        if (obj == null) return null
+        val id = (obj["id"] as? JsonPrimitive)?.content ?: return null
+        val name = (obj["name"] as? JsonPrimitive)?.content ?: id
+        val provider = (obj["provider"] as? JsonPrimitive)?.content
+        val reasoning = (obj["reasoning"] as? JsonPrimitive)?.booleanOrNull ?: false
+        val supportsImages = (obj["supportsImages"] as? JsonPrimitive)?.booleanOrNull ?: false
+        val contextWindow = (obj["contextWindow"] as? JsonPrimitive)?.longOrNull
+        val modalities = mutableListOf<String>()
+        (obj["inputModalities"] as? JsonArray)?.forEach {
+            (it as? JsonPrimitive)?.content?.let { m -> modalities.add(m) }
+        }
+        return ModelInfo(
+            id = id,
+            name = name,
+            provider = provider,
+            reasoning = reasoning,
+            supportsImages = supportsImages || modalities.contains("image"),
+            inputModalities = modalities,
+            contextWindow = contextWindow
+        )
+    }
+
     private fun handleServerMessage(msg: GenericServerMessage) {
-        // Pi allocates a session file (nested under data.sessionFile) once the
-        // first prompt of a new conversation is persisted. React to it right away
-        // so the sidebar list updates immediately.
         if (extractSessionFile(msg) != null) {
             loadSessions()
         }
 
         when (msg.type) {
+            "response" -> {
+                when (msg.command) {
+                    "get_state" -> {
+                        val dataObj = msg.data as? JsonObject
+                        if (dataObj != null) {
+                            val modelObj = dataObj["model"] as? JsonObject
+                            val parsedModel = parseModelInfo(modelObj)
+                            if (parsedModel != null) {
+                                _currentModel.value = parsedModel
+                            }
+                            val th = (dataObj["thinkingLevel"] as? JsonPrimitive)?.content
+                            if (!th.isNullOrEmpty()) {
+                                _thinkingLevel.value = th
+                            }
+                            val cwd = (dataObj["cwd"] as? JsonPrimitive)?.content
+                            if (!cwd.isNullOrEmpty()) {
+                                _currentCwd.value = cwd
+                            }
+                        }
+                    }
+                    "get_available_models" -> {
+                        val dataObj = msg.data as? JsonObject
+                        val modelsArr = dataObj?.get("models") as? JsonArray
+                        if (modelsArr != null) {
+                            val list = mutableListOf<ModelInfo>()
+                            for (item in modelsArr) {
+                                val m = parseModelInfo(item as? JsonObject)
+                                if (m != null) list.add(m)
+                            }
+                            _availableModels.value = list
+                        }
+                    }
+                    "set_model" -> {
+                        if (msg.success == true) {
+                            val modelObj = msg.data as? JsonObject
+                            val parsedModel = parseModelInfo(modelObj)
+                            if (parsedModel != null) {
+                                _currentModel.value = parsedModel
+                            }
+                        }
+                    }
+                    "set_thinking_level" -> {
+                        // Confirmed on server
+                    }
+                    "cycle_thinking_level" -> {
+                        val dataObj = msg.data as? JsonObject
+                        val level = (dataObj?.get("level") as? JsonPrimitive)?.content
+                            ?: (dataObj?.get("thinkingLevel") as? JsonPrimitive)?.content
+                        if (!level.isNullOrEmpty()) {
+                            _thinkingLevel.value = level
+                        }
+                    }
+                }
+            }
             "agent_start" -> {
                 _isStreaming.value = true
                 val list = _messages.value.toMutableList()
@@ -332,7 +498,6 @@ class ChatRepository(
             "agent_end", "agent_settled", "error", "pi_exit" -> {
                 _isStreaming.value = false
                 markLastMessageDone()
-                // Session titles may change after the agent settles.
                 loadSessions()
             }
             "remote_user_prompt" -> {
@@ -422,85 +587,100 @@ class ChatRepository(
         if (idx == -1) return
         val message = list[idx]
         val toolCalls = message.toolCalls.toMutableList()
-        val ti = toolCalls.indexOfFirst { it.id == id }
-        if (ti != -1 && output.isNotEmpty()) {
-            toolCalls[ti] = toolCalls[ti].copy(output = output)
-            list[idx] = message.copy(toolCalls = toolCalls)
-            _messages.value = list
-        }
+        val tcIdx = toolCalls.indexOfFirst { it.id == id }
+        if (tcIdx == -1) return
+        toolCalls[tcIdx] = toolCalls[tcIdx].copy(output = output)
+        list[idx] = message.copy(toolCalls = toolCalls)
+        _messages.value = list
     }
 
-    private fun finishToolCall(id: String, output: String, isError: Boolean) {
+    private fun finishToolCall(id: String, result: String, isError: Boolean) {
         val list = _messages.value.toMutableList()
         val idx = indexOfLastAssistantMessage()
         if (idx == -1) return
         val message = list[idx]
         val toolCalls = message.toolCalls.toMutableList()
-        val ti = toolCalls.indexOfFirst { it.id == id }
-        if (ti != -1) {
-            val tc = toolCalls[ti]
-            val now = System.currentTimeMillis()
-            val duration = now - tc.startedAt
-            toolCalls[ti] = tc.copy(
-                output = if (output.isNotEmpty()) output else tc.output,
-                state = if (isError) ToolCallState.ERROR else ToolCallState.DONE,
-                endedAt = now,
-                durationMs = duration
-            )
-            list[idx] = message.copy(toolCalls = toolCalls)
-            _messages.value = list
-        }
+        val tcIdx = toolCalls.indexOfFirst { it.id == id }
+        if (tcIdx == -1) return
+        val now = System.currentTimeMillis()
+        val tc = toolCalls[tcIdx]
+        val duration = if (tc.startedAt > 0) now - tc.startedAt else null
+        toolCalls[tcIdx] = tc.copy(
+            output = result,
+            state = if (isError) ToolCallState.ERROR else ToolCallState.DONE,
+            endedAt = now,
+            durationMs = duration
+        )
+        list[idx] = message.copy(toolCalls = toolCalls)
+        _messages.value = list
     }
 
     private fun updateLastAssistantMessage(delta: String, isThinking: Boolean) {
         val list = _messages.value.toMutableList()
-        var lastIdx = list.indexOfLast { it.role == MessageRole.ASSISTANT && it.status == MessageStatus.STREAMING }
-        if (lastIdx == -1) {
-            val newAssistant = ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING, turnStartedAt = System.currentTimeMillis())
-            list.add(newAssistant)
-            lastIdx = list.size - 1
-        }
-
-        val last = list[lastIdx]
+        var idx = indexOfLastAssistantMessage()
         val now = System.currentTimeMillis()
-        val updated = if (isThinking) {
-            val start = last.thinkingStartedAt ?: now
-            last.copy(
-                thinkingContent = last.thinkingContent + delta,
-                isThinking = true,
-                thinkingStartedAt = start,
-                thinkingDurationMs = now - start,
-                status = MessageStatus.STREAMING
+        if (idx == -1) {
+            list.add(
+                ChatMessage(
+                    role = MessageRole.ASSISTANT,
+                    content = if (isThinking) "" else delta,
+                    thinkingContent = if (isThinking) delta else "",
+                    isThinking = isThinking,
+                    thinkingStartedAt = if (isThinking) now else null,
+                    status = MessageStatus.STREAMING,
+                    turnStartedAt = now
+                )
             )
         } else {
-            val thinkingEnd = if (last.isThinking) now else last.thinkingEndedAt
-            val thinkingDur = if (last.isThinking) now - (last.thinkingStartedAt ?: last.timestamp) else last.thinkingDurationMs
-            last.copy(
-                content = last.content + delta,
-                isThinking = false,
-                thinkingEndedAt = thinkingEnd,
-                thinkingDurationMs = thinkingDur,
-                status = MessageStatus.STREAMING
-            )
+            val last = list[idx]
+            if (isThinking) {
+                val startTs = last.thinkingStartedAt ?: now
+                list[idx] = last.copy(
+                    thinkingContent = last.thinkingContent + delta,
+                    isThinking = true,
+                    thinkingStartedAt = startTs,
+                    status = MessageStatus.STREAMING
+                )
+            } else {
+                val endTs = if (last.isThinking) now else last.thinkingEndedAt
+                val thinkingDuration = if (last.isThinking && last.thinkingStartedAt != null) {
+                    now - last.thinkingStartedAt
+                } else {
+                    last.thinkingDurationMs
+                }
+                list[idx] = last.copy(
+                    content = last.content + delta,
+                    isThinking = false,
+                    thinkingEndedAt = endTs,
+                    thinkingDurationMs = thinkingDuration,
+                    status = MessageStatus.STREAMING
+                )
+            }
         }
-        list[lastIdx] = updated
         _messages.value = list
     }
 
     private fun markLastMessageDone() {
         val list = _messages.value.toMutableList()
-        if (list.isEmpty()) return
-        val lastIdx = list.indexOfLast { it.role == MessageRole.ASSISTANT }
-        if (lastIdx != -1) {
-            val last = list[lastIdx]
+        val idx = indexOfLastAssistantMessage()
+        if (idx != -1) {
             val now = System.currentTimeMillis()
-            val turnDur = now - (last.turnStartedAt ?: last.timestamp)
-            val thinkingDur = last.thinkingDurationMs ?: if (last.thinkingContent.isNotEmpty()) ((last.thinkingEndedAt ?: now) - (last.thinkingStartedAt ?: last.timestamp)) else null
-            list[lastIdx] = last.copy(
+            val last = list[idx]
+            val thinkingDuration = if (last.isThinking && last.thinkingStartedAt != null) {
+                now - last.thinkingStartedAt
+            } else {
+                last.thinkingDurationMs
+            }
+            val turnDuration = if (last.turnStartedAt != null && now >= last.turnStartedAt) {
+                now - last.turnStartedAt
+            } else {
+                last.turnDurationMs
+            }
+            list[idx] = last.copy(
                 status = MessageStatus.DONE,
                 isThinking = false,
-                turnDurationMs = turnDur,
-                thinkingDurationMs = thinkingDur
+                thinkingDurationMs = thinkingDuration,
+                turnDurationMs = turnDuration
             )
             _messages.value = list
         }
