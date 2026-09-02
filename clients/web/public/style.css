@@ -578,6 +578,15 @@ body {
   letter-spacing: 0;
   user-select: none;
 }
+.thinking-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.tool-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .msg.assistant .content {
   font-size: 15px; line-height: 1.65; color: var(--text);
   max-width: 100%; min-width: 0;

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.8.0] - 2026-09-02
+
+### Added
+- 前端思考过程与工具调用块时间戳显示：在思考过程块和工具调用块中添加时间戳，格式为当天 HH:mm，跨天 MM-dd HH:mm。
+
 ## [2.7.0] - 2026-09-01
 
 ### Added

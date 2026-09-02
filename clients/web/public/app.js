@@ -1288,7 +1288,7 @@ function renderAssistantBlock(m) {
       const div = el("div", { html: renderMarkdown(c.text) });
       content.appendChild(div);
     } else if (c.type === "thinking") {
-      content.appendChild(makeThinkingBlock(c.thinking));
+      content.appendChild(makeThinkingBlock(c.thinking, false, m.ts));
     } else if (c.type === "toolCall") {
       content.appendChild(makeToolBlockFromCall(c));
     }
@@ -1300,7 +1300,7 @@ function renderAssistantBlock(m) {
   return node;
 }
 
-function makeThinkingBlock(thinkingText, isActivelyThinking = false) {
+function makeThinkingBlock(thinkingText, isActivelyThinking = false, ts = null) {
   const block = el("div", { class: "thinking-block" + (isActivelyThinking ? " active" : "") });
   const head = el("div", {
     class: "thinking-head",
@@ -1312,18 +1312,19 @@ function makeThinkingBlock(thinkingText, isActivelyThinking = false) {
     }
   }, [
     el("span", { class: "thinking-title", text: isActivelyThinking ? "💭 正在思考中…" : "💭 思考过程" }),
+    ts ? el("span", { class: "thinking-time", text: formatMessageTime(ts) }) : null,
     isActivelyThinking ? el("span", { class: "thinking-pulse" }) : null,
     el("span", { class: "thinking-toggle-hint", text: "(点击展开/收起)" }),
   ]);
-  
+
   const body = el("div", { class: "thinking-body", html: escapeHtml(thinkingText) });
-  
+
   if (state.thinkingUserToggled) {
     body.style.display = state.thinkingOpen ? "block" : "none";
   } else {
     body.style.display = isActivelyThinking ? "block" : "none";
   }
-  
+
   block.appendChild(head);
   block.appendChild(body);
   return block;
@@ -1375,7 +1376,7 @@ function updateToolBlockCopyBtn(tc, call) {
   tc.head._cmdToCopy = cmd;
 }
 
-function makeToolBlockFromCall(call) {
+function makeToolBlockFromCall(call, ts = null) {
   const block = el("div", { class: "tool-block" });
   const hasResult = Boolean(call.result);
   const isError = call.result ? Boolean(call.result.isError) : false;
@@ -1414,6 +1415,7 @@ function makeToolBlockFromCall(call) {
   const head = el("div", { class: "tool-head" }, [
     el("span", { class: "ic", text: "⚙" }),
     el("span", { class: "name", text: call.name }),
+    ts ? el("span", { class: "tool-time", text: formatMessageTime(ts) }) : null,
     el("span", { class: "args", text: summaryArgs(call.name, call.arguments) }),
     copyBtn,
     el("span", { class: stateClass, text: stateText }),
@@ -1555,7 +1557,7 @@ function refreshStreamingContent() {
     const isLast = (i === lastIdx);
     if (item.type === "thinking") {
       const isActivelyThinking = state.streaming && isLast;
-      content.appendChild(makeThinkingBlock(item.text, isActivelyThinking));
+      content.appendChild(makeThinkingBlock(item.text, isActivelyThinking, item.ts));
     } else if (item.type === "tool") {
       if (item.tc?.block) content.appendChild(item.tc.block);
     } else if (item.type === "text") {
@@ -2001,22 +2003,26 @@ function handlePiMessage(obj) {
           if (last && last.type === "thinking") {
             last.text += ev.delta;
           } else {
-            state.streamingItems.push({ type: "thinking", text: ev.delta });
+            state.streamingItems.push({ type: "thinking", text: ev.delta, ts: Date.now() });
           }
           refreshStreamingContentDebounced();
+        } else if (ev.type === "thinking_start") {
+          state.streamingItems.push({ type: "thinking", text: "", ts: Date.now() });
+          refreshStreamingContentDebounced();
         }
+        // thinking_end: ignore
       } else if (ev.type === "toolcall_start") {
         ensureStreamingMsg();
         const call = ev.toolCall || { id: obj.toolCallId || ev.id, name: obj.toolName, arguments: obj.args };
         // args may be incomplete until toolcall_end; we fill what we have now
         // and patch the head display on toolcall_end.
-        ensureToolBlock(call.id, call.name, call.arguments);
+        ensureToolBlock(call.id, call.name, call.arguments, Date.now());
       } else if (ev.type === "toolcall_delta") {
         // Streaming function-call argument JSON. We don't render it live
         // (JSON fragments are not useful UX), but make sure the tool block
         // exists so toolcall_end has somewhere to write into.
         const id = obj.toolCallId || ev.id;
-        ensureToolBlock(id, obj.toolName || ev.toolCall?.name, obj.args);
+        ensureToolBlock(id, obj.toolName || ev.toolCall?.name, obj.args, Date.now());
       } else if (ev.type === "toolcall_end") {
         // Authoritative final toolCall object (with full arguments). Patch
         // the block head so the displayed args are the final ones, not the
@@ -2034,7 +2040,7 @@ function handlePiMessage(obj) {
     }
     case "tool_execution_start": {
       ensureStreamingMsg();
-      const tc = ensureToolBlock(obj.toolCallId, obj.toolName, obj.args);
+      const tc = ensureToolBlock(obj.toolCallId, obj.toolName, obj.args, Date.now());
       if (tc) updateToolBlockCopyBtn(tc, { name: obj.toolName, arguments: obj.args });
       break;
     }
@@ -2116,9 +2122,9 @@ function handleExtensionUiRequest(req) {
   }
 }
 
-function ensureToolBlock(toolCallId, name, args) {
+function ensureToolBlock(toolCallId, name, args, ts = Date.now()) {
   if (state.activeToolCalls.has(toolCallId)) return state.activeToolCalls.get(toolCallId);
-  const block = makeToolBlockFromCall({ id: toolCallId, name, arguments: args });
+  const block = makeToolBlockFromCall({ id: toolCallId, name, arguments: args }, ts);
   const entry = state.activeToolCalls.get(toolCallId) || { block, body: block._body, head: block._head };
   state.activeToolCalls.set(toolCallId, entry);
   state.streamingItems.push({ type: "tool", id: toolCallId, tc: entry });
