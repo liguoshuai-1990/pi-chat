@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.9.0] - 2026-09-02
+
+### Added
+- **思考耗时与执行耗时多端展示特性 (Thinking & Execution Duration Display)**：
+  - **Web 端 (`clients/web`)**：
+    - 思考过程块 (`.thinking-block`)：流式思考进行中实时显示动态耗时（例如 `3.2s`），思考完成显示完整用时徽章（例如 `用时 3.2s`）。
+    - 工具执行块 (`.tool-block`)：执行中显示动态计时（例如 `执行中 · 1.2s`），执行完毕显示最终耗时（例如 `完成 · 1.2s` 或 `错误 · 0.8s`）。
+    - 助手回复消息头部 (`.role-tag`)：实时显示本次回答生成总耗时，并在生成完成后展示总耗时（例如 `耗时 4.5s`）。
+    - 历史会话加载 (`reconstructFromEntries`)：支持自动从历史日志计算各工具调用耗时与助手生成总耗时并渲染。
+  - **Android 原生端 (`clients/android`)**：
+    - `ChatMessage` 与 `ToolCall` 模型扩充思考用时 (`thinkingDurationMs`) 与执行耗时 (`durationMs`, `turnDurationMs`) 属性。
+    - Compose 界面中的 `ThinkingBlock`、`ToolCallBlock` 以及 `MessageBubble` 均支持清晰展示思考耗时、工具执行耗时与回答生成总用时。
+    - 历史会话加载支持还原思考与工具执行耗时。
+  - **HarmonyOS 鸿蒙原生端 (`clients/harmony`)**：
+    - `ChatMessage` 增加 `thinkingDuration` 与 `turnDuration` 属性支持。
+    - `Index.ets` 在思考过程与助手回复头部优雅展示思考耗时与执行总耗时。
+  - **跨端协议与公共库 (`@liguoshuai/pi-chat-protocol`)**：
+    - 新增跨端标准耗时格式化函数 `formatDuration(ms)` 与单元测试。
+
+### Changed
+- 全端版本号统一升级至 2.9.0（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.8.0] - 2026-09-02
 
 ### Added

@@ -90,7 +90,8 @@ class ChatRepository(
         val assistantMsg = ChatMessage(
             role = MessageRole.ASSISTANT,
             content = "",
-            status = MessageStatus.STREAMING
+            status = MessageStatus.STREAMING,
+            turnStartedAt = System.currentTimeMillis()
         )
 
         _messages.value = _messages.value + userMsg + assistantMsg
@@ -145,25 +146,103 @@ class ChatRepository(
         scope.launch {
             val result = apiService.getSession(sessionPath)
             result.onSuccess { detail ->
-                val reconstructed = mutableListOf<ChatMessage>()
+                val toolResults = mutableMapOf<String, Pair<String, Long?>>()
                 for (entry in detail.entries) {
                     if (entry.type != "message") continue
                     val m = entry.message ?: continue
-                    val role = when (m.role) {
-                        "user" -> MessageRole.USER
-                        "assistant" -> MessageRole.ASSISTANT
-                        else -> continue
+                    if (m.role == "toolResult" && m.toolCallId != null) {
+                        val outText = extractResultText(m.content)
+                        val resTs = m.timestamp
+                        toolResults[m.toolCallId] = Pair(outText, resTs)
                     }
-                    val text = extractJsonText(m.content)
-                    if (text.isNotEmpty()) {
-                        reconstructed.add(
-                            ChatMessage(
-                                role = role,
-                                content = text,
-                                status = MessageStatus.DONE,
-                                timestamp = m.timestamp ?: System.currentTimeMillis()
+                }
+
+                val reconstructed = mutableListOf<ChatMessage>()
+                var lastUserTs: Long? = null
+
+                for (entry in detail.entries) {
+                    if (entry.type != "message") continue
+                    val m = entry.message ?: continue
+                    val msgTs = m.timestamp ?: System.currentTimeMillis()
+                    if (m.role == "user") {
+                        lastUserTs = msgTs
+                        val text = extractJsonText(m.content)
+                        if (text.isNotEmpty()) {
+                            reconstructed.add(
+                                ChatMessage(
+                                    role = MessageRole.USER,
+                                    content = text,
+                                    status = MessageStatus.DONE,
+                                    timestamp = msgTs
+                                )
                             )
-                        )
+                        }
+                    } else if (m.role == "assistant") {
+                        var turnDuration: Long? = null
+                        if (lastUserTs != null && msgTs >= lastUserTs) {
+                            val diff = msgTs - lastUserTs
+                            if (diff in 1..900000) {
+                                turnDuration = diff
+                            }
+                        }
+                        var textContent = ""
+                        var thinkingContent = ""
+                        val toolCallsList = mutableListOf<ToolCall>()
+
+                        if (m.content is kotlinx.serialization.json.JsonArray) {
+                            for (item in m.content) {
+                                if (item is JsonObject) {
+                                    val type = item["type"]?.let { (it as? JsonPrimitive)?.content }
+                                    when (type) {
+                                        "text" -> {
+                                            val t = item["text"]?.let { (it as? JsonPrimitive)?.content } ?: ""
+                                            textContent += t
+                                        }
+                                        "thinking" -> {
+                                            val th = item["thinking"]?.let { (it as? JsonPrimitive)?.content } ?: ""
+                                            thinkingContent += th
+                                        }
+                                        "toolCall" -> {
+                                            val tcId = item["id"]?.let { (it as? JsonPrimitive)?.content } ?: ""
+                                            val tcName = item["name"]?.let { (it as? JsonPrimitive)?.content } ?: ""
+                                            val tcArgs = jsonToString(item["arguments"])
+                                            val (tcOutput, tcResTs) = toolResults[tcId] ?: Pair("", null)
+                                            val tcDuration = if (tcResTs != null && tcResTs >= msgTs) tcResTs - msgTs else null
+                                            toolCallsList.add(
+                                                ToolCall(
+                                                    id = tcId,
+                                                    name = tcName,
+                                                    args = tcArgs,
+                                                    output = tcOutput,
+                                                    state = ToolCallState.DONE,
+                                                    startedAt = msgTs,
+                                                    endedAt = tcResTs,
+                                                    durationMs = tcDuration
+                                                )
+                                            )
+                                        }
+                                    }
+                                } else if (item is JsonPrimitive) {
+                                    textContent += item.content
+                                }
+                            }
+                        } else if (m.content is JsonPrimitive) {
+                            textContent = m.content.content
+                        }
+
+                        if (textContent.isNotEmpty() || thinkingContent.isNotEmpty() || toolCallsList.isNotEmpty()) {
+                            reconstructed.add(
+                                ChatMessage(
+                                    role = MessageRole.ASSISTANT,
+                                    content = textContent,
+                                    thinkingContent = thinkingContent,
+                                    toolCalls = toolCallsList,
+                                    status = MessageStatus.DONE,
+                                    timestamp = msgTs,
+                                    turnDurationMs = turnDuration
+                                )
+                            )
+                        }
                     }
                 }
                 _messages.value = reconstructed
@@ -218,7 +297,7 @@ class ChatRepository(
                 _isStreaming.value = true
                 val list = _messages.value.toMutableList()
                 if (list.isEmpty() || list.last().role != MessageRole.ASSISTANT || list.last().status != MessageStatus.STREAMING) {
-                    list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING))
+                    list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING, turnStartedAt = System.currentTimeMillis()))
                     _messages.value = list
                 }
                 loadSessions()
@@ -268,7 +347,8 @@ class ChatRepository(
                     val assistantMsg = ChatMessage(
                         role = MessageRole.ASSISTANT,
                         content = "",
-                        status = MessageStatus.STREAMING
+                        status = MessageStatus.STREAMING,
+                        turnStartedAt = System.currentTimeMillis()
                     )
                     _messages.value = _messages.value + userMsg + assistantMsg
                     _isStreaming.value = true
@@ -313,20 +393,21 @@ class ChatRepository(
         val list = _messages.value.toMutableList()
         var idx = indexOfLastAssistantMessage()
         if (idx == -1) {
-            list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING))
+            list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING, turnStartedAt = System.currentTimeMillis()))
             idx = list.size - 1
         } else {
             val last = list[idx]
             if (last.status != MessageStatus.STREAMING) {
-                list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING))
+                list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING, turnStartedAt = System.currentTimeMillis()))
                 idx = list.size - 1
             }
         }
         val message = list[idx]
         val toolCalls = message.toolCalls.toMutableList()
         val existing = toolCalls.indexOfFirst { it.id == id }
+        val now = System.currentTimeMillis()
         if (existing == -1) {
-            toolCalls.add(ToolCall(id = id, name = name, args = args))
+            toolCalls.add(ToolCall(id = id, name = name, args = args, startedAt = now))
         } else {
             toolCalls[existing] = toolCalls[existing].copy(name = name, args = args)
         }
@@ -358,10 +439,13 @@ class ChatRepository(
         val ti = toolCalls.indexOfFirst { it.id == id }
         if (ti != -1) {
             val tc = toolCalls[ti]
+            val now = System.currentTimeMillis()
+            val duration = now - tc.startedAt
             toolCalls[ti] = tc.copy(
                 output = if (output.isNotEmpty()) output else tc.output,
                 state = if (isError) ToolCallState.ERROR else ToolCallState.DONE,
-                endedAt = System.currentTimeMillis()
+                endedAt = now,
+                durationMs = duration
             )
             list[idx] = message.copy(toolCalls = toolCalls)
             _messages.value = list
@@ -372,22 +456,30 @@ class ChatRepository(
         val list = _messages.value.toMutableList()
         var lastIdx = list.indexOfLast { it.role == MessageRole.ASSISTANT && it.status == MessageStatus.STREAMING }
         if (lastIdx == -1) {
-            val newAssistant = ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING)
+            val newAssistant = ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING, turnStartedAt = System.currentTimeMillis())
             list.add(newAssistant)
             lastIdx = list.size - 1
         }
 
         val last = list[lastIdx]
+        val now = System.currentTimeMillis()
         val updated = if (isThinking) {
+            val start = last.thinkingStartedAt ?: now
             last.copy(
                 thinkingContent = last.thinkingContent + delta,
                 isThinking = true,
+                thinkingStartedAt = start,
+                thinkingDurationMs = now - start,
                 status = MessageStatus.STREAMING
             )
         } else {
+            val thinkingEnd = if (last.isThinking) now else last.thinkingEndedAt
+            val thinkingDur = if (last.isThinking) now - (last.thinkingStartedAt ?: last.timestamp) else last.thinkingDurationMs
             last.copy(
                 content = last.content + delta,
                 isThinking = false,
+                thinkingEndedAt = thinkingEnd,
+                thinkingDurationMs = thinkingDur,
                 status = MessageStatus.STREAMING
             )
         }
@@ -400,7 +492,16 @@ class ChatRepository(
         if (list.isEmpty()) return
         val lastIdx = list.indexOfLast { it.role == MessageRole.ASSISTANT }
         if (lastIdx != -1) {
-            list[lastIdx] = list[lastIdx].copy(status = MessageStatus.DONE, isThinking = false)
+            val last = list[lastIdx]
+            val now = System.currentTimeMillis()
+            val turnDur = now - (last.turnStartedAt ?: last.timestamp)
+            val thinkingDur = last.thinkingDurationMs ?: if (last.thinkingContent.isNotEmpty()) ((last.thinkingEndedAt ?: now) - (last.thinkingStartedAt ?: last.timestamp)) else null
+            list[lastIdx] = last.copy(
+                status = MessageStatus.DONE,
+                isThinking = false,
+                turnDurationMs = turnDur,
+                thinkingDurationMs = thinkingDur
+            )
             _messages.value = list
         }
     }

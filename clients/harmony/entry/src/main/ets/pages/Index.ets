@@ -26,6 +26,19 @@ struct Index {
     return `${h}:${m}`;
   }
 
+  formatDuration(ms?: number): string {
+    if (ms === undefined || ms === null || ms < 0) return '';
+    if (ms < 1000) {
+      return `${(ms / 1000).toFixed(1)}s`;
+    }
+    if (ms < 60000) {
+      return `${(ms / 1000).toFixed(1)}s`;
+    }
+    const mins = Math.floor(ms / 60000);
+    const secs = Math.round((ms % 60000) / 1000);
+    return `${mins}m ${secs}s`;
+  }
+
   scrollToBottom() {
     setTimeout(() => {
       this.scroller.scrollEdge(Edge.Bottom);
@@ -229,6 +242,13 @@ struct Index {
             .fontWeight(FontWeight.SemiBold)
             .fontColor('#9CA3AF')
 
+          if (msg.role !== MessageRole.USER && msg.turnDuration && msg.turnDuration > 0) {
+            Text(`耗时 ${this.formatDuration(msg.turnDuration)}`)
+              .fontSize(11)
+              .fontColor('#10A37F')
+              .margin({ left: 6 })
+          }
+
           Blank()
 
           Text(this.formatTime(msg.timestamp))
@@ -241,11 +261,20 @@ struct Index {
 
         if (msg.thinkingContent && msg.thinkingContent.length > 0) {
           Column() {
-            Text(msg.isThinking ? 'Thinking in progress…' : 'Thinking Process')
-              .fontSize(11)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#A78BFA')
-              .margin({ bottom: 4 })
+            Row() {
+              Text(msg.isThinking ? 'Thinking in progress…' : 'Thinking Process')
+                .fontSize(11)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#A78BFA')
+
+              if (msg.thinkingDuration && msg.thinkingDuration > 0) {
+                Text(msg.isThinking ? this.formatDuration(msg.thinkingDuration) : `用时 ${this.formatDuration(msg.thinkingDuration)}`)
+                  .fontSize(11)
+                  .fontColor('#C4B5FD')
+                  .margin({ left: 6 })
+              }
+            }
+            .margin({ bottom: 4 })
 
             Text(msg.thinkingContent)
               .fontSize(12)

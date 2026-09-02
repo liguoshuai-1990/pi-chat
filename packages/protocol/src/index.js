@@ -323,3 +323,21 @@ export function validateClientMessage(msg) {
       return { valid: true, warning: `Unrecognized message type '${type}', forwarded as raw RPC command` };
   }
 }
+
+/**
+ * Formats duration in milliseconds into a concise, human-readable string.
+ * Examples: 450 -> "0.5s", 3200 -> "3.2s", 65000 -> "1m 5s"
+ */
+export function formatDuration(ms) {
+  if (ms == null || isNaN(ms) || ms < 0) return "";
+  if (ms < 1000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  if (ms < 60000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  const mins = Math.floor(ms / 60000);
+  const secs = Math.round((ms % 60000) / 1000);
+  return `${mins}m ${secs}s`;
+}
+

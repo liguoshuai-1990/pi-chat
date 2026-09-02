@@ -27,6 +27,7 @@ import {
   createBackfillEndMessage,
   normalizeClientMessage,
   validateClientMessage,
+  formatDuration,
 } from "../src/index.js";
 
 describe("Pi-Chat Protocol Unit Tests", () => {
@@ -163,5 +164,17 @@ describe("Pi-Chat Protocol Unit Tests", () => {
 
     assert.equal(validateClientMessage({ type: "extension_ui_response", id: "req-1" }).valid, true);
     assert.equal(validateClientMessage({ type: "extension_ui_response" }).valid, false);
+  });
+
+  test("formatDuration formats milliseconds concisely and accurately", () => {
+    assert.equal(formatDuration(null), "");
+    assert.equal(formatDuration(undefined), "");
+    assert.equal(formatDuration(-1), "");
+    assert.equal(formatDuration(0), "0.0s");
+    assert.equal(formatDuration(450), "0.5s");
+    assert.equal(formatDuration(1200), "1.2s");
+    assert.equal(formatDuration(59900), "59.9s");
+    assert.equal(formatDuration(60000), "1m 0s");
+    assert.equal(formatDuration(75400), "1m 15s");
   });
 });

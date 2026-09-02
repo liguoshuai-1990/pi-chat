@@ -24,6 +24,11 @@ export interface ChatMessage {
   content: string;
   thinkingContent: string;
   isThinking: boolean;
+  thinkingStartedAt?: number;
+  thinkingEndedAt?: number;
+  thinkingDuration?: number;
+  turnStartedAt?: number;
+  turnDuration?: number;
   images: ImageAttachment[];
   status: MessageStatus;
   timestamp: number;

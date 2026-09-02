@@ -29,7 +29,8 @@ data class ToolCall(
     val output: String = "",
     val state: ToolCallState = ToolCallState.RUNNING,
     val startedAt: Long = System.currentTimeMillis(),
-    val endedAt: Long? = null
+    val endedAt: Long? = null,
+    val durationMs: Long? = null
 )
 
 @Serializable
@@ -45,6 +46,11 @@ data class ChatMessage(
     val content: String = "",
     val thinkingContent: String = "",
     val isThinking: Boolean = false,
+    val thinkingStartedAt: Long? = null,
+    val thinkingEndedAt: Long? = null,
+    val thinkingDurationMs: Long? = null,
+    val turnStartedAt: Long? = null,
+    val turnDurationMs: Long? = null,
     val images: List<ImageAttachment> = emptyList(),
     val toolCalls: List<ToolCall> = emptyList(),
     val status: MessageStatus = MessageStatus.DONE,

@@ -570,6 +570,14 @@ fun MessageBubble(message: ChatMessage) {
                 fontSize = 11.sp,
                 color = TextDim
             )
+            if (message.turnDurationMs != null && message.turnDurationMs > 0) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "耗时 ${formatDuration(message.turnDurationMs)}",
+                    fontSize = 11.sp,
+                    color = Accent
+                )
+            }
         }
         Spacer(Modifier.height(4.dp))
         AssistantContent(message)
@@ -579,7 +587,12 @@ fun MessageBubble(message: ChatMessage) {
 @Composable
 private fun AssistantContent(message: ChatMessage) {
     if (message.thinkingContent.isNotEmpty()) {
-        ThinkingBlock(message.thinkingContent, message.isThinking, message.timestamp)
+        ThinkingBlock(
+            content = message.thinkingContent,
+            active = message.isThinking,
+            timestamp = message.timestamp,
+            durationMs = message.thinkingDurationMs
+        )
         Spacer(Modifier.height(8.dp))
     }
 
@@ -618,9 +631,10 @@ private fun AssistantContent(message: ChatMessage) {
 }
 
 @Composable
-private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long) {
+private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long, durationMs: Long? = null) {
     var expanded by remember { mutableStateOf(false) }
     val timeText = formatTimestamp(timestamp)
+    val durationText = formatDuration(durationMs)
 
     Column(
         modifier = Modifier
@@ -641,6 +655,18 @@ private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long) {
                 color = if (active) Accent else TextSecondary,
                 fontWeight = if (active) FontWeight.Medium else FontWeight.Normal
             )
+            if (durationText.isNotEmpty()) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    if (active) durationText else "用时 $durationText",
+                    fontSize = 11.sp,
+                    color = if (active) Accent else Color(0xFFC4B5FD),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(if (active) Accent.copy(alpha = 0.15f) else Color(0xFF8B5CF6).copy(alpha = 0.15f))
+                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                )
+            }
             Spacer(Modifier.weight(1f))
             if (timeText.isNotEmpty()) {
                 Text(timeText, fontSize = 11.sp, color = TextDim)
@@ -669,6 +695,7 @@ private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long) {
 private fun ToolCallBlock(tool: ToolCall) {
     var expanded by remember { mutableStateOf(false) }
     val startTime = formatTimestamp(tool.startedAt)
+    val durationText = formatDuration(tool.durationMs ?: if (tool.endedAt != null) tool.endedAt - tool.startedAt else null)
 
     Column(
         modifier = Modifier
@@ -706,9 +733,9 @@ private fun ToolCallBlock(tool: ToolCall) {
                 Spacer(Modifier.width(6.dp))
             }
             val stateText = when (tool.state) {
-                ToolCallState.RUNNING -> "执行中…"
-                ToolCallState.DONE -> "完成"
-                ToolCallState.ERROR -> "错误"
+                ToolCallState.RUNNING -> if (durationText.isNotEmpty()) "执行中 · $durationText" else "执行中…"
+                ToolCallState.DONE -> if (durationText.isNotEmpty()) "完成 · $durationText" else "完成"
+                ToolCallState.ERROR -> if (durationText.isNotEmpty()) "错误 · $durationText" else "错误"
             }
             Text(
                 stateText,
@@ -749,6 +776,19 @@ private fun ToolCallBlock(tool: ToolCall) {
                     )
                 }
             }
+        }
+    }
+}
+
+private fun formatDuration(ms: Long?): String {
+    if (ms == null || ms < 0) return ""
+    return when {
+        ms < 1000 -> "${String.format(java.util.Locale.US, "%.1f", ms / 1000.0)}s"
+        ms < 60_000 -> "${String.format(java.util.Locale.US, "%.1f", ms / 1000.0)}s"
+        else -> {
+            val mins = ms / 60_000
+            val secs = (ms % 60_000) / 1000
+            "${mins}m ${secs}s"
         }
     }
 }

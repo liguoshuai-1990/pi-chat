@@ -202,3 +202,6 @@ export interface ServerResponse<T = unknown> {
   data?: T;
   error?: string;
 }
+
+export function formatDuration(ms?: number | null): string;
+

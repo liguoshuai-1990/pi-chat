@@ -41,7 +41,9 @@ data class SessionEntryMessage(
     val role: String? = null,
     val content: kotlinx.serialization.json.JsonElement? = null,
     val model: String? = null,
-    val timestamp: Long? = null
+    val timestamp: Long? = null,
+    val toolCallId: String? = null,
+    val toolName: String? = null
 )
 
 @Serializable

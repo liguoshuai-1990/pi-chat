@@ -75,6 +75,8 @@ const state = {
   isBackfilling: false,
   aborting: false,
   attachedImages: [], // Array of { data: string (base64), mimeType: string, url: string }
+  turnStartedAt: null,
+  streamingMsgDurationEl: null,
 };
 
 let toastTimer = null;
@@ -547,6 +549,52 @@ function formatMessageTime(ts) {
   return `${year}-${month}-${date} ${timeStr}`;
 }
 
+// ---- Duration Formatter ----
+function formatDuration(ms) {
+  if (ms == null || isNaN(ms) || ms < 0) return "";
+  if (ms < 1000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  if (ms < 60000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  const mins = Math.floor(ms / 60000);
+  const secs = Math.round((ms % 60000) / 1000);
+  return `${mins}m ${secs}s`;
+}
+
+let liveTimerInterval = null;
+function startStreamingTimer() {
+  if (liveTimerInterval) return;
+  liveTimerInterval = setInterval(() => {
+    const now = Date.now();
+    if (state.turnStartedAt && state.streamingMsgDurationEl) {
+      state.streamingMsgDurationEl.textContent = formatDuration(now - state.turnStartedAt);
+    }
+    const liveThinking = document.querySelectorAll(".thinking-duration.live");
+    liveThinking.forEach((el) => {
+      if (el._startedAt) {
+        el.textContent = formatDuration(now - el._startedAt);
+        el.style.display = "";
+      }
+    });
+    const liveTools = document.querySelectorAll(".tool-duration.live");
+    liveTools.forEach((el) => {
+      if (el._startedAt) {
+        el.textContent = formatDuration(now - el._startedAt);
+        el.style.display = "";
+      }
+    });
+  }, 100);
+}
+
+function stopStreamingTimer() {
+  if (liveTimerInterval) {
+    clearInterval(liveTimerInterval);
+    liveTimerInterval = null;
+  }
+}
+
 function sameSession(a, b) {
   if (!a || !b) return false;
   if (a === b) return true;
@@ -822,6 +870,13 @@ async function loadSession(file) {
   }
 }
 
+function parseEntryTimestamp(ts) {
+  if (!ts) return null;
+  if (typeof ts === "number") return ts;
+  const parsed = new Date(ts).getTime();
+  return isNaN(parsed) ? null : parsed;
+}
+
 function reconstructFromEntries(entries) {
   // Map toolResults by toolCallId so we can attach them to their toolCall in the assistant message
   const toolResults = new Map();
@@ -829,17 +884,23 @@ function reconstructFromEntries(entries) {
     if (e.type === "message" && e.message?.role === "toolResult") {
       const m = e.message;
       if (m.toolCallId) {
-        toolResults.set(m.toolCallId, m);
+        toolResults.set(m.toolCallId, {
+          ...m,
+          entryTs: parseEntryTimestamp(m.timestamp || e.timestamp)
+        });
       }
     }
   }
 
   const out = [];
+  let lastUserTs = null;
   for (const e of entries) {
     if (e.type !== "message") continue;
     const m = e.message;
     if (!m || m.role === "bashExecution") continue;
+    const msgTs = parseEntryTimestamp(m.timestamp || e.timestamp);
     if (m.role === "user") {
+      lastUserTs = msgTs;
       // Extract optional images from user message content array
       let images = [];
       if (Array.isArray(m.content)) {
@@ -851,13 +912,28 @@ function reconstructFromEntries(entries) {
             url: c.data ? `data:${c.mimeType || "image/png"};base64,${c.data}` : (c.url || "")
           }));
       }
-      out.push({ role: "user", text: extractContentText(m.content), images, ts: m.timestamp || e.timestamp });
+      out.push({ role: "user", text: extractContentText(m.content), images, ts: msgTs });
     } else if (m.role === "assistant") {
+      let turnDurationMs = null;
+      if (lastUserTs && msgTs && msgTs >= lastUserTs) {
+        const diff = msgTs - lastUserTs;
+        if (diff > 0 && diff < 15 * 60 * 1000) {
+          turnDurationMs = diff;
+        }
+      }
       const rawContent = Array.isArray(m.content) ? m.content : (m.content ? [{ type: "text", text: String(m.content) }] : []);
       const content = rawContent.map(part => {
         if (part && part.type === "toolCall") {
           const res = toolResults.get(part.id);
-          return { ...part, result: res || null };
+          let durationMs = null;
+          if (res) {
+            const startTs = parseEntryTimestamp(part.timestamp || m.timestamp || e.timestamp);
+            const endTs = res.entryTs || parseEntryTimestamp(res.timestamp);
+            if (startTs && endTs && endTs >= startTs) {
+              durationMs = endTs - startTs;
+            }
+          }
+          return { ...part, result: res || null, durationMs };
         }
         return part;
       });
@@ -869,7 +945,7 @@ function reconstructFromEntries(entries) {
         } catch {}
         content.push({ type: "text", text: `⚠️ **生成失败**: ${errMsg}` });
       }
-      out.push({ role: "assistant", content, ts: m.timestamp || e.timestamp, usage: m.usage });
+      out.push({ role: "assistant", content, ts: msgTs, turnDurationMs, usage: m.usage });
     }
     // toolResult entries are attached directly to assistant toolCall parts, so they don't produce standalone messages
   }
@@ -1274,6 +1350,9 @@ function renderAssistantBlock(m) {
   if (timeStr) {
     roleChildren.push(el("span", { class: "msg-time", text: timeStr, title: fullTimeStr }));
   }
+  if (m.turnDurationMs != null && m.turnDurationMs > 0) {
+    roleChildren.push(el("span", { class: "msg-duration", text: `耗时 ${formatDuration(m.turnDurationMs)}`, title: "生成总耗时" }));
+  }
   roleChildren.push(copyMsgBtn);
 
   const node = el("div", { class: "msg assistant" }, [
@@ -1288,7 +1367,7 @@ function renderAssistantBlock(m) {
       const div = el("div", { html: renderMarkdown(c.text) });
       content.appendChild(div);
     } else if (c.type === "thinking") {
-      content.appendChild(makeThinkingBlock(c.thinking, false, m.ts));
+      content.appendChild(makeThinkingBlock(c.thinking, false, m.ts, c.durationMs));
     } else if (c.type === "toolCall") {
       content.appendChild(makeToolBlockFromCall(c));
     }
@@ -1300,8 +1379,24 @@ function renderAssistantBlock(m) {
   return node;
 }
 
-function makeThinkingBlock(thinkingText, isActivelyThinking = false, ts = null) {
+function makeThinkingBlock(thinkingText, isActivelyThinking = false, ts = null, durationMs = null, startedAt = null) {
   const block = el("div", { class: "thinking-block" + (isActivelyThinking ? " active" : "") });
+
+  const curDuration = durationMs != null
+    ? durationMs
+    : (isActivelyThinking && startedAt ? Math.max(0, Date.now() - startedAt) : null);
+
+  const durationText = curDuration != null ? (isActivelyThinking ? formatDuration(curDuration) : `用时 ${formatDuration(curDuration)}`) : "";
+
+  const durationEl = el("span", {
+    class: "thinking-duration" + (isActivelyThinking ? " live" : ""),
+    text: durationText,
+    style: durationText ? "" : "display: none;"
+  });
+  if (isActivelyThinking && startedAt) {
+    durationEl._startedAt = startedAt;
+  }
+
   const head = el("div", {
     class: "thinking-head",
     onclick: () => {
@@ -1312,6 +1407,7 @@ function makeThinkingBlock(thinkingText, isActivelyThinking = false, ts = null) 
     }
   }, [
     el("span", { class: "thinking-title", text: isActivelyThinking ? "💭 正在思考中…" : "💭 思考过程" }),
+    durationEl,
     ts ? el("span", { class: "thinking-time", text: formatMessageTime(ts) }) : null,
     isActivelyThinking ? el("span", { class: "thinking-pulse" }) : null,
     el("span", { class: "thinking-toggle-hint", text: "(点击展开/收起)" }),
@@ -1327,6 +1423,7 @@ function makeThinkingBlock(thinkingText, isActivelyThinking = false, ts = null) 
 
   block.appendChild(head);
   block.appendChild(body);
+  block._durationEl = durationEl;
   return block;
 }
 
@@ -1386,8 +1483,24 @@ function makeToolBlockFromCall(call, ts = null) {
     resultText = extractContentText(call.result.content);
   }
 
-  const stateText = hasResult ? (isError ? "错误" : "完成") : "…";
-  const stateClass = "state" + (hasResult && isError ? " error" : "");
+  const stateText = hasResult ? (isError ? "错误" : "完成") : "执行中…";
+  const stateClass = "state" + (hasResult && isError ? " error" : "") + (!hasResult ? " running" : "");
+
+  const durationMs = call.durationMs != null
+    ? call.durationMs
+    : (call.startedAt && call.endedAt ? Math.max(0, call.endedAt - call.startedAt) : null);
+  const durationText = durationMs != null
+    ? `耗时 ${formatDuration(durationMs)}`
+    : (!hasResult && call.startedAt ? formatDuration(Date.now() - call.startedAt) : "");
+
+  const durationEl = el("span", {
+    class: "tool-duration" + (!hasResult ? " live" : ""),
+    text: durationText,
+    style: durationText ? "" : "display: none;"
+  });
+  if (!hasResult && call.startedAt) {
+    durationEl._startedAt = call.startedAt;
+  }
 
   const cmdToCopy = getToolCommandToCopy(call);
   const copyBtn = cmdToCopy ? el("button", {
@@ -1418,6 +1531,7 @@ function makeToolBlockFromCall(call, ts = null) {
     ts ? el("span", { class: "tool-time", text: formatMessageTime(ts) }) : null,
     el("span", { class: "args", text: summaryArgs(call.name, call.arguments) }),
     copyBtn,
+    durationEl,
     el("span", { class: stateClass, text: stateText }),
   ]);
   head._cmdToCopy = cmdToCopy;
@@ -1435,9 +1549,10 @@ function makeToolBlockFromCall(call, ts = null) {
   block._head = head;
   block._body = body;
   block._callId = call.id;
+  block._durationEl = durationEl;
 
   if (!hasResult && call.id) {
-    state.activeToolCalls.set(call.id, { block, body, head });
+    state.activeToolCalls.set(call.id, { block, body, head, durationEl, startedAt: call.startedAt || Date.now() });
   }
 
   return block;
@@ -1483,6 +1598,8 @@ function getStreamingFullText() {
 function ensureStreamingMsg(ts = Date.now()) {
   if (state.streamingMsg) return state.streamingMsg;
   showEmptyState(false);
+  state.turnStartedAt = ts || Date.now();
+  startStreamingTimer();
   const timeStr = formatMessageTime(ts);
   const fullTimeStr = (ts && !isNaN(new Date(ts).getTime())) ? new Date(ts).toLocaleString("zh-CN") : "";
 
@@ -1502,12 +1619,15 @@ function ensureStreamingMsg(ts = Date.now()) {
     el("span", { text: "复制全文" })
   ]);
 
+  const durationEl = el("span", { class: "msg-duration live", text: "0.0s", title: "生成耗时" });
+
   const roleChildren = [
     el("span", { class: "role-name", text: "pi" }),
   ];
   if (timeStr) {
     roleChildren.push(el("span", { class: "msg-time", text: timeStr, title: fullTimeStr }));
   }
+  roleChildren.push(durationEl);
   roleChildren.push(copyBtn);
 
   const node = el("div", { class: "msg assistant" }, [
@@ -1515,6 +1635,7 @@ function ensureStreamingMsg(ts = Date.now()) {
     el("div", { class: "content" }),
   ]);
   state.streamingMsg = node;
+  state.streamingMsgDurationEl = durationEl;
   state.streamingItems = [];
   state.thinkingOpen = true;
   state.thinkingUserToggled = false;
@@ -1556,8 +1677,8 @@ function refreshStreamingContent() {
     const item = state.streamingItems[i];
     const isLast = (i === lastIdx);
     if (item.type === "thinking") {
-      const isActivelyThinking = state.streaming && isLast;
-      content.appendChild(makeThinkingBlock(item.text, isActivelyThinking, item.ts));
+      const isActivelyThinking = state.streaming && isLast && item.isStreaming !== false;
+      content.appendChild(makeThinkingBlock(item.text, isActivelyThinking, item.ts, item.durationMs, item.startedAt));
     } else if (item.type === "tool") {
       if (item.tc?.block) content.appendChild(item.tc.block);
     } else if (item.type === "text") {
@@ -1570,8 +1691,25 @@ function refreshStreamingContent() {
 
 function finalizeStreamingMsg() {
   state.streaming = false;
+  stopStreamingTimer();
   if (state.streamingMsg) {
+    for (const item of state.streamingItems) {
+      if (item.type === "thinking" && item.isStreaming) {
+        item.isStreaming = false;
+        item.endedAt = Date.now();
+        item.durationMs = Math.max(0, item.endedAt - (item.startedAt || item.ts || Date.now()));
+      }
+    }
     refreshStreamingContent();
+
+    if (state.turnStartedAt) {
+      const turnDuration = Math.max(0, Date.now() - state.turnStartedAt);
+      if (state.streamingMsgDurationEl) {
+        state.streamingMsgDurationEl.className = "msg-duration";
+        state.streamingMsgDurationEl.textContent = `耗时 ${formatDuration(turnDuration)}`;
+      }
+    }
+
     const finalFullText = getStreamingFullText();
     const btn = state.streamingMsg.querySelector(".btn-copy-msg");
     if (btn) {
@@ -1583,6 +1721,8 @@ function finalizeStreamingMsg() {
       };
     }
   }
+  state.turnStartedAt = null;
+  state.streamingMsgDurationEl = null;
   state.streamingMsg = null;
   state.streamingItems = [];
   state.thinkingOpen = true;
@@ -1978,6 +2118,13 @@ function handlePiMessage(obj) {
       const ev = obj.assistantMessageEvent;
       if (!ev) break;
       if (ev.type === "text_delta") {
+        // Finalize active thinking duration if transitioning to text
+        const activeThinking = state.streamingItems.find(it => it.type === "thinking" && it.isStreaming);
+        if (activeThinking) {
+          activeThinking.isStreaming = false;
+          activeThinking.endedAt = Date.now();
+          activeThinking.durationMs = Math.max(0, activeThinking.endedAt - (activeThinking.startedAt || activeThinking.ts || Date.now()));
+        }
         const last = state.streamingItems[state.streamingItems.length - 1];
         if (last && last.type === "text") {
           last.text += ev.delta;
@@ -1987,6 +2134,12 @@ function handlePiMessage(obj) {
         refreshStreamingContentDebounced();
       } else if (ev.type === "text_end") {
         // Authoritative final text for this content slot.
+        const activeThinking = state.streamingItems.find(it => it.type === "thinking" && it.isStreaming);
+        if (activeThinking) {
+          activeThinking.isStreaming = false;
+          activeThinking.endedAt = Date.now();
+          activeThinking.durationMs = Math.max(0, activeThinking.endedAt - (activeThinking.startedAt || activeThinking.ts || Date.now()));
+        }
         if (typeof ev.content === "string") {
           const last = state.streamingItems[state.streamingItems.length - 1];
           if (last && last.type === "text") {
@@ -1999,19 +2152,34 @@ function handlePiMessage(obj) {
       } else if (ev.type === "thinking_delta" || ev.type === "thinking_start" || ev.type === "thinking_end") {
         // For thinking we accumulate deltas; thinking_delta carries .delta
         if (ev.type === "thinking_delta" && ev.delta) {
-          const last = state.streamingItems[state.streamingItems.length - 1];
-          if (last && last.type === "thinking") {
+          let last = state.streamingItems[state.streamingItems.length - 1];
+          if (last && last.type === "thinking" && last.isStreaming !== false) {
             last.text += ev.delta;
+            if (!last.startedAt) last.startedAt = Date.now();
           } else {
-            state.streamingItems.push({ type: "thinking", text: ev.delta, ts: Date.now() });
+            last = { type: "thinking", text: ev.delta, ts: Date.now(), startedAt: Date.now(), isStreaming: true };
+            state.streamingItems.push(last);
           }
           refreshStreamingContentDebounced();
         } else if (ev.type === "thinking_start") {
-          state.streamingItems.push({ type: "thinking", text: "", ts: Date.now() });
+          state.streamingItems.push({ type: "thinking", text: "", ts: Date.now(), startedAt: Date.now(), isStreaming: true });
+          refreshStreamingContentDebounced();
+        } else if (ev.type === "thinking_end") {
+          const last = state.streamingItems[state.streamingItems.length - 1];
+          if (last && last.type === "thinking") {
+            last.isStreaming = false;
+            last.endedAt = Date.now();
+            last.durationMs = Math.max(0, last.endedAt - (last.startedAt || last.ts || Date.now()));
+          }
           refreshStreamingContentDebounced();
         }
-        // thinking_end: ignore
       } else if (ev.type === "toolcall_start") {
+        const activeThinking = state.streamingItems.find(it => it.type === "thinking" && it.isStreaming);
+        if (activeThinking) {
+          activeThinking.isStreaming = false;
+          activeThinking.endedAt = Date.now();
+          activeThinking.durationMs = Math.max(0, activeThinking.endedAt - (activeThinking.startedAt || activeThinking.ts || Date.now()));
+        }
         ensureStreamingMsg();
         const call = ev.toolCall || { id: obj.toolCallId || ev.id, name: obj.toolName, arguments: obj.args };
         // args may be incomplete until toolcall_end; we fill what we have now
@@ -2039,9 +2207,29 @@ function handlePiMessage(obj) {
       break;
     }
     case "tool_execution_start": {
+      const activeThinking = state.streamingItems.find(it => it.type === "thinking" && it.isStreaming);
+      if (activeThinking) {
+        activeThinking.isStreaming = false;
+        activeThinking.endedAt = Date.now();
+        activeThinking.durationMs = Math.max(0, activeThinking.endedAt - (activeThinking.startedAt || activeThinking.ts || Date.now()));
+      }
       ensureStreamingMsg();
       const tc = ensureToolBlock(obj.toolCallId, obj.toolName, obj.args, Date.now());
-      if (tc) updateToolBlockCopyBtn(tc, { name: obj.toolName, arguments: obj.args });
+      if (tc) {
+        tc.startedAt = Date.now();
+        if (tc.durationEl) {
+          tc.durationEl.className = "tool-duration live";
+          tc.durationEl._startedAt = tc.startedAt;
+          tc.durationEl.textContent = "0.0s";
+          tc.durationEl.style.display = "";
+        }
+        const stateEl = tc.head.querySelector(".state");
+        if (stateEl) {
+          stateEl.className = "state running";
+          stateEl.textContent = "执行中…";
+        }
+        updateToolBlockCopyBtn(tc, { name: obj.toolName, arguments: obj.args });
+      }
       break;
     }
     case "tool_execution_update": {
@@ -2057,8 +2245,20 @@ function handlePiMessage(obj) {
       if (tc) {
         const text = extractContentText(obj.result?.content);
         tc.body.innerHTML = escapeHtml(text) || "(无输出)";
-        tc.head.querySelector(".state").textContent = obj.isError ? "错误" : "完成";
-        tc.head.querySelector(".state").classList.toggle("error", !!obj.isError);
+        tc.endedAt = Date.now();
+        const dur = Math.max(0, tc.endedAt - (tc.startedAt || tc.endedAt));
+        tc.durationMs = dur;
+        if (tc.durationEl) {
+          tc.durationEl.className = "tool-duration";
+          tc.durationEl._startedAt = null;
+          tc.durationEl.textContent = `耗时 ${formatDuration(dur)}`;
+          tc.durationEl.style.display = "";
+        }
+        const stateEl = tc.head.querySelector(".state");
+        if (stateEl) {
+          stateEl.textContent = obj.isError ? "错误" : "完成";
+          stateEl.className = "state" + (obj.isError ? " error" : "");
+        }
       }
       break;
     }
@@ -2124,8 +2324,8 @@ function handleExtensionUiRequest(req) {
 
 function ensureToolBlock(toolCallId, name, args, ts = Date.now()) {
   if (state.activeToolCalls.has(toolCallId)) return state.activeToolCalls.get(toolCallId);
-  const block = makeToolBlockFromCall({ id: toolCallId, name, arguments: args }, ts);
-  const entry = state.activeToolCalls.get(toolCallId) || { block, body: block._body, head: block._head };
+  const block = makeToolBlockFromCall({ id: toolCallId, name, arguments: args, startedAt: ts }, ts);
+  const entry = state.activeToolCalls.get(toolCallId) || { block, body: block._body, head: block._head, durationEl: block._durationEl, startedAt: ts };
   state.activeToolCalls.set(toolCallId, entry);
   state.streamingItems.push({ type: "tool", id: toolCallId, tc: entry });
   refreshStreamingContentDebounced();

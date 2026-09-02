@@ -70,6 +70,7 @@ export class ChatViewModel {
       content: '',
       thinkingContent: '',
       isThinking: false,
+      turnStartedAt: Date.now(),
       images: [],
       status: MessageStatus.STREAMING,
       timestamp: Date.now()
@@ -113,23 +114,65 @@ export class ChatViewModel {
     const detail = await this.httpService.getSession(sessionPath);
     if (detail && Array.isArray(detail.entries)) {
       const reconstructed: ChatMessage[] = [];
+      let lastUserTs: number = 0;
       for (const entry of detail.entries) {
         if (entry.type !== 'message' || !entry.message) continue;
         const m = entry.message;
         const role = m.role === 'user' ? MessageRole.USER : (m.role === 'assistant' ? MessageRole.ASSISTANT : null);
         if (!role) continue;
-        const text = this.extractTextContent(m.content);
-        if (text) {
-          reconstructed.push({
-            id: entry.id || `msg_${Date.now()}_${Math.random()}`,
-            role: role,
-            content: text,
-            thinkingContent: '',
-            isThinking: false,
-            images: [],
-            status: MessageStatus.DONE,
-            timestamp: m.timestamp || Date.now()
-          });
+        const msgTs = typeof m.timestamp === 'number' ? m.timestamp : Date.now();
+        if (role === MessageRole.USER) {
+          lastUserTs = msgTs;
+          const text = this.extractTextContent(m.content);
+          if (text) {
+            reconstructed.push({
+              id: entry.id || `msg_${Date.now()}_${Math.random()}`,
+              role: role,
+              content: text,
+              thinkingContent: '',
+              isThinking: false,
+              images: [],
+              status: MessageStatus.DONE,
+              timestamp: msgTs
+            });
+          }
+        } else if (role === MessageRole.ASSISTANT) {
+          let turnDuration: number | undefined = undefined;
+          if (lastUserTs > 0 && msgTs >= lastUserTs) {
+            const diff = msgTs - lastUserTs;
+            if (diff > 0 && diff < 900000) {
+              turnDuration = diff;
+            }
+          }
+          let textContent = '';
+          let thinkingContent = '';
+          if (Array.isArray(m.content)) {
+            for (const item of m.content) {
+              if (item && item.type === 'text' && typeof item.text === 'string') {
+                textContent += item.text;
+              } else if (item && item.type === 'thinking' && typeof item.thinking === 'string') {
+                thinkingContent += item.thinking;
+              } else if (typeof item === 'string') {
+                textContent += item;
+              }
+            }
+          } else if (typeof m.content === 'string') {
+            textContent = m.content;
+          }
+
+          if (textContent || thinkingContent) {
+            reconstructed.push({
+              id: entry.id || `msg_${Date.now()}_${Math.random()}`,
+              role: role,
+              content: textContent,
+              thinkingContent: thinkingContent,
+              isThinking: false,
+              turnDuration: turnDuration,
+              images: [],
+              status: MessageStatus.DONE,
+              timestamp: msgTs
+            });
+          }
         }
       }
       this.messages = reconstructed;
@@ -164,6 +207,7 @@ export class ChatViewModel {
             content: '',
             thinkingContent: '',
             isThinking: false,
+            turnStartedAt: Date.now(),
             images: [],
             status: MessageStatus.STREAMING,
             timestamp: Date.now()
@@ -202,6 +246,7 @@ export class ChatViewModel {
             content: '',
             thinkingContent: '',
             isThinking: false,
+            turnStartedAt: Date.now(),
             images: [],
             status: MessageStatus.STREAMING,
             timestamp: Date.now()
@@ -229,6 +274,7 @@ export class ChatViewModel {
         content: '',
         thinkingContent: '',
         isThinking: false,
+        turnStartedAt: Date.now(),
         images: [],
         status: MessageStatus.STREAMING,
         timestamp: Date.now()
@@ -237,10 +283,19 @@ export class ChatViewModel {
     }
 
     const last = this.messages[lastIdx];
+    const now = Date.now();
     if (isThinking) {
+      if (!last.thinkingStartedAt) {
+        last.thinkingStartedAt = now;
+      }
       last.thinkingContent += delta;
       last.isThinking = true;
+      last.thinkingDuration = now - last.thinkingStartedAt;
     } else {
+      if (last.isThinking) {
+        last.thinkingEndedAt = now;
+        last.thinkingDuration = now - (last.thinkingStartedAt || last.timestamp);
+      }
       last.content += delta;
       last.isThinking = false;
     }
@@ -252,8 +307,14 @@ export class ChatViewModel {
   private markAssistantDone() {
     for (let i = this.messages.length - 1; i >= 0; i--) {
       if (this.messages[i].role === MessageRole.ASSISTANT) {
-        this.messages[i].status = MessageStatus.DONE;
-        this.messages[i].isThinking = false;
+        const last = this.messages[i];
+        const now = Date.now();
+        last.status = MessageStatus.DONE;
+        last.isThinking = false;
+        last.turnDuration = now - (last.turnStartedAt || last.timestamp);
+        if (!last.thinkingDuration && last.thinkingContent) {
+          last.thinkingDuration = (last.thinkingEndedAt || now) - (last.thinkingStartedAt || last.timestamp);
+        }
         break;
       }
     }
