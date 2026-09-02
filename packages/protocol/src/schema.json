@@ -61,12 +61,14 @@
             "agent_stream",
             "message_update",
             "remote_user_prompt",
+            "remote_user_steer",
             "backfill_start",
             "backfill_end",
             "response",
             "pong",
             "error",
-            "pi_exit"
+            "pi_exit",
+            "extension_ui_request"
           ]
         },
         "status": { "type": "string" },

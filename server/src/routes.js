@@ -314,7 +314,11 @@ router.get("/api/sessions", authMiddleware, async (req, res) => {
       })
     );
     const sessions = results.filter(Boolean);
-    sessions.sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
+    sessions.sort((a, b) => {
+      const tsA = typeof a.timestamp === "number" ? a.timestamp : (new Date(a.timestamp || 0).getTime() || 0);
+      const tsB = typeof b.timestamp === "number" ? b.timestamp : (new Date(b.timestamp || 0).getTime() || 0);
+      return tsB - tsA;
+    });
     res.json({ cwd, sessions });
   } catch (e) {
     console.error(e);

@@ -246,4 +246,24 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
 
     await serverInstance.close();
   });
+
+  test("Session sorting handles both numeric and string timestamps safely", () => {
+    const mockSessions = [
+      { id: "1", timestamp: 1725200000000 },
+      { id: "2", timestamp: "2026-09-02T12:00:00.000Z" },
+      { id: "3", timestamp: 1725300000000 },
+      { id: "4", timestamp: null },
+      { id: "5", timestamp: undefined }
+    ];
+
+    mockSessions.sort((a, b) => {
+      const tsA = typeof a.timestamp === "number" ? a.timestamp : (new Date(a.timestamp || 0).getTime() || 0);
+      const tsB = typeof b.timestamp === "number" ? b.timestamp : (new Date(b.timestamp || 0).getTime() || 0);
+      return tsB - tsA;
+    });
+
+    assert.equal(mockSessions[0].id, "2"); // 2026 is latest
+    assert.equal(mockSessions[1].id, "3");
+    assert.equal(mockSessions[2].id, "1");
+  });
 });

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.9.1] - 2026-09-02
+
+### Fixed & Optimized
+- **网关路由健壮性增强 (`server/src/routes.js`)**：修复 `/api/sessions` 历史会话列表中若存在数值格式时间戳导致 `localeCompare` 抛错的问题，优化为安全兼容数字与 ISO 字符串的多格式时间戳倒序排列。
+- **Web 前端异常流式保护 (`clients/web/public/app.js`)**：在 WebSocket 消息处理中补充对 `error` 与 `pi_exit` 事件的完备响应，遇到异常时自动终结流式状态、解除输入框锁定并提示用户。
+- **Android 原生端异常退出流式重置 (`clients/android`)**：`ChatRepository.kt` 补充对 `error` 和 `pi_exit` 事件的处理，避免在子进程异常退出时状态滞留在流式中。
+- **HarmonyOS 原生端异常流式重置 (`clients/harmony`)**：`ChatViewModel.ets` 补充对 `error` 和 `pi_exit` 事件的处理，确保鸿蒙界面在异常中断时能正常完成并释放输入。
+- **跨端通信协议 Schema 完备性更新 (`packages/protocol/src/schema.json`)**：补充 `remote_user_steer` 与 `extension_ui_request` 到服务端消息类型枚举定义。
+
+### Changed
+- 全端版本号统一递增至 2.9.1（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.9.0] - 2026-09-02
 
 ### Added

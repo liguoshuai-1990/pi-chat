@@ -225,6 +225,8 @@ export class ChatViewModel {
         break;
       case 'agent_end':
       case 'agent_settled':
+      case 'error':
+      case 'pi_exit':
         this.isStreaming = false;
         this.markAssistantDone();
         break;

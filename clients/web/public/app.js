@@ -2265,6 +2265,13 @@ function handlePiMessage(obj) {
     case "extension_ui_request":
       handleExtensionUiRequest(obj);
       break;
+    case "error":
+      finalizeStreamingMsg();
+      state.streaming = false;
+      state.aborting = false;
+      setComposerAborting(false);
+      showToast(`⚠️ ${obj.message || obj.code || "发生错误"}`);
+      break;
     case "pi_exit":
       finalizeStreamingMsg();
       state.streaming = false;

@@ -329,7 +329,7 @@ class ChatRepository(
                     finishToolCall(id, extractResultText(msg.result), msg.isError == true)
                 }
             }
-            "agent_end", "agent_settled" -> {
+            "agent_end", "agent_settled", "error", "pi_exit" -> {
                 _isStreaming.value = false
                 markLastMessageDone()
                 // Session titles may change after the agent settles.
