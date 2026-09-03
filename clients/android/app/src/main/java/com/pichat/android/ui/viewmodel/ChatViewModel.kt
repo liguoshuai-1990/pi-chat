@@ -93,6 +93,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendSteer(text: String) {
         if (text.isBlank()) return
+        // If send fails, the steer text is still added to UI by the caller;
+        // repository.sendSteer returns false but we have no error toast flow.
         repository.sendSteer(text)
     }
 

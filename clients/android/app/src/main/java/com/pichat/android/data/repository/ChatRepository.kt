@@ -219,29 +219,33 @@ class ChatRepository(
         }
     }
 
-    fun sendSteer(text: String) {
+    fun sendSteer(text: String): Boolean {
         val payload = buildJsonObject {
             put("type", "steer")
             put("message", text)
         }
-        wsClient.sendRaw(payload.toString())
+        return wsClient.sendRaw(payload.toString())
     }
 
     fun abort() {
         val payload = buildJsonObject {
             put("type", "abort")
         }
-        wsClient.sendRaw(payload.toString())
-        _isStreaming.value = false
+        if (wsClient.sendRaw(payload.toString())) {
+            _isStreaming.value = false
+        }
     }
 
     fun switchSession(sessionPath: String) {
-        _messages.value = emptyList()
         val payload = buildJsonObject {
             put("type", "switch_session")
             put("sessionPath", sessionPath)
         }
-        wsClient.sendRaw(payload.toString())
+        if (!wsClient.sendRaw(payload.toString())) {
+            // WebSocket send failed — don't clear messages to avoid state desync
+            return
+        }
+        _messages.value = emptyList()
         loadSessionHistory(sessionPath)
         loadSessions()
     }

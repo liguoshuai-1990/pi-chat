@@ -50,6 +50,9 @@ export class ChatViewModel {
     this.wsManager.addStateListener(this.stateListener);
     this.wsManager.addMessageListener(this.messageListener);
 
+    // Reset streaming state from any previous session to avoid orphaned streaming bubble
+    this.isStreaming = false;
+
     this.connect();
     this.loadSessions();
   }
@@ -106,25 +109,31 @@ export class ChatViewModel {
   public sendSteer(text: string) {
     if (!text.trim()) return;
     this.wsManager.send(PiProtocol.createSteer(text));
+    // If send fails, steer is silently dropped — no error surfacing mechanism
   }
 
   public abort() {
-    this.wsManager.send(PiProtocol.createAbort());
-    this.isStreaming = false;
-    this.notifyUI();
+    if (this.wsManager.send(PiProtocol.createAbort())) {
+      this.isStreaming = false;
+      this.notifyUI();
+    }
   }
 
   public newSession() {
+    if (!this.wsManager.send(PiProtocol.createNewSession())) {
+      return; // WebSocket send failed — don't clear messages to avoid state desync
+    }
     this.messages = [];
     this.currentTitle = 'New Chat';
-    this.wsManager.send(PiProtocol.createNewSession());
     this.notifyUI();
   }
 
   public switchSession(session: SessionInfo) {
+    if (!this.wsManager.send(PiProtocol.createSwitchSession(session.file))) {
+      return; // WebSocket send failed — don't clear messages to avoid state desync
+    }
     this.messages = [];
     this.currentTitle = session.sessionName || session.firstUser || session.name;
-    this.wsManager.send(PiProtocol.createSwitchSession(session.file));
     this.notifyUI();
     this.loadSessionHistory(session.file);
   }
@@ -251,6 +260,12 @@ export class ChatViewModel {
         break;
       case 'remote_user_prompt':
         if (msg.message && !msg.isSteer) {
+          // Dedup: skip if the last user message already has this content (locally sent)
+          const lastMsg = this.messages[this.messages.length - 1];
+          const secondLastMsg = this.messages[this.messages.length - 2];
+          if (secondLastMsg && secondLastMsg.role === MessageRole.USER && secondLastMsg.content === msg.message) {
+            break;
+          }
           this.messages.push({
             id: `user_sync_${Date.now()}`,
             role: MessageRole.USER,

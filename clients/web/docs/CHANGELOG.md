@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.11.2] - 2026-09-03
+
+### Fixed
+- **Web 端 `submitSteer` 发送失败静默丢弃 (`clients/web/public/app.js`)**：`sendWs` 返回值未检查，WebSocket 在检查与发送之间断开时，指导指令被静默丢弃但 UI 已显示"已插入指导指令"。现先检查 `sendWs` 返回值，失败时提示用户并触发重连，不再乐观更新 UI。
+- **Web 端 `abortGeneration` 发送失败导致 UI 锁死 (`clients/web/public/app.js`)**：`sendWs({ type: "abort" })` 返回值未检查，发送失败时 `state.aborting` 永久为 `true`，UI 锁定在中止状态。现检查返回值，失败时回退 `state.aborting` 并提示用户。
+- **Web 端 `submitPrompt` 失败回退遗漏定时器清理 (`clients/web/public/app.js`)**：发送失败回退时未调用 `stopStreamingTimer()` 且未重置 `turnStartedAt` / `streamingMsgDurationEl`，导致 100ms 定时器持续向已分离 DOM 节点写入。现已补充清理。
+- **Android `sendSteer` / `abort` / `switchSession` 发送返回值未检查 (`clients/android/.../ChatRepository.kt`)**：`sendRaw` 返回的 `Boolean` 被忽略。`abort` 无条件设置 `_isStreaming = false` 即使中止未送达服务端；`switchSession` 在发送前清空消息列表，发送失败时导致状态不同步。现均检查返回值并在失败时回退。
+- **HarmonyOS `abort` / `newSession` / `switchSession` 发送返回值未检查 (`clients/harmony/.../ChatViewModel.ets`)**：与 Android 同类问题。`abort` 无条件重置 `isStreaming`；`newSession` / `switchSession` 在发送前清空消息，发送失败时导致状态不同步。现均检查 `wsManager.send()` 返回值并在失败时回退。
+- **HarmonyOS `remote_user_prompt` 消息重复 (`clients/harmony/.../ChatViewModel.ets`)**：本地已发送的用户消息与服务端 `remote_user_prompt` 回声重复添加。现增加去重检查，若倒数第二条用户消息内容相同则跳过。
+- **HarmonyOS `init()` 未重置流式状态 (`clients/harmony/.../ChatViewModel.ets`)**：切换服务器 URL 重新初始化时，残留的 `isStreaming = true` 导致孤立流式气泡。现 `init()` 中重置 `isStreaming = false`。
+
+### Changed
+- 全端版本号统一递增至 2.11.2（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.11.1] - 2026-09-03
 
 ### Fixed

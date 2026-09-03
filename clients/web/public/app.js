@@ -2969,7 +2969,12 @@ function abortGeneration() {
   updateComposerUI();
   const hint = $(".composer-hint");
   if (hint) hint.textContent = "中止当前任务中…";
-  sendWs({ type: "abort" });
+  if (!sendWs({ type: "abort" })) {
+    state.aborting = false;
+    updateComposerUI();
+    if (hint) hint.textContent = "中止失败：WebSocket 连接已断开。正在尝试重连…";
+    scheduleReconnect(0);
+  }
 }
 
 function submitSteer() {
@@ -2984,6 +2989,12 @@ function submitSteer() {
     return;
   }
 
+  if (!sendWs({ type: "steer", message: text })) {
+    if (hint) hint.textContent = "发送失败：WebSocket 连接已断开。正在尝试重连…";
+    scheduleReconnect(0);
+    return;
+  }
+
   appendMessageNode("user", { text, isSteer: true, ts: Date.now() });
   ta.value = "";
   autoResize();
@@ -2993,8 +3004,6 @@ function submitSteer() {
   setTimeout(() => {
     if (hint) hint.textContent = "pi 会执行命令与读写你的文件 —— 请注意操作内容。";
   }, 4000);
-
-  sendWs({ type: "steer", message: text });
 }
 
 function submitPrompt() {
@@ -3075,6 +3084,9 @@ function submitPrompt() {
     state.streaming = false;
     state.aborting = false;
     setComposerAborting(false);
+    stopStreamingTimer();
+    state.turnStartedAt = null;
+    state.streamingMsgDurationEl = null;
     if (state.streamingMsg) { state.streamingMsg.remove(); state.streamingMsg = null; }
     state.streamingItems = [];
     const hint = $(".composer-hint");
