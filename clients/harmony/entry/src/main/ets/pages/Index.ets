@@ -8,6 +8,8 @@ struct Index {
   @State inputMessage: string = '';
   @State refreshTrigger: number = 0;
   @State isDrawerOpen: boolean = false;
+  @State isSettingsOpen: boolean = false;
+  @State settingsUrl: string = '';
   private scroller: Scroller = new Scroller();
 
   aboutToAppear() {
@@ -15,7 +17,9 @@ struct Index {
       this.refreshTrigger = Date.now();
       this.scrollToBottom();
     });
-    this.viewModel.init('http://192.168.1.100:3000');
+    // Server URL is now configurable — default to emulator-friendly loopback
+    // Real devices should override via the settings dialog
+    this.viewModel.init('http://10.0.2.2:3000');
   }
 
   formatTime(ts: number): string {
@@ -29,7 +33,7 @@ struct Index {
   formatDuration(ms?: number): string {
     if (ms === undefined || ms === null || ms < 0) return '';
     if (ms < 1000) {
-      return `${(ms / 1000).toFixed(1)}s`;
+      return `${ms}ms`;
     }
     if (ms < 60000) {
       return `${(ms / 1000).toFixed(1)}s`;
@@ -102,7 +106,7 @@ struct Index {
             .fontSize(11)
             .fontColor('#6B7280')
           Blank()
-          Text('v2.10.0')
+          Text('v2.10.1')
             .fontSize(11)
             .fontColor('#6B7280')
         }
@@ -153,6 +157,16 @@ struct Index {
             .backgroundColor(Color.Transparent)
             .onClick(() => {
               this.viewModel.newSession();
+            })
+
+          Button('⚙')
+            .fontSize(18)
+            .fontColor('#9CA3AF')
+            .backgroundColor(Color.Transparent)
+            .margin({ left: 8 })
+            .onClick(() => {
+              this.settingsUrl = this.viewModel.serverUrl;
+              this.isSettingsOpen = true;
             })
         }
         .width('100%')
@@ -226,6 +240,59 @@ struct Index {
     .showSideBar(this.isDrawerOpen)
     .width('100%')
     .height('100%')
+
+    if (this.isSettingsOpen) {
+      Column() {
+        Text('服务器配置')
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#F3F4F6')
+          .margin({ bottom: 16 })
+
+        TextInput({ text: this.settingsUrl, placeholder: 'http://10.0.2.2:3000' })
+          .width('80%')
+          .height(44)
+          .fontSize(14)
+          .fontColor('#F3F4F6')
+          .backgroundColor('#1E1E24')
+          .borderRadius(8)
+          .padding({ left: 12, right: 12 })
+          .onChange((val) => {
+            this.settingsUrl = val;
+          })
+
+        Row() {
+          Button('取消')
+            .fontSize(14)
+            .fontColor('#9CA3AF')
+            .backgroundColor('#1E1E24')
+            .borderRadius(8)
+            .margin({ right: 12 })
+            .onClick(() => {
+              this.isSettingsOpen = false;
+            })
+
+          Button('保存并重连')
+            .fontSize(14)
+            .fontColor('#FFFFFF')
+            .backgroundColor('#7C3AED')
+            .borderRadius(8)
+            .onClick(() => {
+              if (this.settingsUrl.trim()) {
+                this.viewModel.init(this.settingsUrl.trim());
+                this.isSettingsOpen = false;
+              }
+            })
+        }
+        .margin({ top: 16 })
+      }
+      .width('90%')
+      .padding(24)
+      .borderRadius(16)
+      .backgroundColor('#1E1E24')
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+    }
   }
 
   @Builder

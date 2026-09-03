@@ -14,6 +14,7 @@ import com.pichat.android.data.repository.SettingsStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -58,45 +59,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _serverConfig = MutableStateFlow<ServerConfig?>(null)
     val serverConfig: StateFlow<ServerConfig?> = _serverConfig.asStateFlow()
 
+    private var collectorJobs: List<Job> = emptyList()
+
     init {
         bindRepository(repository)
         repository.connect(cwd = settings.getCwd())
     }
 
     private fun bindRepository(repo: ChatRepository) {
-        viewModelScope.launch {
-            repo.messages.collect { _messages.value = it }
-        }
-        viewModelScope.launch {
-            repo.sessions.collect { _sessions.value = it }
-        }
-        viewModelScope.launch {
-            repo.isStreaming.collect { _isStreaming.value = it }
-        }
-        viewModelScope.launch {
-            repo.connectionState.collect { _connectionState.value = it }
-        }
-        viewModelScope.launch {
-            repo.currentModel.collect { _currentModel.value = it }
-        }
-        viewModelScope.launch {
-            repo.availableModels.collect { _availableModels.value = it }
-        }
-        viewModelScope.launch {
-            repo.thinkingLevel.collect { _thinkingLevel.value = it }
-        }
-        viewModelScope.launch {
-            repo.currentCwd.collect { _currentCwd.value = it }
-        }
-        viewModelScope.launch {
-            repo.serverConfig.collect { _serverConfig.value = it }
-        }
+        // Cancel previous collector jobs to prevent unbounded accumulation on reconnect
+        collectorJobs.forEach { it.cancel() }
+        collectorJobs = listOf(
+            viewModelScope.launch { repo.messages.collect { _messages.value = it } },
+            viewModelScope.launch { repo.sessions.collect { _sessions.value = it } },
+            viewModelScope.launch { repo.isStreaming.collect { _isStreaming.value = it } },
+            viewModelScope.launch { repo.connectionState.collect { _connectionState.value = it } },
+            viewModelScope.launch { repo.currentModel.collect { _currentModel.value = it } },
+            viewModelScope.launch { repo.availableModels.collect { _availableModels.value = it } },
+            viewModelScope.launch { repo.thinkingLevel.collect { _thinkingLevel.value = it } },
+            viewModelScope.launch { repo.currentCwd.collect { _currentCwd.value = it } },
+            viewModelScope.launch { repo.serverConfig.collect { _serverConfig.value = it } }
+        )
     }
 
     fun sendMessage(text: String, images: List<ImageAttachment> = emptyList()) {
         if (text.isBlank() && images.isEmpty()) return
         if (_messages.value.isEmpty()) {
-            _currentSessionTitle.value = if (text.length > 20) text.take(20) + "…" else text
+            val titleText = text.ifEmpty { if (images.isNotEmpty()) "📷 ${images.size} 张图片" else "" }
+            _currentSessionTitle.value = if (titleText.length > 20) titleText.take(20) + "…" else titleText
         }
         repository.sendPrompt(text, images)
     }
@@ -139,6 +129,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun reconnect() {
         repository.disconnect()
+        repository.close()
         repository = ChatRepository(settings.getServerUrl(), settings.getAuthToken())
         bindRepository(repository)
         repository.connect(cwd = settings.getCwd())
@@ -148,6 +139,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         settings.save(newServerUrl, newToken, newCwd)
         _serverUrl.value = settings.getServerUrl()
         repository.disconnect()
+        repository.close()
         repository = ChatRepository(settings.getServerUrl(), settings.getAuthToken())
         bindRepository(repository)
         repository.connect(newCwd)

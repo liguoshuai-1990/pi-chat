@@ -26,6 +26,10 @@ function getAuthToken() {
     const urlToken = new URLSearchParams(window.location.search).get("token");
     if (urlToken) {
       localStorage.setItem("pi_auth_token", urlToken);
+      // Strip token from URL to prevent leakage via Referer, screenshots, or shared links
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete("token");
+      window.history.replaceState({}, "", cleanUrl.toString());
       return urlToken;
     }
     return localStorage.getItem("pi_auth_token") || "";
@@ -302,11 +306,14 @@ function renderMarkdown(md) {
   const parts = [];
   let rest = md;
   while (rest.length) {
-    const fenceIdx = rest.search(/```/);
-    if (fenceIdx === -1) {
+    // Only match ``` at the beginning of a line (or start of string) to avoid
+    // misinterpreting inline triple-backticks as code fences.
+    const fenceMatch = rest.match(/(?:^|\n)```/);
+    if (!fenceMatch) {
       parts.push({ kind: "md", text: rest });
       rest = "";
     } else {
+      const fenceIdx = fenceMatch.index + (fenceMatch[0].length - 3);
       if (fenceIdx > 0) parts.push({ kind: "md", text: rest.slice(0, fenceIdx) });
       rest = rest.slice(fenceIdx + 3);
       // optional language on this line
@@ -505,7 +512,8 @@ function mdTable(lines) {
 // ---- DOM helpers ----
 const $ = (sel, root = document) => root.querySelector(sel);
 const el = (tag, props = {}, children = []) => {
-  const n = document.createElement(tag);
+  const SVG_TAGS = new Set(["svg","rect","path","circle","line","polyline","polygon","ellipse","g","defs","use","text","tspan","linearGradient","radialGradient","stop","clipPath","mask","pattern","filter","feGaussianBlur","feOffset","feMerge","feMergeNode","animate","animateTransform","animateMotion"]);
+  const n = SVG_TAGS.has(tag) ? document.createElementNS("http://www.w3.org/2000/svg", tag) : document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
     if (k === "class") n.className = v;
     else if (k === "html") n.innerHTML = v;
@@ -1939,8 +1947,9 @@ function connectWs(opts = {}) {
 }
 
 function sendWs(obj) {
-  if (!state.ws || state.ws.readyState !== 1) return;
+  if (!state.ws || state.ws.readyState !== 1) return false;
   state.ws.send(JSON.stringify(obj));
+  return true;
 }
 
 function handlePiMessage(obj) {
@@ -2933,7 +2942,9 @@ function updateComposerUI() {
 }
 
 function setComposerAborting(yes) {
-  if (!yes) {
+  if (yes) {
+    state.aborting = true;
+  } else {
     state.aborting = false;
     const inner = $("#composerInner");
     if (inner) inner.classList.remove("aborting");
@@ -3060,7 +3071,16 @@ function submitPrompt() {
       }
     }
   }
-  sendWs({ type: "prompt", message: text, images: imagesToSend });
+  if (!sendWs({ type: "prompt", message: text, images: imagesToSend })) {
+    state.streaming = false;
+    state.aborting = false;
+    setComposerAborting(false);
+    if (state.streamingMsg) { state.streamingMsg.remove(); state.streamingMsg = null; }
+    state.streamingItems = [];
+    const hint = $(".composer-hint");
+    if (hint) hint.textContent = "发送失败：WebSocket 连接已断开。正在尝试重连…";
+    scheduleReconnect(0);
+  }
 }
 
 function autoResize() {

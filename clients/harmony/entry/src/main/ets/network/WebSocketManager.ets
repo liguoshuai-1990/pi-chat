@@ -37,6 +37,10 @@ export class WebSocketManager {
     this.disconnectInternal();
     this.ws = webSocket.createWebSocket();
 
+    // Capture this ws instance so stale handlers from a previous connection
+    // can detect they are no longer the active socket and skip reconnect logic.
+    const wsRef = this.ws;
+
     let connectUrl = url.replace(/\/$/, '');
     if (connectUrl.startsWith('http://')) {
       connectUrl = connectUrl.replace('http://', 'ws://');
@@ -59,6 +63,7 @@ export class WebSocketManager {
     this.currentUrl = connectUrl;
 
     this.ws.on('open', (err, value) => {
+      if (this.ws !== wsRef) return; // stale handler
       this.isConnected = true;
       this.reconnectAttempts = 0;
       this.notifyState(true);
@@ -66,6 +71,7 @@ export class WebSocketManager {
     });
 
     this.ws.on('message', (err, value) => {
+      if (this.ws !== wsRef) return; // stale handler
       if (typeof value === 'string') {
         try {
           const msg = JSON.parse(value) as PiProtocol.ServerMessage;
@@ -75,6 +81,7 @@ export class WebSocketManager {
     });
 
     this.ws.on('close', (err, value) => {
+      if (this.ws !== wsRef) return; // stale handler — skip reconnect for replaced sockets
       this.isConnected = false;
       this.notifyState(false);
       this.stopHeartbeat();
@@ -84,6 +91,7 @@ export class WebSocketManager {
     });
 
     this.ws.on('error', (err) => {
+      if (this.ws !== wsRef) return; // stale handler
       this.isConnected = false;
       this.notifyState(false);
       this.stopHeartbeat();
@@ -97,10 +105,12 @@ export class WebSocketManager {
     });
   }
 
-  public send(data: string) {
+  public send(data: string): boolean {
     if (this.ws && this.isConnected) {
       this.ws.send(data);
+      return true;
     }
+    return false;
   }
 
   public addMessageListener(cb: MessageCallback) {

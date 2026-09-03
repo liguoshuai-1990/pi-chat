@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -87,7 +88,11 @@ class ChatRepository(
         }
     }
 
-    fun connect(cwd: String = "", sessionPath: String? = null) {
+    fun close() {
+        scope.cancel()
+    }
+
+    fun connectcwd: String = "", sessionPath: String? = null) {
         activeCwd = cwd
         if (cwd.isNotEmpty()) {
             _currentCwd.value = cwd
@@ -97,7 +102,8 @@ class ChatRepository(
     }
 
     fun disconnect() {
-        wsClient.disconnect()
+        wsClient.shutdown()
+        scope.cancel()
     }
 
     fun fetchConfig() {
@@ -206,7 +212,11 @@ class ChatRepository(
                 }
             }
         }
-        wsClient.sendRaw(payload.toString())
+        if (!wsClient.sendRaw(payload.toString())) {
+            // WebSocket send failed — roll back streaming state to avoid UI stuck
+            _isStreaming.value = false
+            _messages.value = _messages.value.dropLast(1) // remove the streaming assistant placeholder
+        }
     }
 
     fun sendSteer(text: String) {

@@ -10,9 +10,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 
 class ApiService(
-    private val baseUrl: String,
+    baseUrl: String,
     private val token: String? = null
 ) {
+    private val baseUrl: String = baseUrl.removeSuffix("/")
     private val client = OkHttpClient()
     private val json = Json { ignoreUnknownKeys = true }
 

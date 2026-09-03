@@ -10,31 +10,45 @@ export class ChatViewModel {
   public isStreaming: boolean = false;
   public currentTitle: string = 'New Chat';
   public cwd: string = '';
-  public serverUrl: string = 'http://192.168.1.100:3000';
+  public serverUrl: string = 'http://10.0.2.2:3000'; // Default, overridable via init()
   public token: string = '';
 
   private wsManager: WebSocketManager = WebSocketManager.getInstance();
   private httpService: HttpService = new HttpService(this.serverUrl, this.token);
   private updateCallback: () => void = () => {};
 
+  // Track listener references so we can remove them on re-init to prevent leaks
+  private stateListener: ((connected: boolean) => void) | null = null;
+  private messageListener: ((msg: PiProtocol.ServerMessage) => void) | null = null;
+
   public bindUI(cb: () => void) {
     this.updateCallback = cb;
   }
 
-  public init(serverUrl: string = 'http://192.168.1.100:3000', token: string = '', cwd: string = '') {
+  public init(serverUrl: string = 'http://10.0.2.2:3000', token: string = '', cwd: string = '') {
     this.serverUrl = serverUrl;
     this.token = token;
     this.cwd = cwd;
     this.httpService = new HttpService(serverUrl, token);
 
-    this.wsManager.addStateListener((connected) => {
+    // Remove previous listeners to prevent duplicate message processing and memory leaks
+    if (this.stateListener) {
+      this.wsManager.removeStateListener(this.stateListener);
+    }
+    if (this.messageListener) {
+      this.wsManager.removeMessageListener(this.messageListener);
+    }
+
+    this.stateListener = (connected: boolean) => {
       this.isConnected = connected;
       this.notifyUI();
-    });
-
-    this.wsManager.addMessageListener((msg) => {
+    };
+    this.messageListener = (msg: PiProtocol.ServerMessage) => {
       this.handleServerMessage(msg);
-    });
+    };
+
+    this.wsManager.addStateListener(this.stateListener);
+    this.wsManager.addMessageListener(this.messageListener);
 
     this.connect();
     this.loadSessions();
@@ -81,7 +95,12 @@ export class ChatViewModel {
     this.isStreaming = true;
     this.notifyUI();
 
-    this.wsManager.send(PiProtocol.createPrompt(text, images));
+    if (!this.wsManager.send(PiProtocol.createPrompt(text, images))) {
+      // WebSocket send failed — roll back streaming state to avoid UI stuck
+      this.isStreaming = false;
+      this.messages = this.messages.slice(0, -1); // remove streaming assistant placeholder
+      this.notifyUI();
+    }
   }
 
   public sendSteer(text: string) {

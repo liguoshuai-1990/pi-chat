@@ -16,7 +16,13 @@ export default class EntryAbility extends UIAbility {
 
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
-        hilog.error(0x0000, 'PiChat', 'Failed to load content. Cause: %{public}s', JSON.stringify(err) ?? '');
+        let errMsg: string;
+        try {
+          errMsg = JSON.stringify(err);
+        } catch (e) {
+          errMsg = String(err);
+        }
+        hilog.error(0x0000, 'PiChat', 'Failed to load content. Cause: %{public}s', errMsg ?? '');
         return;
       }
       hilog.info(0x0000, 'PiChat', '%{public}s', 'Succeeded in loading content.');

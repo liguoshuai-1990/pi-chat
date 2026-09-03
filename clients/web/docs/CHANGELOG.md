@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.10.1] - 2026-09-03
+
+### Fixed
+- **HarmonyOS 监听器泄漏修复 (`clients/harmony/.../ChatViewModel.ets`)**：`init()` 每次调用都新增 WebSocket 状态与消息监听器但不移除旧的，导致重复调用时监听器堆积、消息被重复处理。现已保存监听器引用并在重新初始化时先移除旧监听器。
+- **HarmonyOS WebSocket 重连竞争修复 (`clients/harmony/.../WebSocketManager.ets`)**：`connect()` 替换已有连接时，旧 socket 的异步 `on('close')` 回调仍会触发 `scheduleReconnect()`，导致连接抖动。现已通过捕获 ws 实例引用，在陈旧回调中跳过重连逻辑。
+- **Android WebSocket 连接泄漏修复 (`clients/android/.../WebSocketClient.kt`)**：`connect()` 未关闭已有 WebSocket 连接，在重连场景下旧连接资源泄漏。现已在 `connect()` 开头主动关闭并清理旧连接。
+- **Android 协程作用域泄漏修复 (`clients/android/.../ChatRepository.kt` / `ChatViewModel.kt`)**：`reconnect()` 创建新 `ChatRepository` 但未取消旧实例的协程作用域，导致协程泄漏。现已新增 `close()` 方法并在重连时调用。
+- **协议层冗余代码清理 (`packages/protocol/src/index.js`)**：`formatDuration` 函数前两个条件分支完全相同，移除冗余的 `ms < 1000` 分支。
+- **HarmonyOS 冗余代码清理 (`clients/harmony/.../Index.ets`)**：同步移除 `formatDuration` 中相同的冗余分支。
+- **Web 端 Token 泄漏防护 (`clients/web/public/app.js`)**：从 URL 提取 auth token 后立即使用 `history.replaceState` 清除 URL 中的 token 参数，防止通过 Referer 头、截图或分享链接泄漏。
+- **Web 端代码围栏匹配修复 (`clients/web/public/app.js`)**：`renderMarkdown` 中 ```` 围栏匹配改为仅在行首匹配，避免将行内三反引号误判为代码围栏。
+- **Web 端 SVG 元素命名空间修复 (`clients/web/public/app.js`)**：DOM 辅助函数 `el()` 对 SVG 标签使用 `createElementNS` 创建，修复 SVG 图标渲染问题。
+- **Web 端发送失败处理增强 (`clients/web/public/app.js`)**：`sendWs` 返回布尔值，`submitPrompt` 在 WebSocket 断开时回退流式状态并提示用户，`setComposerAborting(true)` 正确设置 `state.aborting`。
+- **Android API 基址规范化 (`clients/android/.../ApiService.kt`)**：构造函数中自动去除 `baseUrl` 尾部斜杠，避免拼接出双斜杠 URL。
+
+### Changed
+- 全端版本号统一递增至 2.10.1（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.10.0] - 2026-09-02
 
 ### Added & Aligned

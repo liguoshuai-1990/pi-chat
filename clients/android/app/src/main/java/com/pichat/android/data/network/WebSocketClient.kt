@@ -19,12 +19,12 @@ enum class ConnectionState {
 class WebSocketClient(
     private val serverUrl: String,
     private val token: String? = null,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-) {
-    private val okHttpClient = OkHttpClient.Builder()
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+    private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .pingInterval(25, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
+) {
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -41,6 +41,13 @@ class WebSocketClient(
     private var reconnectAttempts = 0
 
     fun connect(cwd: String = "", sessionPath: String? = null) {
+        // Close any existing connection to prevent resource leaks when reconnecting
+        webSocket?.let { ws ->
+            try { ws.close(1000, "Reconnecting") } catch (_: Exception) {}
+        }
+        webSocket = null
+        stopHeartbeat()
+
         isManualClose = false
         _connectionState.tryEmit(ConnectionState.CONNECTING)
 
@@ -100,8 +107,8 @@ class WebSocketClient(
         })
     }
 
-    fun sendRaw(jsonString: String) {
-        webSocket?.send(jsonString)
+    fun sendRaw(jsonString: String): Boolean {
+        return webSocket?.send(jsonString) ?: false
     }
 
     private fun startHeartbeat() {
@@ -139,5 +146,11 @@ class WebSocketClient(
         webSocket?.close(1000, "User disconnected")
         webSocket = null
         _connectionState.tryEmit(ConnectionState.DISCONNECTED)
+    }
+
+    fun shutdown() {
+        disconnect()
+        okHttpClient.dispatcher.executorService.shutdown()
+        okHttpClient.connectionPool.evictAll()
     }
 }

@@ -330,9 +330,6 @@ export function validateClientMessage(msg) {
  */
 export function formatDuration(ms) {
   if (ms == null || isNaN(ms) || ms < 0) return "";
-  if (ms < 1000) {
-    return `${(ms / 1000).toFixed(1)}s`;
-  }
   if (ms < 60000) {
     return `${(ms / 1000).toFixed(1)}s`;
   }
