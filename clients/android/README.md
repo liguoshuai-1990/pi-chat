@@ -1,4 +1,4 @@
-# 📱 Pi Chat Android App (v2.10.0)
+# 📱 Pi Chat Android App (v2.11.3)
 
 Pi Chat Android 原生移动端应用，与 Web 端实现全要素体验对齐，让开发者能够在手机上随时随地操控 VPS / 远程服务器上的 Pi 编程智能体。
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+---
+
+## [2.11.3] - 2026-09-03
+
+### Fixed
+- **HarmonyOS 端配置持久化与初始加载缺失 (`clients/harmony/...`)**：`PreferencesHelper` 虽然实现了服务端 URL 的存储与获取，但未在 App 启动/初始化流程中实际调用。现已在 `Index.ets` 的 `aboutToAppear()` 中调用 `PreferencesHelper.getServerUrl()` 动态读取已保存的 URL 进行初始化，并在“保存并重连”时调用 `PreferencesHelper.setServerUrl()` 写入持久化存储，解决应用重启后配置丢失问题。
+- **HarmonyOS 端 UI 界面版本号硬编码滞后 (`clients/harmony/.../Index.ets`)**：侧边栏抽屉底部硬编码展示旧版本号 `v2.10.1`，现已更新为当前全仓最新的 `v2.11.3`，与 Monorepo 版本数严格对齐。
+
+### Changed
+- 全端版本号统一递增至 2.11.3（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 ## [2.11.2] - 2026-09-03
 
 ### Fixed

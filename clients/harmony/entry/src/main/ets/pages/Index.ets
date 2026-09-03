@@ -1,5 +1,6 @@
 import { ChatViewModel } from '../viewmodel/ChatViewModel';
 import { ChatMessage, MessageRole } from '../model/ChatModel';
+import { PreferencesHelper } from '../network/PreferencesHelper';
 
 @Entry
 @Component
@@ -17,9 +18,12 @@ struct Index {
       this.refreshTrigger = Date.now();
       this.scrollToBottom();
     });
-    // Server URL is now configurable — default to emulator-friendly loopback
-    // Real devices should override via the settings dialog
-    this.viewModel.init('http://10.0.2.2:3000');
+    // Load persisted server URL or fallback to default
+    PreferencesHelper.getServerUrl(getContext(this) as any).then((url) => {
+      this.viewModel.init(url);
+    }).catch(() => {
+      this.viewModel.init('http://10.0.2.2:3000');
+    });
   }
 
   formatTime(ts: number): string {
@@ -106,7 +110,7 @@ struct Index {
             .fontSize(11)
             .fontColor('#6B7280')
           Blank()
-          Text('v2.10.1')
+          Text('v2.11.3')
             .fontSize(11)
             .fontColor('#6B7280')
         }
@@ -279,7 +283,12 @@ struct Index {
             .borderRadius(8)
             .onClick(() => {
               if (this.settingsUrl.trim()) {
-                this.viewModel.init(this.settingsUrl.trim());
+                const targetUrl = this.settingsUrl.trim();
+                PreferencesHelper.setServerUrl(getContext(this) as any, targetUrl).then(() => {
+                  this.viewModel.init(targetUrl);
+                }).catch(() => {
+                  this.viewModel.init(targetUrl);
+                });
                 this.isSettingsOpen = false;
               }
             })
