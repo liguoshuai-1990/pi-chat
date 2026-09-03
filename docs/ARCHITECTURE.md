@@ -1,8 +1,8 @@
-# Pi-Chat Monorepo 架构设计文档 (Architecture Design)
+# 🏛️ Pi-Chat Monorepo 架构设计与系统规范 (Architecture Design)
 
 ## 1. 架构目标与全景图
 
-`pi-chat` 是一个采用 **pnpm Workspaces** 进行组织的多端协同大仓库（Monorepo）。系统通过标准化通信协议将底层的 Pi Coding Agent 智能体能力分发至浏览器 Web 端、Android 移动端和华为鸿蒙原生端。
+`pi-chat` 是一个采用 **pnpm Workspaces** 进行组织的多端协同大工程（Monorepo）。系统通过标准化通信协议将底层的 Pi Coding Agent 智能体能力解耦并无缝分发至 **Web 浏览器端**、**Android 原生移动端**、**华为鸿蒙原生端** 与 **VPS 桥接网关服务端**。
 
 ```
 +-----------------------------------------------------------------------------------+
@@ -40,47 +40,69 @@
                                             v  (stdio: stdin / stdout JSON RPC)
 +-----------------------------------------------------------------------------------+
 |                       pi --mode rpc (底层 Pi 智能体核心进程)                         |
-|   - LLM 推理 (Anthropic/OpenAI/Gemini/Ollama)                                     |
-|   - 本地工具执行 (Read / Write / Bash / Edit / Git)                               |
+|   - LLM 推理 (Anthropic / OpenAI / DeepSeek / Gemini / Ollama)                    |
+|   - 本地工具执行 (Read / Write / Bash / Edit / Glob)                              |
 |   - 状态持久化 (~/.pi/agent/sessions/*.jsonl)                                      |
 +-----------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 2. 核心模块定位与解耦协作
+## 2. 核心模块定位与交付形态
 
-### 2.1 `server/` 与 `clients/web/` 的协作关系
-- **单一数据源与统一内核 (Single Source of Truth)**：
-  `server/` 是整个生态**唯一的后端网关核心**，管理所有 Agent 子进程生命周期、Token 鉴权、心跳、SSE 与会话管理。
-- **Web 端的薄封装设计**：
-  `clients/web/server.js` 仅作为针对 npm 交付包 `@liguoshuai/pi-web-chat` 的轻量运行胶水层，直接引用 `@liguoshuai/pi-chat-server` 启动并托管 `clients/web/public` 前端资源，消除了代码重复。
-- **全端同等接入地位**：
-  Web 前端 (`clients/web/public/app.js`) 与 Android、鸿蒙移动端一样，原生支持通过 `token` 参数或弹窗输入访问密钥，既可同源一体化部署，亦可跨域独立部署直连 VPS 网关。
+整个 Monorepo 包含 **5 个独立且统一协调的交付件**：
 
----
-
-## 3. 核心模块分工列表
-
-1. **`server` (`@liguoshuai/pi-chat-server`)**：
-   - 统一 VPS 部署入口，提供 Token 认证、RESTful 历史会话管理、WebSocket 多路复用和 SSE 流推送。
-2. **`clients/web` (`@liguoshuai/pi-web-chat`)**：
-   - 维持既有独立发布流（npm `@liguoshuai/pi-web-chat`）。
-   - 现代化 Web 界面，支持 Markdown 渲染、代码高亮与折叠、附件上传、移动端响应式布局与 Token 鉴权提示。
-3. **`clients/android`**：
-   - 基于 Android 原生 Jetpack Compose 与 Material 3 设计。
-   - 使用 OkHttp WebSocket 与 Coroutines / StateFlow 实现极速响应和流式增量绘制。
-4. **`clients/harmony`**：
-   - 基于华为 HarmonyOS Next ArkTS 与 ArkUI 框架开发。
-   - 适配 Stage 模型与跨端响应式布局。
-5. **`packages/protocol` (`@liguoshuai/pi-chat-protocol`)**：
-   - 统一全端消息格式，消除各端通信协议不一致的问题。
-   - 包含校验器与别名兼容层（`client_send` -> `prompt`, `heartbeat` -> `ping`）。
+| 模块目录 | 交付包名 | 技术栈 | 职责与交付物形态 |
+| :--- | :--- | :--- | :--- |
+| `packages/protocol/` | `@liguoshuai/pi-chat-protocol` | Node.js ESM / TS | 跨端通信协议 Schema、TS 类型声明、消息验证器 (`.tgz` + NPM Registry) |
+| `server/` | `@liguoshuai/pi-chat-server` | Express + WS + SSE | VPS 桥接网关服务，管理 `pi --mode rpc` 子进程池与鉴权 (`.tgz` + CLI) |
+| `clients/web/` | `@liguoshuai/pi-web-chat` | HTML5 / CSS3 / ES6 | ChatGPT/Gemini 风格 Web 客户端 (`.tgz` + CLI) |
+| `clients/android/` | `pi-chat-android` | Kotlin / Compose | Android 手机原生应用 (`app-debug.apk`) |
+| `clients/harmony/` | `pi-chat-harmony` | ArkTS / ArkUI | 华为鸿蒙原生 Stage 移动应用 (`pi-chat-harmony-app.zip` / `.hap`) |
 
 ---
 
-## 4. 会话与进程生命周期管理
+## 3. 跨端通信协议与消息生命周期
 
-- **连接绑定与解耦**：每个会话由 `cwd` 与 `sessionPath` 唯一确定。客户端断开后，Agent 子进程继续在 VPS 后台运行直至任务完成。
-- **断线无损回填**：当客户端重新连接时，服务端自动回放断开期间缓存在 Ring Buffer 中的事件流。
-- **自动内存回收**：当 Agent 子进程无客户端连接且处于空闲状态超过 `IDLE_TIMEOUT_MS`（默认 5 分钟）时，网关将平滑终止该进程释放 VPS 系统资源。
+各端与 VPS 网关之间的通信严格遵循 `@liguoshuai/pi-chat-protocol` 规范：
+
+### 3.1 客户端请求消息 (Client Messages)
+- **`prompt`**：发送用户对话提示词及图片附件（`{ type: "prompt", message: string, images?: ImageAttachment[] }`）。
+- **`steer`**：在 Agent 思考或执行工具中途注入指导性指令（`{ type: "steer", message: string }`）。
+- **`abort`**：中止当前 Agent 执行任务（`{ type: "abort" }`）。
+- **`get_state`**：查询当前 Agent 运行状态、当前模型及工作目录。
+- **`get_available_models`**：获取当前环境可用的 LLM 模型清单及其特性（🧠 推理、👁️ 视觉、🛠️ 工具）。
+- **`set_model`**：即时切换 Agent 使用的 Provider 与模型 ID（`{ type: "set_model", provider: string, modelId: string }`）。
+- **`set_thinking_level`**：切换推理深度（`{ type: "set_thinking_level", level: "off"|"minimal"|"low"|"medium"|"high"|"max" }`）。
+- **`new_session`**：创建新的对话会话。
+- **`switch_session`**：切换到指定历史会话文件。
+- **`ping`**：30s 周期性心跳保活。
+
+### 3.2 服务端推送消息 (Server Messages)
+- **`agent_start`**：智能体启动思考与应答任务。
+- **`agent_stream` / `message_update`**：打字机文本增量与深度思考内容增量（带 `thinking_delta` 标记）。
+- **`tool_execution_start`**：工具开始执行（包含工具名称 `toolName` 与参数 `args`）。
+- **`tool_execution_update`**：长耗时工具的增量标准输出流。
+- **`tool_execution_end`**：工具执行完成（包含执行结果 `result`、耗时与成功状态）。
+- **`agent_end` / `agent_settled`**：智能体任务完成并进入待命状态。
+- **`backfill_start` / `backfill_end`**：断线重连时的历史增量回填广播。
+
+---
+
+## 4. 安全防护与韧性设计
+
+1. **CSWSH 防护**：网关在握手阶段通过 `isAllowedOrigin` 验证 `Origin` 请求头，严格阻断恶意第三方网页发起的跨站 WebSocket 劫持。
+2. **路径遍历防护 (Path Traversal)**：服务端在处理会话文件读取与写入时，通过绝对路径解析与前缀对比，严格限制在合法目录范围内。
+3. **统一 Token 鉴权**：在开启 `AUTH_TOKEN` 时，REST 接口、WebSocket 握手及 SSE 连接必须携带正确的 Bearer Token。
+4. **环形缓冲区 (Ring Buffer)**：每个 Agent 实例维护环形缓冲区，客户端意外断网或移动端切换网络时，子进程不中断，重连后自动回放全部丢失数据包。
+5. **空闲回收与看门狗**：Agent 在无人连接且空闲超过 `IDLE_TIMEOUT_MS`（默认 5 分钟）时自动平滑释放，兼顾内存资源与实时可用性。
+
+---
+
+## 5. CI/CD 流水线与版本锁步机制
+
+1. **多环境自动化测试**：每次 Push/PR 在 Node 18/20/22 下运行全量测试。
+2. **Android 产物打包 (`pi-chat-android-apk`)**：全自动编译生成 APK，保留 30 天供随时下载。
+3. **NPM 包打包 (`pi-chat-npm-packages`)**：将协议、网关与 Web 客户端自动打包为 `.tgz` 归档。
+4. **鸿蒙工程打包 (`pi-chat-harmony-bundle`)**：自动将鸿蒙原生源码归档为 `pi-chat-harmony-app.zip`。
+5. **版本发布自动挂载**：打上 `v*` 标签后自动创建 GitHub Release 并挂载全量 5 大交付物。
