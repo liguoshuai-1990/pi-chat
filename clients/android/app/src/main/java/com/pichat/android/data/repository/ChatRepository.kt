@@ -15,6 +15,7 @@ import com.pichat.android.data.network.WebSocketClient
 import com.pichat.android.data.protocol.GenericServerMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,7 +35,7 @@ import kotlinx.serialization.json.putJsonArray
 class ChatRepository(
     private val serverUrl: String,
     private val token: String? = null,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 ) {
     private val wsClient = WebSocketClient(serverUrl, token, scope)
     private val apiService = ApiService(serverUrl, token)

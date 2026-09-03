@@ -319,11 +319,14 @@ export class PiAgent {
     if (this.eventBuffer.length === 0 || ws.readyState !== 1) return;
     const count = this.eventBuffer.length;
     try { ws.send(JSON.stringify(createBackfillStartMessage(count))); } catch {}
-    const start = count === config.eventBufferSize ? this.bufferHead : 0;
+    const size = config.eventBufferSize || 5000;
+    const start = this.hasBufferOverflowed ? this.bufferHead : 0;
     for (let i = 0; i < count; i++) {
-      const idx = (start + i) % config.eventBufferSize;
+      const idx = (start + i) % size;
       const ev = this.eventBuffer[idx];
-      try { ws.send(JSON.stringify(ev)); } catch {}
+      if (ev !== undefined) {
+        try { ws.send(JSON.stringify(ev)); } catch {}
+      }
     }
     try {
       ws.send(JSON.stringify(createBackfillEndMessage(this.isStreaming, this.state, this.hasBufferOverflowed)));
@@ -339,11 +342,14 @@ export class PiAgent {
     if (this.eventBuffer.length === 0 || res.destroyed || res.writableEnded) return;
     const count = this.eventBuffer.length;
     try { res.write(`data: ${JSON.stringify(createBackfillStartMessage(count))}\n\n`); } catch {}
-    const start = count === config.eventBufferSize ? this.bufferHead : 0;
+    const size = config.eventBufferSize || 5000;
+    const start = this.hasBufferOverflowed ? this.bufferHead : 0;
     for (let i = 0; i < count; i++) {
-      const idx = (start + i) % config.eventBufferSize;
+      const idx = (start + i) % size;
       const ev = this.eventBuffer[idx];
-      try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch {}
+      if (ev !== undefined) {
+        try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch {}
+      }
     }
     try {
       res.write(`data: ${JSON.stringify(createBackfillEndMessage(this.isStreaming, this.state, this.hasBufferOverflowed))}\n\n`);
@@ -375,10 +381,10 @@ export class PiAgent {
 
   send(cmd) {
     return new Promise((resolve) => {
-      if (!this.alive || !this.proc || !this.proc.stdin || this.proc.stdin.destroyed) {
-        return resolve({ type: "response", id: cmd.id || "0", success: false, error: "pi process not alive" });
-      }
       const id = cmd.id !== undefined && cmd.id !== null ? String(cmd.id) : String(++this.reqId);
+      if (!this.alive || !this.proc || !this.proc.stdin || this.proc.stdin.destroyed) {
+        return resolve({ type: "response", id, success: false, error: "pi process not alive" });
+      }
       const payload = { ...cmd, id };
       const longRunning = cmd.type === "prompt" || cmd.type === "steer" || cmd.type === "client_send";
       let timeoutId = null;

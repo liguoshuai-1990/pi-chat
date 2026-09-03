@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
----
+## [2.12.1] - 2026-09-04
+
+### Improved
+- **耗时时长格式化进位与边界修复 (`packages/protocol`, `clients/web/public/app.js`)**：
+  - 重构 `formatDuration` 算法，避免毫秒数在接近整分边界（例如 `59950ms`、`119950ms`）时因浮点数取模四舍五入导致输出 `"0m 60s"` 或 `"1m 60s"` 异常格式，统一进位并补齐单元测试。
+- **会话列表排序时间戳健壮性增强 (`server/src/routes.js`)**：
+  - 在 `/api/sessions` 排序中加入严格的 `Number.isFinite` 与 `Date.parse` 解析校验，防止无效或非标准日期字符串导致 `NaN` 比较破坏 JavaScript 引擎排序稳定性。
+- **流式事件回放与请求 ID 边界保护 (`server/src/agent.js`)**：
+  - 优化 WebSocket / SSE 缓冲区回放遍历逻辑，精准依据缓冲区环形溢出状态重放事件，过滤潜在空槽位；
+  - 改进 `PiAgent.send` 在子进程异常终止时对于数字 `0` 作为请求 ID 的正确保留与响应返回。
+- **Android 客户端协程生命周期防御 (`clients/android/.../ChatRepository.kt`)**：
+  - 仓库层使用 `SupervisorJob()` 配合 `Dispatchers.IO`，避免子协程失败导致整个仓库层作用域被级联取消。
+
+### Changed
+- 全端版本号统一递增至 2.12.1（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
 
 ## [2.12.0] - 2026-09-04
 

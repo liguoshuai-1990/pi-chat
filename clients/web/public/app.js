@@ -560,14 +560,12 @@ function formatMessageTime(ts) {
 // ---- Duration Formatter ----
 function formatDuration(ms) {
   if (ms == null || isNaN(ms) || ms < 0) return "";
-  if (ms < 1000) {
+  const totalSecs = Math.round(ms / 1000);
+  if (totalSecs < 60) {
     return `${(ms / 1000).toFixed(1)}s`;
   }
-  if (ms < 60000) {
-    return `${(ms / 1000).toFixed(1)}s`;
-  }
-  const mins = Math.floor(ms / 60000);
-  const secs = Math.round((ms % 60000) / 1000);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
   return `${mins}m ${secs}s`;
 }
 

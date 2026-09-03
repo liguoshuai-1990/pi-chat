@@ -173,8 +173,10 @@ describe("Pi-Chat Protocol Unit Tests", () => {
     assert.equal(formatDuration(0), "0.0s");
     assert.equal(formatDuration(450), "0.5s");
     assert.equal(formatDuration(1200), "1.2s");
-    assert.equal(formatDuration(59900), "59.9s");
+    assert.equal(formatDuration(59400), "59.4s");
+    assert.equal(formatDuration(59950), "1m 0s");
     assert.equal(formatDuration(60000), "1m 0s");
     assert.equal(formatDuration(75400), "1m 15s");
+    assert.equal(formatDuration(119950), "2m 0s");
   });
 });
