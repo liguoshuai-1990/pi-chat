@@ -46,6 +46,9 @@ class ChatRepository(
     private val _sessions = MutableStateFlow<List<SessionInfo>>(emptyList())
     val sessions: StateFlow<List<SessionInfo>> = _sessions.asStateFlow()
 
+    private val _currentSessionFile = MutableStateFlow<String?>(null)
+    val currentSessionFile: StateFlow<String?> = _currentSessionFile.asStateFlow()
+
     private val _isStreaming = MutableStateFlow(false)
     val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
 
@@ -97,6 +100,7 @@ class ChatRepository(
         if (cwd.isNotEmpty()) {
             _currentCwd.value = cwd
         }
+        _currentSessionFile.value = sessionPath
         wsClient.connect(cwd, sessionPath)
         loadSessions()
     }
@@ -245,9 +249,23 @@ class ChatRepository(
             // WebSocket send failed — don't clear messages to avoid state desync
             return
         }
+        _currentSessionFile.value = sessionPath
         _messages.value = emptyList()
         loadSessionHistory(sessionPath)
         loadSessions()
+    }
+
+    fun deleteSession(file: String) {
+        scope.launch {
+            val result = apiService.deleteSession(file)
+            result.onSuccess {
+                if (_currentSessionFile.value == file) {
+                    newSession()
+                } else {
+                    loadSessions()
+                }
+            }
+        }
     }
 
     fun loadSessionHistory(sessionPath: String) {
@@ -382,6 +400,7 @@ class ChatRepository(
     }
 
     fun newSession() {
+        _currentSessionFile.value = null
         _messages.value = emptyList()
         val payload = buildJsonObject {
             put("type", "new_session")
@@ -540,7 +559,11 @@ class ChatRepository(
         val data = msg.data as? JsonObject ?: return null
         for (key in listOf("sessionFile", "sessionPath")) {
             val v = data[key]
-            if (v is JsonPrimitive && v.isString && v.content.isNotEmpty()) return v.content
+            if (v is JsonPrimitive && v.isString && v.content.isNotEmpty()) {
+                val f = v.content
+                _currentSessionFile.value = f
+                return f
+            }
         }
         return null
     }

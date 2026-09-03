@@ -28,10 +28,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Refresh
@@ -43,11 +45,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -96,6 +100,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val connState by viewModel.connectionState.collectAsState()
     val sessionTitle by viewModel.currentSessionTitle.collectAsState()
     val serverUrl by viewModel.serverUrl.collectAsState()
+    val currentSessionFile by viewModel.currentSessionFile.collectAsState()
     val currentModel by viewModel.currentModel.collectAsState()
     val availableModels by viewModel.availableModels.collectAsState()
     val thinkingLevel by viewModel.thinkingLevel.collectAsState()
@@ -136,6 +141,8 @@ fun ChatScreen(viewModel: ChatViewModel) {
         drawerContent = {
             HistoryDrawer(
                 sessions = sessions,
+                currentSessionFile = currentSessionFile,
+                isStreaming = isStreaming,
                 connState = connState,
                 onNewSession = {
                     viewModel.newSession()
@@ -144,6 +151,9 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 onSelectSession = { session ->
                     viewModel.switchSession(session)
                     coroutineScope.launch { drawerState.close() }
+                },
+                onDeleteSession = { file ->
+                    viewModel.deleteSession(file)
                 },
                 onReconnect = { viewModel.reconnect() }
             )
@@ -160,66 +170,87 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
-                            .padding(horizontal = 8.dp),
+                            .height(56.dp)
+                            .padding(horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
+                        IconButton(
+                            onClick = { coroutineScope.launch { drawerState.open() } },
+                            modifier = Modifier.size(40.dp)
+                        ) {
                             Icon(Icons.Default.Menu, contentDescription = "打开历史记录", tint = TextPrimary)
                         }
 
-                        // Horizontal topbar pills matching web client
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .horizontalScroll(rememberScrollState()),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            // CWD Pill
-                            TopBarPill(
-                                icon = {
-                                    PillIconBadge(
-                                        icon = Icons.Outlined.Folder,
-                                        tint = TextSecondary,
-                                        background = BgHover
-                                    )
-                                },
-                                label = formatCwdDisplay(currentCwd, serverConfig?.home),
-                                onClick = { showCwdDialog = true }
+                            Text(
+                                text = sessionTitle.ifEmpty { "新对话" },
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            Spacer(Modifier.height(3.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                // CWD Pill
+                                TopBarPill(
+                                    icon = {
+                                        Icon(
+                                            Icons.Outlined.Folder,
+                                            contentDescription = null,
+                                            tint = TextSecondary,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                    },
+                                    label = formatCwdDisplay(currentCwd, serverConfig?.home),
+                                    onClick = { showCwdDialog = true }
+                                )
 
-                            // Model Pill
-                            val modelDisplayName = currentModel?.name ?: currentModel?.id ?: "选择模型"
-                            val isDefaultModel = currentModel?.isDefault == true || (serverConfig?.defaultModel?.id != null && currentModel?.id == serverConfig?.defaultModel?.id)
-                            TopBarPill(
-                                icon = {
-                                    PillIconBadge(
-                                        icon = Icons.Outlined.SmartToy,
-                                        tint = Accent,
-                                        background = AccentSoft
-                                    )
-                                },
-                                label = modelDisplayName,
-                                badge = if (isDefaultModel) "★ 默认" else null,
-                                onClick = {
-                                    viewModel.refreshModels()
-                                    showModelSelector = true
-                                }
-                            )
+                                // Model Pill
+                                val modelDisplayName = currentModel?.name ?: currentModel?.id ?: "选择模型"
+                                val isDefaultModel = currentModel?.isDefault == true || (serverConfig?.defaultModel?.id != null && currentModel?.id == serverConfig?.defaultModel?.id)
+                                TopBarPill(
+                                    icon = {
+                                        Icon(
+                                            Icons.Outlined.SmartToy,
+                                            contentDescription = null,
+                                            tint = Accent,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                    },
+                                    label = modelDisplayName,
+                                    badge = if (isDefaultModel) "★ 默认" else null,
+                                    onClick = {
+                                        viewModel.refreshModels()
+                                        showModelSelector = true
+                                    }
+                                )
 
-                            // Thinking Pill
-                            TopBarPill(
-                                icon = {
-                                    PillIconBadge(
-                                        icon = Icons.Outlined.Psychology,
-                                        tint = Color(0xFFC4B5FD),
-                                        background = Color(0xFF8B5CF6).copy(alpha = 0.18f)
-                                    )
-                                },
-                                label = thinkingLevel.replaceFirstChar { it.uppercase() },
-                                onClick = { showThinkingSelector = true }
-                            )
+                                // Thinking Pill
+                                TopBarPill(
+                                    icon = {
+                                        Icon(
+                                            Icons.Outlined.Psychology,
+                                            contentDescription = null,
+                                            tint = Color(0xFFC4B5FD),
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                    },
+                                    label = thinkingLevel.replaceFirstChar { it.uppercase() },
+                                    onClick = { showThinkingSelector = true }
+                                )
+                            }
                         }
 
                         // Export chat action
@@ -243,7 +274,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             )
                         }
 
-                        // Single Settings action
+                        // Settings action
                         IconButton(
                             onClick = { showSettings = true },
                             modifier = Modifier.size(36.dp)
@@ -395,35 +426,35 @@ private fun TopBarPill(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        color = BgInput,
+        shape = RoundedCornerShape(6.dp),
+        color = BgHover,
         border = BorderStroke(1.dp, Border),
-        modifier = Modifier.height(30.dp)
+        modifier = Modifier.height(22.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
+            modifier = Modifier.padding(horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             icon()
             Text(
                 label,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = TextPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Normal,
+                color = TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             if (badge != null) {
                 Text(
                     badge,
-                    fontSize = 10.sp,
+                    fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFF59E0B),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(3.dp))
                         .background(Color(0xFFF59E0B).copy(alpha = 0.15f))
-                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                        .padding(horizontal = 3.dp, vertical = 0.5.dp)
                 )
             }
         }
@@ -431,85 +462,125 @@ private fun TopBarPill(
 }
 
 @Composable
-private fun PillIconBadge(
-    icon: ImageVector,
-    tint: Color,
-    background: Color
-) {
-    Box(
-        modifier = Modifier
-            .size(20.dp)
-            .clip(CircleShape)
-            .background(background),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(13.dp)
-        )
-    }
-}
-
-@Composable
 private fun HistoryDrawer(
     sessions: List<SessionInfo>,
+    currentSessionFile: String?,
+    isStreaming: Boolean,
     connState: ConnectionState,
     onNewSession: () -> Unit,
     onSelectSession: (SessionInfo) -> Unit,
+    onDeleteSession: (String) -> Unit,
     onReconnect: () -> Unit
 ) {
+    val context = LocalContext.current
     var searchText by remember { mutableStateOf("") }
+    var sessionToDelete by remember { mutableStateOf<SessionInfo?>(null) }
 
     ModalDrawerSheet(
         drawerContainerColor = SidebarBg,
-        modifier = Modifier.width(300.dp)
+        modifier = Modifier.width(280.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
         ) {
-            // Top: + 新对话 button (Removed duplicate Settings button!)
+            // Top: + 新对话 button
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp)
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
             ) {
-                OutlinedButton(
+                Surface(
                     onClick = onNewSession,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color.Transparent,
                     border = BorderStroke(1.dp, Border),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-                    contentPadding = PaddingValues(vertical = 10.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("新对话", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = null,
+                            tint = TextPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "新对话",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary
+                        )
+                    }
                 }
             }
 
-            // Search Bar
-            OutlinedTextField(
-                value = searchText,
-                onValueChange = { searchText = it },
-                placeholder = { Text("搜索会话…", color = TextDim, fontSize = 13.sp) },
-                singleLine = true,
+            // Compact Search Bar matching Web
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Bg,
-                    unfocusedContainerColor = Bg,
-                    focusedBorderColor = TextDim,
-                    unfocusedBorderColor = Border,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary
-                )
-            )
+                    .padding(horizontal = 10.dp, vertical = 2.dp)
+                    .height(34.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Bg)
+                    .border(1.dp, Border, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = "搜索",
+                        tint = TextDim,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    BasicTextField(
+                        value = searchText,
+                        onValueChange = { searchText = it },
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            color = TextPrimary,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Normal
+                        ),
+                        cursorBrush = SolidColor(Accent),
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { innerTextField ->
+                            if (searchText.isEmpty()) {
+                                Text(
+                                    "搜索会话…",
+                                    color = TextDim,
+                                    fontSize = 12.5.sp
+                                )
+                            }
+                            innerTextField()
+                        }
+                    )
+                    if (searchText.isNotEmpty()) {
+                        IconButton(
+                            onClick = { searchText = "" },
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "清除",
+                                tint = TextDim,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(Modifier.height(6.dp))
 
@@ -521,44 +592,253 @@ private fun HistoryDrawer(
                 }
             }
 
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(filtered, key = { it.file }) { session ->
-                    val label = session.sessionName ?: session.firstUser ?: session.name
-                    NavigationDrawerItem(
-                        label = {
-                            Text(
-                                label,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = TextPrimary,
-                                fontSize = 13.sp
-                            )
-                        },
-                        selected = false,
-                        onClick = { onSelectSession(session) },
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                        colors = NavigationDrawerItemDefaults.colors(
-                            unselectedContainerColor = Color.Transparent,
-                            selectedContainerColor = BgHover
-                        )
+            if (filtered.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(top = 32.dp),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Text(
+                        if (searchText.isEmpty()) "没有会话记录" else "未找到匹配会话",
+                        color = TextDim,
+                        fontSize = 12.5.sp
                     )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(filtered, key = { it.file }) { session ->
+                        val isSelected = currentSessionFile != null && (
+                            session.file == currentSessionFile ||
+                            session.file.trimStart('.', '/', '~') == currentSessionFile.trimStart('.', '/', '~')
+                        )
+                        val label = session.sessionName ?: session.firstUser ?: session.name
+                        val timeStr = formatSessionTimestamp(session.timestamp)
+                        val isRunning = isStreaming && isSelected
+
+                        Surface(
+                            onClick = { onSelectSession(session) },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) BgHover else Color.Transparent,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Accent left indicator for active session
+                                if (isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(width = 3.dp, height = 24.dp)
+                                            .clip(RoundedCornerShape(1.5.dp))
+                                            .background(Accent)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                            color = TextPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+
+                                        if (isRunning) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(999.dp))
+                                                    .background(Accent.copy(alpha = 0.15f))
+                                                    .border(0.5.dp, Accent.copy(alpha = 0.3f), RoundedCornerShape(999.dp))
+                                                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(5.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Accent)
+                                                )
+                                                Text(
+                                                    "运行中",
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = Accent
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(2.dp))
+
+                                    val metaText = buildString {
+                                        if (timeStr.isNotEmpty()) {
+                                            append(timeStr)
+                                            append(" · ")
+                                        }
+                                        append("${session.messageCount} 条")
+                                    }
+                                    Text(
+                                        text = metaText,
+                                        fontSize = 11.sp,
+                                        color = TextDim,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                // Delete session action
+                                IconButton(
+                                    onClick = { sessionToDelete = session },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.DeleteOutline,
+                                        contentDescription = "删除会话",
+                                        tint = TextDim,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             HorizontalDivider(color = Border)
-            Column(modifier = Modifier.padding(16.dp)) {
+
+            // Sidebar Bottom: Status + Web-like Links + Version
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .navigationBarsPadding()
+            ) {
                 ConnectionStatus(connState = connState, onReconnect = onReconnect)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("pi.dev · pi-chat", fontSize = 11.sp, color = TextDim)
-                    Text("Android v${com.pichat.android.BuildConfig.VERSION_NAME}", fontSize = 11.sp, color = TextDim)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "pi.dev",
+                            fontSize = 11.sp,
+                            color = TextSecondary,
+                            modifier = Modifier.clickable {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://pi.dev"))
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            }
+                        )
+                        Text("·", fontSize = 11.sp, color = TextDim)
+                        Text(
+                            text = "pi-web-chat",
+                            fontSize = 11.sp,
+                            color = TextSecondary,
+                            modifier = Modifier.clickable {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/liguoshuai-1990/pi-web-chat"))
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            }
+                        )
+                    }
+
+                    Text(
+                        text = "Android v${com.pichat.android.BuildConfig.VERSION_NAME}",
+                        fontSize = 11.sp,
+                        color = TextDim
+                    )
                 }
             }
         }
+    }
+
+    // Delete confirmation dialog
+    if (sessionToDelete != null) {
+        val s = sessionToDelete!!
+        val title = s.sessionName ?: s.firstUser ?: s.name
+        AlertDialog(
+            onDismissRequest = { sessionToDelete = null },
+            title = {
+                Text(
+                    "删除会话",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Text(
+                    "确定要删除此会话记录吗？\n「$title」\n删除后不可恢复。",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        sessionToDelete = null
+                        onDeleteSession(s.file)
+                    }
+                ) {
+                    Text("删除", color = Danger, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { sessionToDelete = null }) {
+                    Text("取消", color = TextSecondary, fontSize = 13.sp)
+                }
+            },
+            containerColor = BgInput,
+            shape = RoundedCornerShape(14.dp)
+        )
+    }
+}
+
+private fun formatSessionTimestamp(timestampStr: String?): String {
+    if (timestampStr.isNullOrBlank()) return ""
+    return try {
+        val epochMs = timestampStr.toLongOrNull()
+        val instant = if (epochMs != null) {
+            java.time.Instant.ofEpochMilli(epochMs)
+        } else {
+            java.time.Instant.parse(timestampStr)
+        }
+        val zonedDateTime = instant.atZone(java.time.ZoneId.systemDefault())
+        val now = java.time.ZonedDateTime.now()
+        val formatter = if (zonedDateTime.year == now.year) {
+            java.time.format.DateTimeFormatter.ofPattern("M月d日 HH:mm")
+        } else {
+            java.time.format.DateTimeFormatter.ofPattern("yyyy/M/d HH:mm")
+        }
+        zonedDateTime.format(formatter)
+    } catch (_: Exception) {
+        ""
     }
 }
 
@@ -745,14 +1025,14 @@ private fun Composer(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .padding(horizontal = 12.dp, top = 4.dp, bottom = 6.dp)
         ) {
             // Attachment preview strip
             if (attachments.isNotEmpty()) {
                 LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp),
+                        .padding(bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(attachments.size) { idx ->
@@ -760,7 +1040,7 @@ private fun Composer(
                         val bitmap = remember(item.data) { decodeBase64Bitmap(item.data) }
                         Box(
                             modifier = Modifier
-                                .size(64.dp)
+                                .size(56.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .border(1.dp, Border, RoundedCornerShape(8.dp))
                                 .clickable { onImageClick(item.data) }
@@ -777,14 +1057,14 @@ private fun Composer(
                                 onClick = { onRemoveAttachment(idx) },
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
-                                    .size(20.dp)
-                                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                    .size(18.dp)
+                                    .background(Color.Black.copy(alpha = 0.7f), CircleShape)
                             ) {
                                 Icon(
                                     Icons.Default.Close,
                                     contentDescription = "删除附件",
                                     tint = Color.White,
-                                    modifier = Modifier.size(12.dp)
+                                    modifier = Modifier.size(10.dp)
                                 )
                             }
                         }
@@ -792,85 +1072,117 @@ private fun Composer(
                 }
             }
 
-            // Input bar
-            Row(
+            // Input bar container (matching web's .composer-inner)
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Bottom
+                shape = RoundedCornerShape(22.dp),
+                color = BgInput,
+                border = BorderStroke(
+                    1.dp,
+                    if (isStreaming) Accent.copy(alpha = 0.6f) else Border
+                )
             ) {
-                Surface(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(22.dp),
-                    color = BgInput,
-                    border = BorderStroke(1.dp, if (isStreaming) Accent.copy(alpha = 0.5f) else Border)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.Bottom
                 ) {
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        IconButton(onClick = onAttach, modifier = Modifier.size(40.dp)) {
-                            Icon(
-                                Icons.Outlined.AttachFile,
-                                contentDescription = "添加附件",
-                                tint = TextSecondary
-                            )
-                        }
-                        OutlinedTextField(
-                            value = inputText,
-                            onValueChange = onInputChange,
-                            placeholder = { Text("给 pi 发消息…", color = TextDim, fontSize = 14.sp) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(vertical = 2.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                cursorColor = Accent
-                            ),
-                            maxLines = 5
-                        )
-                    }
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                if (isStreaming) {
-                    if (inputText.isNotBlank()) {
-                        Button(
-                            onClick = onSteer,
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                            contentPadding = PaddingValues(horizontal = 10.dp),
-                            modifier = Modifier.height(40.dp)
-                        ) {
-                            Text("插入指令", fontSize = 12.sp)
-                        }
-                        Spacer(Modifier.width(6.dp))
-                    }
+                    // Attachment paperclip button
                     IconButton(
-                        onClick = onAbort,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Danger)
-                    ) {
-                        Icon(Icons.Default.Stop, contentDescription = "中止", tint = Color.White)
-                    }
-                } else {
-                    val canSend = inputText.isNotBlank() || attachments.isNotEmpty()
-                    IconButton(
-                        onClick = onSend,
-                        enabled = canSend,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(if (canSend) Accent else BgHover)
+                        onClick = onAttach,
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            Icons.Default.ArrowUpward,
-                            contentDescription = "发送",
-                            tint = if (canSend) Color.White else TextDim
+                            Icons.Outlined.AttachFile,
+                            contentDescription = "添加附件",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(18.dp)
                         )
+                    }
+
+                    // Text Input field
+                    BasicTextField(
+                        value = inputText,
+                        onValueChange = onInputChange,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 6.dp, vertical = 6.dp)
+                            .heightIn(min = 20.dp, max = 120.dp),
+                        textStyle = TextStyle(
+                            color = TextPrimary,
+                            fontSize = 14.5.sp,
+                            lineHeight = 20.sp,
+                            fontFamily = FontFamily.Default
+                        ),
+                        cursorBrush = SolidColor(Accent),
+                        decorationBox = { innerTextField ->
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                if (inputText.isEmpty()) {
+                                    Text(
+                                        "给 pi 发消息…",
+                                        color = TextDim,
+                                        fontSize = 14.5.sp
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        }
+                    )
+
+                    // Right action button
+                    if (isStreaming) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            if (inputText.isNotBlank()) {
+                                Button(
+                                    onClick = onSteer,
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(30.dp)
+                                ) {
+                                    Text("插入指令", fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Danger)
+                                    .clickable(onClick = onAbort),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Stop,
+                                    contentDescription = "中止",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        val canSend = inputText.isNotBlank() || attachments.isNotEmpty()
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (canSend) Accent else BgHover)
+                                .clickable(enabled = canSend, onClick = onSend),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.ArrowUpward,
+                                contentDescription = "发送",
+                                tint = if (canSend) Color.White else TextDim,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }

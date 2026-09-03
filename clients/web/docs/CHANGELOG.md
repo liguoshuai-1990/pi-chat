@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.0] - 2026-09-04
+
+### Added
+- **Android 构建产物自定义重命名与 Release 加固配置 (`clients/android/app/build.gradle.kts`, `proguard-rules.pro`)**：
+  - 构建产物根据版本号和构建类型重命名为语义化规范格式：`pi-chat-v{versionName}-debug.apk` 与 `pi-chat-v{versionName}-release.apk`。
+  - 启用 Release 版本的混淆加固与代码资源缩减（`isMinifyEnabled = true`, `isShrinkResources = true`），配置完整的 ProGuard / R8 保护规则（数据模型、Kotlinx Serialization、OkHttp、Compose 与协程）。
+  - 配置默认签名回退支持，使 Release APK 可开箱即用构建。
+- **Android 会话删除功能 (`clients/android/.../ApiService.kt`, `ChatRepository.kt`, `ChatViewModel.kt`, `ChatScreen.kt`)**：
+  - 新增 `DELETE /api/session?file=...` 网络请求与仓库层方法，并在侧边栏每个会话项右侧提供删除按钮及二次确认弹窗。
+
+### Improved
+- **Android 侧边栏抽屉界面优化与对齐 Web 体验 (`clients/android/.../ChatScreen.kt`)**：
+  - 抽屉宽度适配调整为 `280dp`，改善手机端视觉比例；
+  - 会话项展示信息全面对齐 Web：新增格式化时间戳（如 `9月4日 15:30`）、消息条数展示（`· N 条`）与流式任务运行中微动徽标（`运行中`）；
+  - 选中会话样式重构：高亮背景（`BgHover`）+ 左侧强调色指示条（`Accent`），会话行间距与内边距紧凑精致化；
+  - 搜索框高度重构为紧凑式 `34dp`，包含搜索图标与一键清空按钮；
+  - 侧边栏底部补齐 `pi.dev` 与 `pi-web-chat` 外部链接跳转，统一展示版本信息。
+- **Android 顶栏排版与信息层级重构 (`clients/android/.../ChatScreen.kt`)**：
+  - 顶部导航栏高度规整至 `56dp`，居中展示当前对话主标题，并在下方紧凑排列工作目录（CWD）、模型名称（含 `★ 默认` 徽标）和思考推理等级胶囊；
+  - 左右两侧合理布局抽屉按钮、分享导出按钮及设置按钮，排版清晰美观不拥挤，彻底解决信息遮挡与丢失问题。
+- **Android 底部输入框体验与样式重构 (`clients/android/.../ChatScreen.kt`)**：
+  - 输入框整体采用 Web 端 ChatGPT 风格圆角胶囊卡片（`RoundedCornerShape(22.dp)`），内边距与高度严格贴合文本行高；
+  - 采用 `BasicTextField` 配合优雅的占位符提示，支持多行平滑自适应扩展；
+  - 发送按钮、指导指令按钮及中止按钮尺寸规整（32dp 圆形/胶囊），并对齐底部安全区。
+
+### Changed
+- 全端版本号统一递增至 2.12.0（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 ## [2.11.3] - 2026-09-03
 
 ### Fixed

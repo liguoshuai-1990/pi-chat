@@ -77,4 +77,24 @@ class ApiService(
             Result.failure(e)
         }
     }
+
+    suspend fun deleteSession(file: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            var url = "$baseUrl/api/session?file=${java.net.URLEncoder.encode(file, "UTF-8")}"
+            if (!token.isNullOrEmpty()) url += "&token=${java.net.URLEncoder.encode(token, "UTF-8")}"
+
+            val request = Request.Builder()
+                .url(url)
+                .delete()
+                .apply { if (!token.isNullOrEmpty()) header("Authorization", "Bearer $token") }
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(Exception("HTTP ${response.code}"))
+                Result.success(true)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

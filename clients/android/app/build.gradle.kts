@@ -13,8 +13,8 @@ android {
         applicationId = "com.pichat.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 21103
-        versionName = "2.11.3"
+        versionCode = 21200
+        versionName = "2.12.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -22,15 +22,46 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            // Default to debug keystore for reproducible local release builds if custom release keystore is not provided
+            val debugKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            if (debugKeystore.exists()) {
+                storeFile = debugKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            } else {
+                initWith(getByName("debug"))
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
     }
+
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            val cleanVersion = variant.versionName.removeSuffix("-debug")
+            output?.outputFileName = "pi-chat-v${cleanVersion}-${variant.buildType.name}.apk"
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

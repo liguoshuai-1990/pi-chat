@@ -32,6 +32,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _sessions = MutableStateFlow<List<SessionInfo>>(emptyList())
     val sessions: StateFlow<List<SessionInfo>> = _sessions.asStateFlow()
 
+    private val _currentSessionFile = MutableStateFlow<String?>(null)
+    val currentSessionFile: StateFlow<String?> = _currentSessionFile.asStateFlow()
+
     private val _isStreaming = MutableStateFlow(false)
     val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
 
@@ -72,6 +75,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         collectorJobs = listOf(
             viewModelScope.launch { repo.messages.collect { _messages.value = it } },
             viewModelScope.launch { repo.sessions.collect { _sessions.value = it } },
+            viewModelScope.launch { repo.currentSessionFile.collect { _currentSessionFile.value = it } },
             viewModelScope.launch { repo.isStreaming.collect { _isStreaming.value = it } },
             viewModelScope.launch { repo.connectionState.collect { _connectionState.value = it } },
             viewModelScope.launch { repo.currentModel.collect { _currentModel.value = it } },
@@ -105,6 +109,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun switchSession(session: SessionInfo) {
         _currentSessionTitle.value = session.sessionName ?: session.firstUser ?: session.name ?: "对话"
         repository.switchSession(session.file)
+    }
+
+    fun deleteSession(file: String) {
+        repository.deleteSession(file)
     }
 
     fun newSession() {
