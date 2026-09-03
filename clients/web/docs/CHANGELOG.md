@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HarmonyOS `abort` / `newSession` / `switchSession` 发送返回值未检查 (`clients/harmony/.../ChatViewModel.ets`)**：与 Android 同类问题。`abort` 无条件重置 `isStreaming`；`newSession` / `switchSession` 在发送前清空消息，发送失败时导致状态不同步。现均检查 `wsManager.send()` 返回值并在失败时回退。
 - **HarmonyOS `remote_user_prompt` 消息重复 (`clients/harmony/.../ChatViewModel.ets`)**：本地已发送的用户消息与服务端 `remote_user_prompt` 回声重复添加。现增加去重检查，若倒数第二条用户消息内容相同则跳过。
 - **HarmonyOS `init()` 未重置流式状态 (`clients/harmony/.../ChatViewModel.ets`)**：切换服务器 URL 重新初始化时，残留的 `isStreaming = true` 导致孤立流式气泡。现 `init()` 中重置 `isStreaming = false`。
+- **Android 编译失败修复 (`clients/android/.../ChatScreen.kt`)**：补充 `SmartToy` 与 `Psychology` 图标的 `import` 声明，修复替顶部胶囊换用 Material 图标后因缺失导入导致的 `Unresolved reference`，`assembleDebug` 可正常产出 APK。
+- **服务端单元测试 CI 挂起修复 (`server/test/server.test.js` + `server/fixtures/pi-stub.mjs`)**：CI runner 未安装 `pi` CLI，`PiAgent.start()` 执行 `spawn("pi")` 时报 `ENOENT`，导致 `WebSocket gateway NEW_SESSION` 断言失败、HTTP 服务未关闭，最终使 `node --test` 进程长时间挂起。现引入无操作长驻 stub 并重写 `config.piBin`，使网关单测自包含、不再依赖外部 `pi` 二进制。
 
 ### Changed
 - 全端版本号统一递增至 2.11.2（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。

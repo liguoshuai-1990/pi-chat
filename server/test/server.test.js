@@ -6,6 +6,13 @@ import { verifyToken, verifyWsAuth, authMiddleware } from "../src/auth.js";
 import { config, normalizePath, home } from "../src/config.js";
 import { createServer } from "../src/server.js";
 import { PiAgent, activeAgents } from "../src/agent.js";
+import { fileURLToPath } from "node:url";
+
+// CI runners don't have the real `pi` CLI installed, so `PiAgent.start()`'s
+// spawn("pi") fails with ENOENT and leaves the test process hanging. Stub it
+// to a long-lived no-op so gateway unit tests are self-contained.
+const piStub = fileURLToPath(new URL("../fixtures/pi-stub.mjs", import.meta.url));
+config.piBin = piStub;
 
 describe("Pi-Chat Server Gateway Unit Tests", () => {
   test("verifyToken validates correctly when AUTH_TOKEN is unset or set", () => {
