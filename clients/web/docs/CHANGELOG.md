@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.11.1] - 2026-09-03
+
+### Fixed
+- **Android 构建失败修复 (`clients/android/.../ChatRepository.kt`)**：修复 `connect` 函数声明被写坏导致的语法错误（`fun connectcwd: String = ...` → `fun connect(cwd: String = ..., sessionPath: String? = null)`），该错误导致 `compileDebugKotlin` 失败、APK 无法产出，并连带触发 `ChatViewModel` 中多处 `Unresolved reference 'connect'`。修复后 Android Debug APK 可正常构建。
+
+### Changed
+- 全端版本号统一递增至 2.11.1（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.11.0] - 2026-09-03
 
 ### Changed & Beautified (Android)

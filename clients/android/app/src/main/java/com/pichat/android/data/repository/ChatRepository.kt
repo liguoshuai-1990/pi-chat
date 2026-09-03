@@ -92,7 +92,7 @@ class ChatRepository(
         scope.cancel()
     }
 
-    fun connectcwd: String = "", sessionPath: String? = null) {
+    fun connect(cwd: String = "", sessionPath: String? = null) {
         activeCwd = cwd
         if (cwd.isNotEmpty()) {
             _currentCwd.value = cwd
