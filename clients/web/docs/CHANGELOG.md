@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.11.0] - 2026-09-03
+
+### Changed & Beautified (Android)
+- **应用图标焕新 (`clients/android`)**：弃用系统默认图标，新增基于 π 品牌图形与翡翠绿渐变的 **自适应启动图标 (Adaptive Icon)**，包含背景渐变、白色圆角 π 字形与点缀色，支持普通与圆形图标形态。
+- **顶部胶囊图标美化 (TopBar Pills)**：将模型选择 (🤖) 与思考级别 (🧠) 的简单 Emoji 替换为 **彩色圆形徽章 + Material 图标**（`SmartToy` 机器人 / `Psychology` 大脑），并同步美化工作目录胶囊图标，视觉更加精致统一。
+- **对话框气泡美化 (Message Bubbles)**：
+  - 用户消息气泡升级为 **翡翠绿渐变背景 + 护色描边**，圆角更柔和、内边距更舒适。
+  - 助手头像由扁平半透明圆形升级为 **彩色渐变圆形徽章**（白色 π），辨识度与质感更佳。
+- **样例提示词间距优化 (Suggestion Chips)**：解决提示词芯片过于紧凑的问题，引入图标 + 标签的卡片式芯片，并增大水平与垂直间距、内边距，视觉更舒展。
+
+### Changed
+- 全端版本号统一递增至 2.11.0（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.10.1] - 2026-09-03
 
 ### Fixed
@@ -24,7 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - 全端版本号统一递增至 2.10.1（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
-
 ---
 
 ## [2.10.0] - 2026-09-02

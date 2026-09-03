@@ -42,6 +42,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -65,10 +67,12 @@ import com.pichat.android.ui.theme.*
 import com.pichat.android.ui.viewmodel.ChatViewModel
 import kotlinx.coroutines.launch
 
+private data class SuggestionPrompt(val icon: String, val label: String, val prompt: String)
+
 private val suggestionPrompts = listOf(
-    "列出当前目录文件" to "列出当前目录下的所有文件，并告诉我这是什么项目",
-    "总结这个项目" to "阅读 README 或主要源文件，然后用一段话总结这个项目是做什么的",
-    "代码审查" to "帮我看看当前目录有没有什么可以改进的地方"
+    SuggestionPrompt("📂", "列出目录文件", "列出当前目录下的所有文件，并告诉我这是什么项目"),
+    SuggestionPrompt("📝", "总结这个项目", "阅读 README 或主要源文件，然后用一段话总结这个项目是做什么的"),
+    SuggestionPrompt("🔍", "代码审查", "帮我看看当前目录有没有什么可以改进的地方")
 )
 
 private val thinkingLevels = listOf(
@@ -173,11 +177,10 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             // CWD Pill
                             TopBarPill(
                                 icon = {
-                                    Icon(
-                                        Icons.Outlined.Folder,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(13.dp),
-                                        tint = TextSecondary
+                                    PillIconBadge(
+                                        icon = Icons.Outlined.Folder,
+                                        tint = TextSecondary,
+                                        background = BgHover
                                     )
                                 },
                                 label = formatCwdDisplay(currentCwd, serverConfig?.home),
@@ -189,7 +192,11 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             val isDefaultModel = currentModel?.isDefault == true || (serverConfig?.defaultModel?.id != null && currentModel?.id == serverConfig?.defaultModel?.id)
                             TopBarPill(
                                 icon = {
-                                    Text("🤖", fontSize = 12.sp)
+                                    PillIconBadge(
+                                        icon = Icons.Outlined.SmartToy,
+                                        tint = Accent,
+                                        background = AccentSoft
+                                    )
                                 },
                                 label = modelDisplayName,
                                 badge = if (isDefaultModel) "★ 默认" else null,
@@ -202,7 +209,11 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             // Thinking Pill
                             TopBarPill(
                                 icon = {
-                                    Text("🧠", fontSize = 12.sp)
+                                    PillIconBadge(
+                                        icon = Icons.Outlined.Psychology,
+                                        tint = Color(0xFFC4B5FD),
+                                        background = Color(0xFF8B5CF6).copy(alpha = 0.18f)
+                                    )
                                 },
                                 label = thinkingLevel.replaceFirstChar { it.uppercase() },
                                 onClick = { showThinkingSelector = true }
@@ -414,6 +425,28 @@ private fun TopBarPill(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PillIconBadge(
+    icon: ImageVector,
+    tint: Color,
+    background: Color
+) {
+    Box(
+        modifier = Modifier
+            .size(20.dp)
+            .clip(CircleShape)
+            .background(background),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(13.dp)
+        )
     }
 }
 
@@ -658,19 +691,30 @@ private fun EmptyState(
         // Suggestions
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            suggestionPrompts.forEach { (label, prompt) ->
-                SuggestionChip(
-                    onClick = { onSuggestion(prompt) },
-                    label = { Text(label, fontSize = 12.sp, color = TextSecondary) },
-                    shape = RoundedCornerShape(18.dp),
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = BgInput
-                    ),
+            suggestionPrompts.forEach { s ->
+                Surface(
+                    onClick = { onSuggestion(s.prompt) },
+                    shape = RoundedCornerShape(14.dp),
+                    color = BgInput,
                     border = BorderStroke(1.dp, Border)
-                )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(s.icon, fontSize = 16.sp)
+                        Text(
+                            s.label,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextSecondary
+                        )
+                    }
+                }
             }
         }
     }
@@ -897,19 +941,23 @@ fun MessageBubble(
                 }
             }
 
+            val userBubbleShape = RoundedCornerShape(
+                topStart = 18.dp,
+                topEnd = 18.dp,
+                bottomStart = 18.dp,
+                bottomEnd = 5.dp
+            )
             Column(
                 modifier = Modifier
                     .widthIn(max = 300.dp)
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 16.dp,
-                            topEnd = 16.dp,
-                            bottomStart = 16.dp,
-                            bottomEnd = 4.dp
-                        )
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(Color(0xFF26473F), Color(0xFF2F2F2F))
+                        ),
+                        userBubbleShape
                     )
-                    .background(UserBubble)
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                    .border(1.dp, Accent.copy(alpha = 0.35f), userBubbleShape)
+                    .padding(horizontal = 14.dp, vertical = 11.dp)
             ) {
                 Text(
                     text = message.content,
@@ -930,12 +978,17 @@ fun MessageBubble(
         ) {
             Box(
                 modifier = Modifier
-                    .size(18.dp)
+                    .size(22.dp)
                     .clip(CircleShape)
-                    .background(Accent.copy(alpha = 0.2f)),
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(Accent, Color(0xFF0A6B55))
+                        )
+                    )
+                    .border(1.dp, Accent.copy(alpha = 0.5f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Text("π", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Accent)
+                Text("π", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
             Spacer(Modifier.width(6.dp))
             Text(
