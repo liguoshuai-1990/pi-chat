@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.2] - 2026-09-04
+
+### Fixed
+- **Web 端发送消息后输入框锁死并误显“正在中止…” (`clients/web/public/app.js`)**：`submitPrompt` 发送成功后调用 `setComposerAborting(true)`（现已更名为 `setComposerStreaming`），其内部误将 `state.aborting` 置为 `true`，导致 `updateComposerUI` 进入“中止中”分支：输入框占位符显示“正在中止当前任务…”，发送按钮变成 `⏳` 并置为 `disabled`，UI 锁死直至任务结束。同时 `agent_start` / `backfill_end` / `updateState` 三处进入流式状态的路径也存在同样的误用。现将语义统一为 `setComposerStreaming`：进入流式状态时始终将 `state.aborting` 清理为 `false`，仅刷新 `updateComposerUI` 与 `renderModelPill`；而“中止”仅由用户点击中止时通过 `abortGeneration` 单独置位，彻底解决发送消息后对话框锁死、误显“中止…”的问题。
+
+### Changed
+- 全端版本号统一递增至 2.12.2（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 ## [2.12.1] - 2026-09-04
 
 ### Improved

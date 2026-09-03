@@ -739,7 +739,7 @@ function startNewSession() {
   state.streamingItems = [];
   state.streamingMsg = null;
   state.activeToolCalls.clear();
-  setComposerAborting(false);
+  setComposerStreaming(false);
   try {
     window.history.replaceState({}, "", window.location.pathname);
   } catch {}
@@ -859,7 +859,7 @@ async function loadSession(file) {
   state.streamingItems = [];
   state.streamingMsg = null;
   state.activeToolCalls.clear();
-  setComposerAborting(false);
+  setComposerStreaming(false);
   try {
     const newUrl = window.location.pathname + "?session=" + encodeURIComponent(file);
     window.history.replaceState({ session: file }, "", newUrl);
@@ -1979,7 +1979,7 @@ function handlePiMessage(obj) {
     // After replay, sync the composer / streaming state to what the server thinks.
     if (obj.streaming) {
       state.streaming = true;
-      setComposerAborting(true);
+      setComposerStreaming(true);
       ensureStreamingMsg();
       refreshStreamingContent();
       // If ring buffer overflowed while client was away, sync full session history in background
@@ -1990,7 +1990,7 @@ function handlePiMessage(obj) {
       finalizeStreamingMsg();
       state.streaming = false;
       state.aborting = false;
-      setComposerAborting(false);
+      setComposerStreaming(false);
       if (state.currentSessionFile) {
         syncSessionHistory(state.currentSessionFile, true);
       }
@@ -2038,7 +2038,7 @@ function handlePiMessage(obj) {
       }
     } else if (obj.command === "abort") {
       state.aborting = false;
-      setComposerAborting(false);
+      setComposerStreaming(false);
     }
     else if (obj.command === "switch_session" && obj.success) {
       // ask pi for current state so we can get session id, name
@@ -2074,7 +2074,7 @@ function handlePiMessage(obj) {
     case "agent_start":
       state.streaming = true;
       state.aborting = false;
-      setComposerAborting(true);
+      setComposerStreaming(true);
       ensureStreamingMsg();
       refreshStreamingContent();
       refreshSessions();
@@ -2086,7 +2086,7 @@ function handlePiMessage(obj) {
       finalizeStreamingMsg();
       state.streaming = false;
       state.aborting = false;
-      setComposerAborting(false);
+      setComposerStreaming(false);
       sendWs({ type: "get_state" });
       refreshSessions(); // titles may have changed
       break;
@@ -2276,14 +2276,14 @@ function handlePiMessage(obj) {
       finalizeStreamingMsg();
       state.streaming = false;
       state.aborting = false;
-      setComposerAborting(false);
+      setComposerStreaming(false);
       showToast(`⚠️ ${obj.message || obj.code || "发生错误"}`);
       break;
     case "pi_exit":
       finalizeStreamingMsg();
       state.streaming = false;
       state.aborting = false;
-      setComposerAborting(false);
+      setComposerStreaming(false);
       $("#connDot").style.color = "var(--danger)";
       break;
     default:
@@ -2372,14 +2372,14 @@ function updateState(d) {
     if (d.isStreaming) {
       if (!state.streaming) {
         state.streaming = true;
-        setComposerAborting(true);
+        setComposerStreaming(true);
         ensureStreamingMsg();
       }
     } else if (state.streaming && !state.isBackfilling) {
       finalizeStreamingMsg();
       state.streaming = false;
       state.aborting = false;
-      setComposerAborting(false);
+      setComposerStreaming(false);
       refreshSessions();
     }
   }
@@ -2939,11 +2939,12 @@ function updateComposerUI() {
   }
 }
 
-function setComposerAborting(yes) {
-  if (yes) {
-    state.aborting = true;
-  } else {
-    state.aborting = false;
+function setComposerStreaming(yes) {
+  // Entering/exiting the streaming state must never turn on the "aborting"
+  // flag — otherwise the composer would lock and show "正在中止…" while the
+  // model is actually just running. Abort is a separate transient state.
+  state.aborting = false;
+  if (!yes) {
     const inner = $("#composerInner");
     if (inner) inner.classList.remove("aborting");
     const hint = $(".composer-hint");
@@ -3048,7 +3049,7 @@ function submitPrompt() {
 
   state.streaming = true;
   state.aborting = false;
-  setComposerAborting(true);
+  setComposerStreaming(true);
   ensureStreamingMsg(now);
   refreshStreamingContent();
 
@@ -3081,7 +3082,7 @@ function submitPrompt() {
   if (!sendWs({ type: "prompt", message: text, images: imagesToSend })) {
     state.streaming = false;
     state.aborting = false;
-    setComposerAborting(false);
+    setComposerStreaming(false);
     stopStreamingTimer();
     state.turnStartedAt = null;
     state.streamingMsgDurationEl = null;
