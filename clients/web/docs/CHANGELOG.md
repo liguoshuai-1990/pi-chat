@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.5] - 2026-09-04
+
+### Improved
+- **CI NPM 发布支持动态 OTP 验证与 Automation Token 配置 (`.github/workflows/ci.yml`)**：
+  - 在 `workflow_dispatch` 触发器中新增可选的 `npm_otp` 参数，允许在缺少 Automation Token 时通过手动输入 2FA 一次性验证码完成 NPM 发布；
+  - 完善发布环境的 Token 传递与错误提示。
+
+### Changed
+- 全端版本号统一递增至 2.12.5（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 ## [2.12.4] - 2026-09-04
 
 ### Added

@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: false
+      npm_otp:
+        description: 'NPM 2FA OTP code (if using a Standard Token instead of Automation Token)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build-and-test:
@@ -159,7 +164,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Publish NPM Packages
-        run: pnpm -r publish --access public --no-git-checks
+        run: |
+          if [ -n "${{ github.event.inputs.npm_otp }}" ]; then
+            pnpm -r publish --access public --no-git-checks --otp="${{ github.event.inputs.npm_otp }}"
+          else
+            pnpm -r publish --access public --no-git-checks
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
