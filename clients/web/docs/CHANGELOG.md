@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
+## [2.13.1] - 2026-09-04
+
+### Fixed
+- **修复 Android 真机无法连接局域网网关服务器的问题**：
+  - `network_security_config.xml` 原先仅允许 `10.0.2.2`（模拟器环回）、`localhost`、`127.0.0.1` 三个地址的明文 HTTP 流量；
+  - 真机连接局域网服务器（如 `http://192.168.1.x:3000`）时，Android 系统会静默拦截明文请求，导致 WebSocket 握手失败、App 显示"连接失败"；
+  - 改为 `<base-config cleartextTrafficPermitted="true" />`，允许所有域名的明文 HTTP，因为 Pi Gateway 是局域网/本地开发工具，设计上只跑纯 HTTP（无 TLS），要求用户配置证书不现实。
+
 ## [2.13.0] - 2026-09-04
 
 ### Added
