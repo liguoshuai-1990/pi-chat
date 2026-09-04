@@ -4,7 +4,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-Workspaces-orange.svg)](https://pnpm.io/)
 [![CI Status](https://github.com/liguoshuai-1990/pi-chat/actions/workflows/ci.yml/badge.svg)](https://github.com/liguoshuai-1990/pi-chat/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-2.12.7-emerald.svg)](https://github.com/liguoshuai-1990/pi-chat)
+[![Version](https://img.shields.io/badge/version-2.12.8-emerald.svg)](https://github.com/liguoshuai-1990/pi-chat)
 
 **Pi-Chat** 是一个面向 [Pi 编程智能体 (Pi Coding Agent)](https://github.com/badlogic/pi) 的全多端协同生态工程（Monorepo）。它将底层的 Pi Coding Agent 智能体能力解耦并无缝分发至 **Web 浏览器端**、**Android 手机原生端**、**华为鸿蒙 (HarmonyOS Next) 原生端**、**VPS 桥接网关服务端** 以及 **跨端标准化通信协议包**。
 
@@ -133,16 +133,16 @@ PORT=8080 AUTH_TOKEN=my_secret_token node server/src/index.js
 ## 📱 移动端使用与编译
 
 ### 1. Android 原生应用 (`clients/android`)
-- **直接下载安装**：每次代码推送后，可在 GitHub 仓库的 [Actions 页面](https://github.com/liguoshuai-1990/pi-chat/actions) 或 [Releases 页面](https://github.com/liguoshuai-1990/pi-chat/releases) 直接下载打包好的 `pi-chat-v2.12.7-debug.apk`。
+- **直接下载安装**：每次代码推送后，可在 GitHub 仓库的 [Actions 页面](https://github.com/liguoshuai-1990/pi-chat/actions) 或 [Releases 页面](https://github.com/liguoshuai-1990/pi-chat/releases) 直接下载打包好的 `pi-chat-v2.12.8-debug.apk`。
 - **本地编译构建**：
   ```bash
   cd clients/android
   ./gradlew assembleDebug
-  # 输出路径：app/build/outputs/apk/debug/pi-chat-v2.12.7-debug.apk
+  # 输出路径：app/build/outputs/apk/debug/pi-chat-v2.12.8-debug.apk
   ```
 - **安装到设备**：
   ```bash
-  adb install -r app/build/outputs/apk/debug/pi-chat-v2.12.7-debug.apk
+  adb install -r app/build/outputs/apk/debug/pi-chat-v2.12.8-debug.apk
   ```
 - **配置后端**：打开 App，点击右上角 ⚙️ **设置** 按钮，填入你的 VPS 网关地址（如 `http://192.168.1.100:3000` 或 VPS 公网地址）与访问 Token 即可直连。
 

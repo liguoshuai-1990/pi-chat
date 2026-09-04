@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [2.12.8] - 2026-09-04
+
+### Added
+- **用户旅途全景分析文档 (`docs/USER_JOURNEY.md`)**：新增面向终端使用者的 Customer Journey Map 文档，深度分析代码库后从用户视角梳理完整用户旅途，覆盖六大阶段（发现获取 → 配置连接 → 核心对话 → 会话管理 → 高级功能 → 异常恢复），包含产品定位与用户画像、系统拓扑与触点、三端功能对齐矩阵、交互模式差异对比、用户痛点与改进建议、协议消息全景附录。
+
+### Changed
+- 全端版本号统一递增至 2.12.8（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
 ---
 
 ## [2.12.7] - 2026-09-04
