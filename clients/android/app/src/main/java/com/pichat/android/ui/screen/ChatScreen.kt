@@ -1025,7 +1025,7 @@ private fun Composer(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, top = 4.dp, bottom = 6.dp)
+                .padding(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 6.dp)
         ) {
             // Attachment preview strip
             if (attachments.isNotEmpty()) {

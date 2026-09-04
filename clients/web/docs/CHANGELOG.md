@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.3] - 2026-09-04
+
+### Fixed
+- **Android 端 Compose `Modifier.padding` 参数签名编译错误 (`clients/android/app/src/main/java/com/pichat/android/ui/screen/ChatScreen.kt`)**：修复输入栏容器 `Column` 中非法混用 `horizontal` 与 `top` / `bottom` 命名参数导致 Kotlin 编译报错（`None of the following candidates is applicable`）的问题，规范化为四向命名参数（`start`, `top`, `end`, `bottom`）。
+- **GitHub Actions CI 升级 (`.github/workflows/ci.yml`)**：将 `actions/setup-java` 从 v4 升级至官方推荐的 v5。
+
+### Changed
+- 全端版本号统一递增至 2.12.3（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 ## [2.12.2] - 2026-09-04
 
 ### Fixed
