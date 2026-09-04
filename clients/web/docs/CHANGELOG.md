@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.7] - 2026-09-04
+
+### Fixed
+- **全仓文档版本号漂移清理 (`README.md`, `clients/harmony/README.md`, `clients/android/README.md`)**：修复多处残留的旧版本号（`version-2.10.0` 徽章、HarmonyOS / Android 页首标题与工程目录注释中的 `v2.11.3`、`2.10.0`），统一对齐至当前版本 2.12.7。
+- **Web 客户端仓库地址更新 (`clients/web/package.json`, `clients/web/README.md`)**：`repository` / `bugs` / `homepage` 及克隆地址由已废弃的 `pi-web-chat` 仓库更正为 Monorepo 主仓 `pi-chat`。
+- **环境变量文档补齐与默认值修正 (`.env.example`, `server/.env.example`, `clients/web/README.md`, `clients/web/docs/ARCHITECTURE.md`)**：补充缺失的 `PI_AUTH_TOKEN`、`MAX_AGENT_LIFETIME_MS`、`EVENT_BUFFER_SIZE`、`IDLE_DROP_HEAP`、`HOST`、`ALLOWED_ORIGINS` 说明；修正 `MAX_AGENT_LIFETIME_MS`（默认 `0` 禁用）与 `EVENT_BUFFER_SIZE`（默认 `5000`）两处过时默认值。
+- **Android 构建产物命名文档同步 (`README.md`, `clients/android/README.md`, `docs/ARCHITECTURE.md`)**：将过时的 `app-debug.apk` 引用更正为构建脚本实际产出的 `pi-chat-v{version}-debug.apk` 命名。
+
+### Changed
+- 全端版本号统一递增至 2.12.7（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.12.6] - 2026-09-04
 
 ### Fixed

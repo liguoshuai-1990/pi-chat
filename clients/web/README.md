@@ -9,7 +9,7 @@
 (`pi --mode rpc`) 与 pi 子进程通信，前端走 WebSocket 流式渲染。
 
 > 📦 **NPM 软件包**：[`@liguoshuai/pi-web-chat`](https://www.npmjs.com/package/@liguoshuai/pi-web-chat)  
-> 🔗 **项目主页**：https://github.com/liguoshuai-1990/pi-web-chat
+> 🔗 **项目主页**：https://github.com/liguoshuai-1990/pi-chat
 
 ---
 
@@ -132,8 +132,8 @@ npx @liguoshuai/pi-web-chat --port 8080 --cwd /path/to/your/project
 #### 方式 C：通过 Git 源码克隆与启动（适合二次开发）
 
 ```bash
-git clone https://github.com/liguoshuai-1990/pi-web-chat.git
-cd pi-web-chat
+git clone https://github.com/liguoshuai-1990/pi-chat.git
+cd pi-chat
 npm install
 npm start
 ```
@@ -181,11 +181,14 @@ Web 服务启动后，在浏览器中访问：
 | `PORT` | `3000` | Web 服务监听端口 |
 | `PI_BIN` | 自动探测（`~/.npm-global/bin/pi`、`/usr/local/bin/pi` 或 `PATH`） | 显式指定 pi 可执行文件绝对路径 |
 | `PI_SESSIONS_DIR` | `~/.pi/agent/sessions` | pi 的 session 存储目录 |
-| `IDLE_TIMEOUT_MS` | `300000` (5分钟) | 真正空闲（无连接+非流式）后的进程回收超时（0 为禁用回收） |
-| `MAX_AGENT_LIFETIME_MS` | `1800000` (30分钟) | 单个 Agent 进程后台生存硬上限（0 为无上限） |
-| `EVENT_BUFFER_SIZE` | `2000` | 离线环形 Buffer 允许缓存的最大事件条数 |
+| `IDLE_TIMEOUT_MS` | `300000` (5分钟) | 真正空闲（无连接+非流式）后的进程回收超时（`0` 为禁用回收） |
+| `MAX_AGENT_LIFETIME_MS` | `0` (无上限) | 单个 Agent 进程后台生存硬上限（`0` 为禁用） |
+| `EVENT_BUFFER_SIZE` | `5000` | 离线环形 Buffer 允许缓存的最大事件条数 |
 | `MAX_CONCURRENT_AGENTS` | `0` (无限制) | 进程池最大并发 Agent 进程数量 |
 | `IDLE_DROP_HEAP` | `false` | 进入空闲时是否给 V8 引擎 GC 提示（需 `--expose-gc`） |
+| `HOST` | `0.0.0.0` | 服务监听地址 |
+| `AUTH_TOKEN` / `PI_AUTH_TOKEN` | 空 | 全局访问令牌，客户端需以 Bearer Token 鉴权（空为不鉴权） |
+| `ALLOWED_ORIGINS` | 空 | 允许的 CORS/WebSocket 源白名单（逗号分隔，空为仅允许 localhost/同源） |
 
 ---
 

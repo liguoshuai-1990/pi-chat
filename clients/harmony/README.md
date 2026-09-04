@@ -1,4 +1,4 @@
-# 📱 Pi Chat HarmonyOS App (v2.11.3)
+# 📱 Pi Chat HarmonyOS App (v2.12.7)
 
 Pi Chat 华为鸿蒙系统 (HarmonyOS Next / OpenHarmony) 原生移动端工程，基于 Stage 模型与声明式 ArkUI 框架构建，支持在华为手机、平板等鸿蒙设备上无缝连接 VPS 网关与 Pi 编程助手进行流式对话。
 
@@ -20,7 +20,7 @@ Pi Chat 华为鸿蒙系统 (HarmonyOS Next / OpenHarmony) 原生移动端工程�
 ```
 clients/harmony/
 ├── AppScope/
-│   ├── app.json5                             # 应用全局元数据配置 (versionName 2.10.0)
+│   ├── app.json5                             # 应用全局元数据配置 (versionName 2.12.7)
 │   └── resources/                            # 全局图标与字符串资源
 ├── entry/
 │   ├── src/main/

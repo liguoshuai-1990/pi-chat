@@ -57,7 +57,7 @@
 | `packages/protocol/` | `@liguoshuai/pi-chat-protocol` | Node.js ESM / TS | 跨端通信协议 Schema、TS 类型声明、消息验证器 (`.tgz` + NPM Registry) |
 | `server/` | `@liguoshuai/pi-chat-server` | Express + WS + SSE | VPS 桥接网关服务，管理 `pi --mode rpc` 子进程池与鉴权 (`.tgz` + CLI) |
 | `clients/web/` | `@liguoshuai/pi-web-chat` | HTML5 / CSS3 / ES6 | ChatGPT/Gemini 风格 Web 客户端 (`.tgz` + CLI) |
-| `clients/android/` | `pi-chat-android` | Kotlin / Compose | Android 手机原生应用 (`app-debug.apk`) |
+| `clients/android/` | `pi-chat-android` | Kotlin / Compose | Android 手机原生应用 (`pi-chat-v{version}-debug.apk` / `-release.apk`) |
 | `clients/harmony/` | `pi-chat-harmony` | ArkTS / ArkUI | 华为鸿蒙原生 Stage 移动应用 (`pi-chat-harmony-app.zip` / `.hap`) |
 
 ---

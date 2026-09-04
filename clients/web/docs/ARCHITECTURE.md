@@ -1,6 +1,6 @@
 # 架构设计文档
 
-> pi-web-chat 的技术架构、数据流、关键设计决策与扩展点说明（对应 v2.3.0 版本）。
+> pi-web-chat 的技术架构、数据流、关键设计决策与扩展点说明（对应 v2.12.7 版本）。
 
 ---
 
@@ -147,11 +147,14 @@ Browser                         server.js                       pi RPC 子进程
 | `PORT` | `3000` | HTTP 与 WebSocket 监听端口 |
 | `PI_BIN` | 自动探测 | pi 可执行文件绝对路径 |
 | `PI_SESSIONS_DIR` | `~/.pi/agent/sessions` | 会话 JSONL 文件存取目录 |
-| `IDLE_TIMEOUT_MS` | `300000` (5分钟) | 真正空闲（无连接+非流式）后的回收超时（0 为禁用回收） |
-| `MAX_AGENT_LIFETIME_MS` | `1800000` (30分钟) | 单个 Agent 进程后台生存硬上限（0 为无上限） |
-| `EVENT_BUFFER_SIZE` | `2000` | 离线环形 Buffer 允许缓存的最大事件条数 |
+| `IDLE_TIMEOUT_MS` | `300000` (5分钟) | 真正空闲（无连接+非流式）后的回收超时（`0` 为禁用回收） |
+| `MAX_AGENT_LIFETIME_MS` | `0` (无上限) | 单个 Agent 进程后台生存硬上限（`0` 为禁用） |
+| `EVENT_BUFFER_SIZE` | `5000` | 离线环形 Buffer 允许缓存的最大事件条数 |
 | `MAX_CONCURRENT_AGENTS` | `0` (无限制) | 进程池最大并发 Agent 进程数量 |
 | `IDLE_DROP_HEAP` | `false` | 进入空闲时是否给 V8 引擎 GC 提示（需 `--expose-gc`） |
+| `HOST` | `0.0.0.0` | 服务监听地址 |
+| `AUTH_TOKEN` / `PI_AUTH_TOKEN` | 空 | 全局访问令牌，客户端需以 Bearer Token 鉴权（空为不鉴权） |
+| `ALLOWED_ORIGINS` | 空 | 允许的 CORS/WebSocket 源白名单（逗号分隔，空为仅允许 localhost/同源） |
 
 ---
 
