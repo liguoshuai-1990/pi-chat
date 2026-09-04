@@ -7,6 +7,12 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      publish_npm:
+        description: 'Publish NPM packages to registry'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build-and-test:
@@ -125,10 +131,43 @@ jobs:
           path: clients/android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
+  publish-npm:
+    name: Publish to NPM Registry
+    needs: [build-and-test, npm-deliverables]
+    if: (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish_npm == 'true' || github.event.inputs.publish_npm == true) && !cancelled()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+
+      - name: Setup Node.js for NPM Publishing
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Publish NPM Packages
+        run: pnpm -r publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   publish-release:
     name: Publish Full Release (All Deliverables)
-    needs: [build-and-test, npm-deliverables, harmony-deliverables, android-build]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-and-test, npm-deliverables, harmony-deliverables, android-build, publish-npm]
+    if: startsWith(github.ref, 'refs/tags/v') && !cancelled()
     runs-on: ubuntu-latest
     permissions:
       contents: write

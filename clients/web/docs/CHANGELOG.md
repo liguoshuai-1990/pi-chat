@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.4] - 2026-09-04
+
+### Added
+- **GitHub Actions CI 自动发布至 NPM Registry (`.github/workflows/ci.yml`)**：
+  - 新增 `publish-npm` 任务，集成 GitHub 仓库配置的 `NPM_TOKEN` Secret 与 `actions/setup-node` 注册表认证；
+  - 支持在推送版本 Tag（如 `v2.12.4`）或手动触发 `workflow_dispatch`（勾选 `publish_npm: true`）时，自动将全套 Monorepo 包（`@liguoshuai/pi-chat-protocol`、`@liguoshuai/pi-chat-server`、`@liguoshuai/pi-web-chat`）安全发布至 NPM Registry。
+
+### Changed
+- 全端版本号统一递增至 2.12.4（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 ## [2.12.3] - 2026-09-04
 
 ### Fixed
