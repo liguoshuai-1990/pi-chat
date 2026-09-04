@@ -4,9 +4,9 @@
 
 ---
 
-## 📌 核心铁律（三大强制原则）
+## 📌 核心铁律（四大强制原则）
 
-在进行任何工程操作时，**必须无条件严格遵守以下三大铁律**：
+在进行任何工程操作时，**必须无条件严格遵守以下四大铁律**：
 
 ### 铁律一：工作前必拉取最新主干代码 (Always Pull Latest Trunk Before Any Work)
 - **触发时机**：在接收到用户指令、开始任何需求分析、代码审查、Bug 定位或编写代码**之前**。
@@ -51,6 +51,16 @@
 
 ---
 
+### 铁律四：推送后必监控并保证 GitHub Actions CI 全绿 (Always Ensure & Verify CI Green)
+- **触发时机**：每次执行 `git push` 将代码推送到远端仓库后。
+- **强制操作**：
+  1. **CI 触发确认**：代码推送到主干或 Tag 会自动触发远端 GitHub Actions CI（包括 NPM 构建测试、Node 18/20/22 矩阵测试、HarmonyOS 打包、Android APK 编译打包及 NPM 发布等流水线）。
+  2. **流水线监控**：推送后必须使用 `gh run list` 或 `gh run watch` 跟踪最新一次触发的 CI 执行进度。
+  3. **故障闭环修复**：若 CI 出现任何 Job 失败（红叉），智能体必须**立即定位报错根因（通过 `gh api` 或 `gh run view --log-failed`）、修复问题、同步递增版本号并再次提交推送**，直至远端 CI 100% 全部通过（`completed: success`）。
+- **原因与目的**：严禁提交导致 CI 损毁的代码，确保主干分支始终处于随时可交付、可发布的健康状态。
+
+---
+
 ## 🛠️ Agent 标准工作流 (Standard Operating Procedure - SOP)
 
 ```
@@ -85,6 +95,12 @@
  ├─ git commit -m "<type>: <description>"
  ├─ git push origin main
  └─ git status (确认完全干净)
+         │
+         ▼
+[Step 6: 远端 CI 监控与绿勾闭环]
+ ├─ gh run list (查看最新触发的 Run ID)
+ ├─ gh run watch <run_id> (等待流水线执行完成)
+ └─ 确认状态为 completed: success (若失败则立即修复并闭环)
 ```
 
 ---

@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.12.11] - 2026-09-04
+
+### Added
+- **AI Agent 规范升级：新增铁律四（GitHub Actions CI 全绿保障闭环）(`AGENTS.md`)**：
+  - 将《Pi-Chat AI Coding Agent 工作指南》核心原则升级为“四大强制原则”；
+  - 正式确立“铁律四：推送后必监控并保证 GitHub Actions CI 全绿”，要求智能体在每次 push 后通过 `gh run list` / `gh run watch` 跟踪 CI 流水线状态，若发生故障必须立即闭环修复至 100% 成功，保证主干代码时刻健康。
+
+### Changed
+- 全端版本号统一递增至 2.12.11（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 ## [2.12.10] - 2026-09-04
 
 ### Fixed
