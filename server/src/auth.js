@@ -1,13 +1,18 @@
+import crypto from "crypto";
 import { config } from "./config.js";
 
 /**
  * Validates a given token against the configured server AUTH_TOKEN.
  * If no AUTH_TOKEN is configured, access is granted (open local dev mode).
+ * Uses a constant-time comparison to mitigate timing side-channel attacks.
  */
 export function verifyToken(providedToken) {
   if (!config.authToken) return true; // Auth disabled
-  if (!providedToken) return false;
-  return providedToken === config.authToken;
+  if (providedToken === undefined || providedToken === null) return false;
+  const provided = Buffer.from(String(providedToken), "utf8");
+  const expected = Buffer.from(String(config.authToken), "utf8");
+  if (provided.length !== expected.length) return false;
+  return crypto.timingSafeEqual(provided, expected);
 }
 
 /**

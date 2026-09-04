@@ -52,11 +52,8 @@ export function setupWebSocketGateway(httpServer) {
         return callback(false, 403, "Forbidden: Cross-origin WebSocket connection denied");
       }
 
-      // If token is provided in upgrade request, verify it immediately
-      if (config.authToken && !verifyWsAuth(info.req)) {
-        // If client connects without token in URL, allow connection temporarily for handshake auth message
-        // within 3 seconds, or reject if strict header/query requirement.
-      }
+      // If client connects without token, allow connection temporarily so it can
+      // complete in-band authentication via {type: "auth", token: "..."} within 3 seconds.
       callback(true);
     }
   });
@@ -155,13 +152,19 @@ export function setupWebSocketGateway(httpServer) {
             }));
           } catch (err) {
             try {
-              ws.send(JSON.stringify(createErrorMessage(ErrorCode.CAPACITY, err.message, rawMsg.id !== undefined ? { id: rawMsg.id } : null)));
+              ws.send(JSON.stringify({
+                ...createErrorMessage(ErrorCode.CAPACITY, err.message),
+                ...(rawMsg.id !== undefined ? { id: rawMsg.id } : {})
+              }));
               ws.close(1013, "Capacity");
             } catch {}
           }
         } else {
           try {
-            ws.send(JSON.stringify(createErrorMessage(ErrorCode.UNAUTHORIZED, "Invalid authentication token", rawMsg.id !== undefined ? { id: rawMsg.id } : null)));
+            ws.send(JSON.stringify({
+              ...createErrorMessage(ErrorCode.UNAUTHORIZED, "Invalid authentication token"),
+              ...(rawMsg.id !== undefined ? { id: rawMsg.id } : {})
+            }));
             ws.close(4401, "Unauthorized");
           } catch {}
         }

@@ -354,6 +354,11 @@ export class PiAgent {
     try {
       res.write(`data: ${JSON.stringify(createBackfillEndMessage(this.isStreaming, this.state, this.hasBufferOverflowed))}\n\n`);
     } catch {}
+    if (!this.isStreaming) {
+      this.eventBuffer = [];
+      this.bufferHead = 0;
+      this.hasBufferOverflowed = false;
+    }
   }
 
   broadcast(obj, skipWs = null) {

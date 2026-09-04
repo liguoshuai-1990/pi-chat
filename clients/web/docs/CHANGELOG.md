@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.6] - 2026-09-04
+
+### Fixed
+- **服务端代码深度扫描修复（`server/src/*`）**：
+  - `auth.js`：Token 校验改用 `crypto.timingSafeEqual` 恒定时间比较，消除计时侧信道攻击风险，并对非字符串输入做安全归一化。
+  - `ws.js`：修复 WebSocket 鉴权失败/容量拒绝时错误消息的 `id` 被错误放入 `details` 字段的问题，改为顶层 `id`，保证客户端可按请求 id 正确关联错误响应。
+  - `ws.js`：移除 `verifyClient` 中残留的空操作死代码（仅注释无逻辑的判断块）。
+  - `agent.js`：修复 `replayBufferedSse` 在非流式状态下回放后未清空事件缓冲区的问题（与 `replayBufferedWs` 行为对齐），避免旧事件向新连接的 SSE 客户端重复回放。
+  - `routes.js`：`/api/log-error` 端点新增字段长度截断（每字段上限 2048 字符），防止恶意/异常客户端写入超大内容刷屏服务端日志。
+
+---
+
 ## [2.12.5] - 2026-09-04
 
 ### Improved

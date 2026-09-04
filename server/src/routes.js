@@ -10,9 +10,14 @@ import { handleSseStream } from "./sse.js";
 export const router = Router();
 
 // Endpoint to catch front-end errors
+const MAX_LOG_FIELD_LEN = 2048;
+const truncateLogField = (v) => {
+  const s = typeof v === "string" ? v : JSON.stringify(v);
+  return s && s.length > MAX_LOG_FIELD_LEN ? s.slice(0, MAX_LOG_FIELD_LEN) + "…[truncated]" : s;
+};
 router.post("/api/log-error", (req, res) => {
   const { message, source, lineno, colno, error, userAgent } = req.body || {};
-  const logStr = `\n[CLIENT ERROR] ${new Date().toISOString()}\nMessage: ${message}\nSource: ${source}:${lineno}:${colno}\nError: ${JSON.stringify(error)}\nUA: ${userAgent}\n`;
+  const logStr = `\n[CLIENT ERROR] ${new Date().toISOString()}\nMessage: ${truncateLogField(message)}\nSource: ${truncateLogField(source)}:${lineno}:${colno}\nError: ${truncateLogField(error)}\nUA: ${truncateLogField(userAgent)}\n`;
   process.stderr.write(logStr);
   res.json({ ok: true });
 });
