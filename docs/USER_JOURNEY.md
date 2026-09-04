@@ -638,7 +638,13 @@ Agent 发起: { type: "extension_ui_request", id: "xxx", method: "confirm", titl
 | 会话删除/重命名 | ✅ | ✅ | ✅ |
 | 扩展 UI 交互 | ✅ | ✅ | 🔄 |
 | 连接状态实时指示 | ✅ | ✅ | ✅ |
-| 错误提示与反馈 | ✅ | ✅ | ✅ |
+| 错误提示与反馈 | ✅ (Toast) | ✅ (状态灯+重试) | ✅ (状态灯) |
+| 空状态引导芯片 | ✅ | ✅ | ❌ |
+| 键盘快捷键 | ✅ (6 组) | ❌ | ❌ |
+| 消息发送失败重试 | ❌ | ✅ | ❌ |
+| 离开页面警告 | ✅ (beforeunload) | ❌ | ❌ |
+| 图片 Lightbox 大图查看 | ✅ | ✅ | ❌ |
+| 代码块独立复制按钮 | ✅ | ✅ (工具输出) | ❌ |
 
 ### 10.2 首次体验差异
 
@@ -661,7 +667,14 @@ Agent 发起: { type: "extension_ui_request", id: "xxx", method: "confirm", titl
 | **消息发送** | Enter 发送 / Shift+Enter 换行 | 软键盘发送按钮 | 发送按钮 ➤ |
 | **中止生成** | ⏹ 停止按钮 | ■ 红色按钮 | ■ 红色按钮 |
 | **图片添加** | 拖拽/粘贴/点击 | 相册选择 | 🔄 |
-| **导出** | 文件下载 | 系统分享 | 🔄 |
+| **导出** | 文件下载 | 系统分享 (剪贴板+分享) | 🔄 |
+| **空状态引导** | π logo + 3 条建议芯片 | π logo + 建议芯片 | ❌ |
+| **键盘快捷键** | 6 组 (Ctrl+M/K/B/N, Esc) | ❌ | ❌ |
+| **离开警告** | beforeunload 弹窗 | ❌ | ❌ |
+| **发送失败重试** | ❌ | ✅ (消息卡片重试按钮) | ❌ |
+| **图片大图查看** | Lightbox 模态 | Lightbox 模态 | ❌ |
+| **明文 HTTP 限制** | 无限制 | 仅限模拟器回环 | 无限制 |
+| **流式看门狗** | 45s 心跳超时 | 5min 超时 | 5min 超时 |
 | **版本号展示** | 侧边栏底部 `#appVersion` | 抽屉底部 `BuildConfig.VERSION_NAME` | 侧边栏底部 |
 
 ---
@@ -678,8 +691,13 @@ Agent 发起: { type: "extension_ui_request", id: "xxx", method: "confirm", titl
 | 4 | HarmonyOS 端图片上传和导出功能尚未完成 | 中 | 阶段三/五 | HarmonyOS |
 | 5 | HarmonyOS 侧边栏版本号硬编码为 `v2.11.3`，未跟随 lockstep 版本 | 低 | — | HarmonyOS |
 | 6 | 无离线模式，服务端不可达时客户端完全不可用 | 中 | 阶段六 | 全端 |
-| 7 | 会话列表无搜索/过滤功能，会话多时难以查找 | 低 | 阶段四 | 全端 |
+| 7 | HarmonyOS 端会话列表无搜索/过滤功能（Web 和 Android 已有） | 低 | 阶段四 | HarmonyOS |
 | 8 | 无消息搜索功能，长会话中难以定位特定内容 | 低 | 阶段四 | 全端 |
+| 9 | HarmonyOS 端无 Token 输入 UI（鉴权基础设施存在但无入口） | 中 | 阶段二 | HarmonyOS |
+| 10 | HarmonyOS 端错误信息不可见（`errorMessage` 被赋值但 UI 无渲染） | 中 | 阶段六 | HarmonyOS |
+| 11 | HarmonyOS 端无删除会话功能（协议和服务端均支持） | 中 | 阶段四 | HarmonyOS |
+| 12 | HarmonyOS 端无模型选择 UI（协议支持但未使用） | 低 | 阶段五 | HarmonyOS |
+| 13 | Android/HarmonyOS 端错误提示 UI 较薄弱（主要靠连接状态灯） | 低 | 阶段六 | Android/HarmonyOS |
 
 ### 11.2 改进建议
 
@@ -689,21 +707,23 @@ Agent 发起: { type: "extension_ui_request", id: "xxx", method: "confirm", titl
 
 2. **移动端扫码配置**：在 Web 端生成配置二维码（含服务器地址 + Token），移动端扫码一键导入，消除手动输入的繁琐和出错。
 
-3. **HarmonyOS 功能补齐**：完成图片上传 UI 和 Markdown 导出功能，实现三端完全对齐。
+3. **HarmonyOS 功能补齐**：完成图片上传 UI、Markdown 导出、删除会话、模型选择 UI、Token 输入 UI、错误提示渲染，实现三端完全对齐。
 
 #### 中优先级
 
-4. **会话搜索**：在会话列表中增加搜索框，支持按会话名/首条消息模糊匹配。
+4. **HarmonyOS 会话搜索**：在会话列表中增加搜索框，支持按会话名/首条消息模糊匹配（Web 和 Android 已有此功能）。
 
 5. **CWD 概念简化**：对非技术用户提供"项目"概念替代"工作目录"，展示最近使用的项目列表而非裸路径。
 
 6. **HarmonyOS 版本号动态化**：将侧边栏硬编码的 `v2.11.3` 改为从 `app.json5` 动态读取，跟随 lockstep 版本。
 
+7. **移动端错误提示增强**：在 Android/HarmonyOS 端增加 Toast 或 SnackBar 渲染 `errorMessage`，让用户能看到具体错误原因而非仅靠连接状态灯判断。
+
 #### 低优先级
 
-7. **消息内搜索**：支持在当前会话内搜索关键词，高亮匹配位置。
+8. **消息内搜索**：支持在当前会话内搜索关键词，高亮匹配位置。
 
-8. **离线缓存**：客户端本地缓存最近会话内容，服务端不可达时可查看历史（只读模式）。
+9. **离线缓存**：客户端本地缓存最近会话内容，服务端不可达时可查看历史（只读模式）。
 
 ---
 
@@ -768,4 +788,8 @@ Pi-Chat 的用户旅途核心是一条 **"配置 → 对话 → 管理 → 协�
 
 ---
 
-*本文档由代码深度分析生成，覆盖 `packages/protocol`、`server/`、`clients/web`、`clients/android`、`clients/harmony` 全部模块，基于 v2.12.7 版本代码库。*
+*本文档由代码深度分析生成，覆盖 `packages/protocol`、`server/`、`clients/web`、`clients/android`、`clients/harmony` 全部模块。*
+
+*分析方法：并行启动 5 个代码探索子代理分别深度阅读各模块源码，结合人工审查协议类型定义 (`types.d.ts`)、服务端路由 (`routes.js`)、WebSocket 网关 (`ws.js`)、Web 客户端主逻辑 (`app.js`)、Android ViewModel (`ChatViewModel.kt`)、鸿蒙主页面 (`Index.ets`) 等核心文件，交叉验证后从用户视角梳理完成。*
+
+*初始版本基于 v2.12.7 代码库，修订版基于 5 个子代理的完整分析结果补充了三端功能差异细节、HarmonyOS 端缺失功能（Token UI/错误渲染/删除会话/模型选择）、Web 端特色功能（键盘快捷键/空状态引导/离开警告/Lightbox）等。*

@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.12.9] - 2026-09-04
+
+### Fixed
+- **用户旅途文档修正与补充 (`docs/USER_JOURNEY.md`)**：基于 5 个代码探索子代理的完整分析结果，修正并补充文档内容：
+  - 修正痛点 #7：会话搜索功能仅 HarmonyOS 缺失（Web 和 Android 已有），原误标为"全端"问题。
+  - 新增痛点 #9-#13：HarmonyOS 端无 Token 输入 UI、错误信息不可见、无删除会话、无模型选择 UI；Android/HarmonyOS 端错误提示 UI 薄弱。
+  - 功能对齐矩阵补充 7 行：空状态引导芯片、键盘快捷键、消息发送失败重试、离开页面警告、图片 Lightbox、代码块复制按钮、错误提示方式。
+  - 三端交互差异对比补充 8 行：空状态引导、键盘快捷键、离开警告、发送失败重试、图片大图查看、明文 HTTP 限制、流式看门狗超时。
+  - 改进建议从 8 条扩展至 9 条，新增移动端错误提示增强建议。
+  - 文档末尾补充分析方法说明与子代理交叉验证过程。
+
+### Changed
+- 全端版本号统一递增至 2.12.9（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+
 ## [2.12.8] - 2026-09-04
 
 ### Added
