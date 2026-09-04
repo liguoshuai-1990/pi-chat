@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -13,8 +15,8 @@ android {
         applicationId = "com.pichat.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 21209
-        versionName = "2.12.9"
+        versionCode = 21210
+        versionName = "2.12.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -127,7 +129,7 @@ dependencies {
 fun gradleLocalProperty(key: String): String? {
     val localProps = rootProject.file("local.properties")
     if (!localProps.exists()) return null
-    val props = java.util.Properties()
+    val props = Properties()
     localProps.inputStream().use { props.load(it) }
     return props.getProperty(key)
 }

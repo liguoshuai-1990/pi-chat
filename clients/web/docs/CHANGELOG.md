@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.12.10] - 2026-09-04
+
+### Fixed
+- **修复 GitHub Actions CI 的 Android 构建失败 (`clients/android/app/build.gradle.kts`)**：Kotlin DSL 脚本中 `java.util.Properties()` 因 `java` 标识符被 Java 插件扩展遮蔽而解析失败，导致 `./gradlew assembleDebug` 编译报错 `Unresolved reference: util`。改为脚本顶部显式 `import java.util.Properties` 并引用 `Properties()`，恢复 Android Debug APK 产物构建。
+
+### Changed
+- 全端版本号统一递增至 2.12.10（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+---
+---
+
 ## [2.12.9] - 2026-09-04
 
 ### Fixed
@@ -20,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - 全端版本号统一递增至 2.12.9（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
 
+---
 ---
 
 ## [2.12.8] - 2026-09-04

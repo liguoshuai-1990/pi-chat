@@ -1,6 +1,6 @@
 {
   "name": "@liguoshuai/pi-web-chat",
-  "version": "2.12.9",
+  "version": "2.12.10",
   "description": "A ChatGPT/Gemini-style web UI for the pi coding agent, powered by pi's RPC mode.",
   "type": "module",
   "main": "server.js",
