@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.13.1] - 2026-09-04
 
 ### Fixed
+- **修复 Android `ChatRepository.changeCwd()` 永久破坏 Repository 的关键 Bug**：
+  - `disconnect()` 原先调用 `wsClient.shutdown()` + `scope.cancel()`，会关闭 OkHttp 线程池并永久取消协程作用域；
+  - `changeCwd()` 调用 `disconnect()` 后再调用 `connect()`，但 OkHttp 已关闭无法创建新连接，`scope` 已取消导致 `init{}` 中的 `connectionState` 和 `incomingMessages` 两个 collector 永久死亡；
+  - 用户切换工作目录后，Repository 永久失聪 — WebSocket 消息无法处理，连接状态无法更新，所有 `scope.launch{}` 静默失效；
+  - 修复：`disconnect()` 改为仅调用 `wsClient.disconnect()`（只关闭当前 WebSocket），`close()` 改为 `wsClient.shutdown()` + `scope.cancel()`（完整清理），`onCleared()` 改为调用 `close()`。
 - **修复 Android 真机无法连接局域网网关服务器的问题**：
   - `network_security_config.xml` 原先仅允许 `10.0.2.2`（模拟器环回）、`localhost`、`127.0.0.1` 三个地址的明文 HTTP 流量；
   - 真机连接局域网服务器（如 `http://192.168.1.x:3000`）时，Android 系统会静默拦截明文请求，导致 WebSocket 握手失败、App 显示"连接失败"；

@@ -101,6 +101,7 @@ class ChatRepository(
     }
 
     fun close() {
+        wsClient.shutdown()
         scope.cancel()
     }
 
@@ -115,8 +116,7 @@ class ChatRepository(
     }
 
     fun disconnect() {
-        wsClient.shutdown()
-        scope.cancel()
+        wsClient.disconnect()
     }
 
     fun fetchConfig() {
