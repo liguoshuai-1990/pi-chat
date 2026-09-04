@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pi-chat · 手机 APP 端原型</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --bg: #0f0f0f; --surface: #18181b; --surface2: #27272a; --surface3: #3f3f46;
+      --border: #27272a; --border2: #3f3f46;
+      --text: #e4e4e7; --text-dim: #71717a; --text-dim2: #52525b;
+      --accent: #6366f1; --accent2: #818cf8; --green: #22c55e; --orange: #f59e0b;
+      --radius: 8px;
+    }
+    body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0a0a0a; color: var(--text); display: flex; justify-content: center; align-items: flex-start; gap: 20px; flex-wrap: wrap; padding: 48px 20px 20px; }
+    .annot-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; background: var(--accent); color: #fff; font-size: 12px; padding: 6px 16px; display: flex; justify-content: space-between; align-items: center; }
+    .annot-bar a { color: #fff; text-decoration: none; }
+    .device { width: 360px; height: 760px; border: 10px solid #222; border-radius: 36px; overflow: hidden; position: relative; box-shadow: 0 8px 40px rgba(0,0,0,0.6); flex-shrink: 0; }
+    .device-label { text-align: center; font-size: 13px; color: var(--text-dim); margin-top: 8px; }
+    .device-wrap { display: flex; flex-direction: column; align-items: center; }
+    .screen { width: 100%; height: 100%; background: var(--bg); display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    .status-bar { height: 28px; background: var(--surface); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 12px; color: var(--text); flex-shrink: 0; }
+    .status-icons { display: flex; gap: 6px; align-items: center; }
+    .app-bar { height: 52px; background: var(--surface); display: flex; align-items: center; padding: 0 4px; gap: 4px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+    .icon-btn { background: none; border: none; color: var(--text); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .icon-btn:active { background: var(--surface2); }
+    .app-title { font-size: 17px; font-weight: 500; flex: 1; margin-left: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .messages { flex: 1; overflow-y: auto; padding: 12px 0; }
+    .msg { margin-bottom: 12px; padding: 0 16px; }
+    .msg-bubble { display: inline-block; max-width: 80%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.5; }
+    .msg.user { text-align: right; }
+    .msg.user .msg-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+    .msg.assistant .msg-bubble { background: var(--surface2); color: var(--text); border-bottom-left-radius: 4px; }
+    .msg-bubble pre { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 8px 10px; overflow-x: auto; margin: 6px 0; }
+    .msg-bubble pre code { font-size: 12px; font-family: 'SF Mono', Consolas, monospace; color: var(--accent2); }
+    .msg-bubble code { font-size: 12px; font-family: 'SF Mono', Consolas, monospace; }
+    .msg-meta { font-size: 10px; color: var(--text-dim2); margin-top: 4px; }
+    .msg.user .msg-meta { text-align: right; }
+    .input-bar { padding: 8px 12px 12px; background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0; display: flex; gap: 8px; align-items: flex-end; }
+    .input-row { display: flex; gap: 8px; align-items: center; flex: 1; background: var(--surface2); border-radius: 24px; padding: 4px 4px 4px 16px; }
+    .input-text { flex: 1; background: none; border: none; color: var(--text); font-size: 15px; font-family: inherit; resize: none; outline: none; min-height: 36px; max-height: 100px; line-height: 1.4; padding: 8px 0; }
+    .input-text::placeholder { color: var(--text-dim); }
+    .btn-send-round { background: var(--accent); color: #fff; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .btn-send-round:active { opacity: 0.8; }
+    .drawer { position: absolute; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); display: flex; flex-direction: column; transform: translateX(-100%); transition: transform .3s; z-index: 60; }
+    .drawer.open { transform: translateX(0); }
+    .drawer-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 50; }
+    .drawer-overlay.open { opacity: 1; pointer-events: auto; }
+    .drawer-header { padding: 36px 20px 16px; border-bottom: 1px solid var(--border); }
+    .drawer-avatar { width: 48px; height: 48px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 8px; }
+    .drawer-name { font-size: 16px; font-weight: 600; }
+    .drawer-email { font-size: 12px; color: var(--text-dim); }
+    .drawer-menu { padding: 8px 0; }
+    .drawer-item { padding: 14px 20px; display: flex; align-items: center; gap: 16px; cursor: pointer; font-size: 15px; color: var(--text); }
+    .drawer-item:active { background: var(--surface2); }
+    .drawer-item svg { color: var(--text-dim); }
+    .drawer-section { font-size: 12px; color: var(--text-dim2); padding: 12px 20px 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .drawer-sessions { padding: 0 8px; flex: 1; overflow-y: auto; }
+    .drawer-session { padding: 10px 12px; border-radius: var(--radius); cursor: pointer; font-size: 13px; color: var(--text-dim); margin-bottom: 2px; }
+    .drawer-session.active { background: var(--surface3); color: var(--text); }
+    .drawer-footer { padding: 12px 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-dim2); }
+    .settings-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+    .settings-group-title { font-size: 13px; color: var(--text-dim); padding: 16px 20px 8px; }
+    .settings-item { background: var(--surface); display: flex; align-items: center; padding: 14px 20px; gap: 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .settings-item:active { background: var(--surface2); }
+    .settings-icon { color: var(--text-dim); display: flex; align-items: center; }
+    .settings-label { flex: 1; font-size: 15px; }
+    .settings-value { font-size: 14px; color: var(--text-dim); }
+    .settings-switch { width: 44px; height: 26px; border-radius: 13px; background: var(--accent); position: relative; cursor: pointer; flex-shrink: 0; }
+    .settings-switch::after { content: ''; position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: .2s; }
+    .settings-switch.off { background: var(--surface3); }
+    .settings-switch.off::after { right: 21px; }
+  </style>
+</head>
+<body>
+<div class="annot-bar"><span>手机 APP 端原型 · Android / HarmonyOS</span><a href="index.html">← 返回总览</a></div>
+
+<!-- ===== Screen 1: Chat ===== -->
+<div class="device-wrap">
+<div class="device">
+  <div class="screen">
+    <div class="status-bar"><span>9:41</span><div class="status-icons"><span>●●●</span><span>WiFi</span><span>100%</span></div></div>
+    <div class="drawer-overlay" id="ov1" onclick="t1()"></div>
+    <aside class="drawer" id="d1">
+      <div class="drawer-header"><div class="drawer-avatar">π</div><div class="drawer-name">Pi Chat</div><div class="drawer-email">pi-chat · Android v2.13.0</div></div>
+      <div class="drawer-section">会话列表</div>
+      <div class="drawer-sessions">
+        <div class="drawer-session active">帮我分析代码性能瓶颈</div>
+        <div class="drawer-session">VPC 网络拓扑设计</div>
+        <div class="drawer-session">Terraform ECS 模块</div>
+        <div class="drawer-session">OBS 桶创建流程</div>
+      </div>
+      <div class="drawer-menu">
+        <div class="drawer-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> 新对话</div>
+        <div class="drawer-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> 搜索</div>
+        <div class="drawer-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> 设置</div>
+      </div>
+      <div class="drawer-footer"><span style="color:var(--green)">●</span> 已连接 · ws://localhost:3000</div>
+    </aside>
+    <div class="app-bar">
+      <button class="icon-btn" onclick="t1()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg></button>
+      <span class="app-title">Pi Chat</span>
+      <button class="icon-btn"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+    </div>
+    <div class="messages">
+      <div class="msg user"><div class="msg-bubble">帮我分析这段代码的性能瓶颈：<pre><code>def find_dup(lst):
+    r=[]
+    for i in range(len(lst)):
+        for j in range(i+1,len(lst)):
+            if lst[i]==lst[j] and lst[i] not in r:
+                r.append(lst[i])
+    return r</code></pre></div><div class="msg-meta">9:41</div></div>
+      <div class="msg assistant"><div class="msg-bubble">两个瓶颈：<br>1. <strong>O(n²) 双重循环</strong><br>2. <strong>O(n) not in 检查</strong>（列表线性扫描）<br><br>优化 — 用集合降到 O(n)：<pre><code>def find_dup(lst):
+    seen, r = set(), set()
+    for x in lst:
+        if x in seen: r.add(x)
+        else: seen.add(x)
+    return list(r)</code></pre></div><div class="msg-meta">Pi · 9:41</div></div>
+    </div>
+    <div class="input-bar">
+      <div class="input-row">
+        <textarea class="input-text" placeholder="输入消息…" rows="1"></textarea>
+        <button class="btn-send-round"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="device-label">📱 聊天页 — 消息气泡 + 抽屉侧边栏</div>
+</div>
+
+<!-- ===== Screen 2: Settings ===== -->
+<div class="device-wrap">
+<div class="device">
+  <div class="screen">
+    <div class="status-bar"><span>9:41</span><div class="status-icons"><span>●●●</span><span>WiFi</span><span>100%</span></div></div>
+    <div class="app-bar">
+      <button class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <span class="app-title">设置</span>
+    </div>
+    <div class="settings-list">
+      <div class="settings-group-title">模型配置</div>
+      <div class="settings-item">
+        <div class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+        <span class="settings-label">默认模型</span>
+        <span class="settings-value">pi-2.5-pro</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-dim2)"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="settings-item">
+        <div class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+        <span class="settings-label">Thinking Level</span>
+        <span class="settings-value">high</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-dim2)"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="settings-group-title">连接</div>
+      <div class="settings-item">
+        <div class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg></div>
+        <span class="settings-label">服务器地址</span>
+        <span class="settings-value">localhost:3000</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-dim2)"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="settings-item">
+        <div class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <span class="settings-label">认证 Token</span>
+        <span class="settings-value">未设置</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-dim2)"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="settings-group-title">界面</div>
+      <div class="settings-item">
+        <div class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
+        <span class="settings-label">暗色主题</span>
+        <div class="settings-switch"></div>
+      </div>
+      <div class="settings-item">
+        <div class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></div>
+        <span class="settings-label">声音提示</span>
+        <div class="settings-switch off"></div>
+      </div>
+      <div class="settings-item">
+        <div class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <span class="settings-label">消息气泡样式</span>
+        <span class="settings-value">圆角气泡</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-dim2)"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="settings-group-title">关于</div>
+      <div class="settings-item">
+        <div class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></div>
+        <span class="settings-label">版本</span>
+        <span class="settings-value">v2.13.0</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="device-label">⚙️ 设置页 — 模型/连接/界面配置</div>
+</div>
+
+<script>
+function t1() { document.getElementById('d1').classList.toggle('open'); document.getElementById('ov1').classList.toggle('open'); }
+</script>
+</body>
+</html>

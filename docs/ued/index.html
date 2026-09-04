@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pi-chat · UED 原型总览</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0f0f0f; --surface: #1a1a1a; --surface2: #252525;
+      --border: #333; --text: #e4e4e4; --text-dim: #888;
+      --accent: #6366f1; --accent2: #818cf8; --green: #22c55e;
+      --radius: 12px;
+    }
+    body { font-family: -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    .container { max-width: 960px; margin: 0 auto; padding: 48px 24px; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    h2 { font-size: 20px; margin: 32px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    h3 { font-size: 16px; margin: 20px 0 8px; color: var(--accent2); }
+    p { color: var(--text-dim); margin-bottom: 8px; }
+    .badge { display: inline-block; background: var(--accent); color: #fff; font-size: 12px; padding: 2px 10px; border-radius: 20px; margin-left: 8px; vertical-align: middle; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+    th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+    th { background: var(--surface2); color: var(--text); }
+    td { color: var(--text-dim); }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; text-decoration: none; color: var(--text); transition: border-color .2s, transform .2s; }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .card-icon { font-size: 32px; margin-bottom: 8px; }
+    .card-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .card-desc { font-size: 13px; color: var(--text-dim); }
+    .card-meta { font-size: 12px; color: var(--accent2); margin-top: 8px; }
+    .note { background: var(--surface); border-left: 3px solid var(--accent); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 14px; }
+    .note strong { color: var(--accent2); }
+    code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent2); }
+    .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-dim); }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>pi-chat · UED 原型总览 <span class="badge">v2.13.0</span></h1>
+  <p>本目录包含 pi-chat 聊天应用三端界面原型（HTML Prototype），可直接用浏览器打开预览。</p>
+
+  <h2>📖 UED 是什么？</h2>
+  <table>
+    <tr><th>术语</th><th>全称</th><th>职责</th></tr>
+    <tr><td><strong>UX / UE</strong></td><td>User Experience</td><td>用户体验整体设计：交互逻辑、信息架构、用户旅程</td></tr>
+    <tr><td><strong>UI</strong></td><td>User Interface</td><td>界面视觉设计：配色、排版、组件样式</td></tr>
+    <tr><td><strong>UED</strong></td><td>User Experience Design</td><td>UX + UI 统称，国内大厂常作为设计团队/部门命名</td></tr>
+    <tr><td><strong>IXD</strong></td><td>Interaction Design</td><td>交互设计，偏行为逻辑与动效</td></tr>
+  </table>
+
+  <h2>🎨 业界画界面原型的常见方式</h2>
+  <table>
+    <tr><th>保真度</th><th>叫法</th><th>典型工具</th><th>用途</th></tr>
+    <tr><td>低保真</td><td>线框图 Wireframe</td><td>纸笔、Balsamiq、Whimsical</td><td>快速验证布局逻辑，不关心视觉</td></tr>
+    <tr><td>中保真</td><td>Mockup</td><td>Figma、Sketch、Adobe XD</td><td>有配色和真实尺寸，不可点</td></tr>
+    <tr><td>高保真</td><td>Prototype</td><td>Figma、Axure RP、Principle</td><td>可点击跳转、有动效，接近最终产品</td></tr>
+    <tr><td>代码级</td><td>HTML Prototype</td><td>手写 HTML/CSS</td><td>浏览器直接跑，开发可复用，可进版本管理</td></tr>
+  </table>
+  <div class="note">
+    <strong>本目录用的是「代码级原型」</strong>——介于中保真和高保真之间。优点：无需 Figma 账号、可直接浏览器打开、可进 Git 版本管理、开发可直接参考复用 CSS。缺点：不如 Figma 灵活，改布局需改代码。
+  </div>
+
+  <h2>🖥️ 三端原型预览</h2>
+  <div class="cards">
+    <a class="card" href="desktop-web.html">
+      <div class="card-icon">🖥️</div>
+      <div class="card-title">桌面网页端</div>
+      <div class="card-desc">侧边栏 + 主聊天区双栏布局，支持拖拽调整侧边栏宽度，键盘快捷键</div>
+      <div class="card-meta">分辨率基准：1440 × 900</div>
+    </a>
+    <a class="card" href="mobile-web.html">
+      <div class="card-icon">📱</div>
+      <div class="card-title">手机网页端</div>
+      <div class="card-desc">单栏布局，侧边栏抽屉式弹出，底部固定输入栏，触控优化</div>
+      <div class="card-meta">分辨率基准：375 × 812 (iPhone)</div>
+    </a>
+    <a class="card" href="mobile-app.html">
+      <div class="card-icon">📲</div>
+      <div class="card-title">手机 APP 端</div>
+      <div class="card-desc">原生 App 风格，顶部导航栏 + 消息列表 + 底部输入，含设置页</div>
+      <div class="card-meta">Android / HarmonyOS 通用</div>
+    </a>
+  </div>
+
+  <h2>📐 设计规范摘要</h2>
+  <h3>配色（暗色主题）</h3>
+  <table>
+    <tr><th>变量</th><th>色值</th><th>用途</th></tr>
+    <tr><td><code>--bg</code></td><td>#0f0f0f</td><td>全局背景</td></tr>
+    <tr><td><code>--surface</code></td><td>#1a1a1a</td><td>卡片/侧边栏背景</td></tr>
+    <tr><td><code>--accent</code></td><td>#6366f1</td><td>主强调色（按钮、链接）</td></tr>
+    <tr><td><code>--text</code></td><td>#e4e4e4</td><td>主文字</td></tr>
+    <tr><td><code>--text-dim</code></td><td>#888</td><td>次要文字</td></tr>
+  </table>
+
+  <h3>三端布局差异</h3>
+  <table>
+    <tr><th>维度</th><th>桌面 Web</th><th>手机 Web</th><th>手机 APP</th></tr>
+    <tr><td>布局</td><td>双栏（侧边栏+主区）</td><td>单栏+抽屉</td><td>单栏+抽屉</td></tr>
+    <tr><td>侧边栏</td><td>常驻/可拖拽宽度</td><td>左滑抽屉</td><td>左滑抽屉</td></tr>
+    <tr><td>输入栏</td><td>底部固定，多行展开</td><td>底部固定，单行+展开</td><td>底部固定，键盘自适应</td></tr>
+    <tr><td>消息气泡</td><td>最大宽度 760px 居中</td><td>全宽减 padding</td><td>全宽减 padding</td></tr>
+    <tr><td>快捷键</td><td>Ctrl+M/N/K/B 等</td><td>无（触控）</td><td>无（触控）</td></tr>
+    <tr><td>图片预览</td><td>Lightbox 点击放大</td><td>点击全屏查看</td><td>点击全屏查看</td></tr>
+  </table>
+
+  <h2>📝 使用说明</h2>
+  <div class="note">
+    <strong>预览方式：</strong>直接用浏览器打开任一 <code>.html</code> 文件即可，无需启动服务器。每个原型页面都是自包含的（内联 CSS），可独立分享。<br>
+    <strong>开发复用：</strong>原型中的 CSS 变量和组件类名尽量与 <code>clients/web/public/style.css</code> 保持一致，方便开发时直接参考。
+  </div>
+
+  <div class="footer">
+    pi-chat UED Prototypes · 生成于 2026-09-04 · 基于 pi-chat v2.12.9 界面设计
+  </div>
+</div>
+</body>
+</html>

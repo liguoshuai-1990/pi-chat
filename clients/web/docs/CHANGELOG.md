@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.13.0] - 2026-09-04
+
+### Added
+- **新增 UED 界面原型样例 (`docs/ued/`)**：
+  - 为网页 WEB、手机 WEB、手机 APP 三端创建 HTML 交互原型（代码级 Mockup），可浏览器直接打开预览；
+  - `index.html`：UED 总览页，含术语说明（UED/UX/UI/IXD）、业界原型绘制方式对比表、设计规范摘要；
+  - `desktop-web.html`：桌面网页端原型，双栏布局（侧边栏+主聊天区），含会话列表、消息流、代码块、输入栏；
+  - `mobile-web.html`：手机网页端原型，单栏布局+左滑抽屉，含 iPhone 设备框架、触控优化输入栏；
+  - `mobile-app.html`：手机 APP 端原型，含聊天页（气泡式消息）和设置页（模型/连接/界面配置），Android/HarmonyOS 通用风格；
+  - `README.md`：UED 设计说明文档，含三端布局差异对比表、配色规范、间距圆角规范。
+
+### Changed
+- 全端版本号统一递增至 2.13.0（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 ## [2.12.11] - 2026-09-04
 
 ### Added

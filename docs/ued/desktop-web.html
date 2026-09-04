@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pi-chat · 桌面网页端原型</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0f0f0f; --surface: #18181b; --surface2: #27272a; --surface3: #3f3f46;
+      --border: #27272a; --border2: #3f3f46;
+      --text: #e4e4e7; --text-dim: #71717a; --text-dim2: #52525b;
+      --accent: #6366f1; --accent2: #818cf8; --green: #22c55e; --danger: #ef4444;
+      --radius: 8px; --sidebar-w: 260px;
+    }
+    body { font-family: -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+    .annot-bar { position: fixed; top: 0; right: 0; z-index: 1000; background: var(--accent); color: #fff; font-size: 12px; padding: 4px 16px; border-radius: 0 0 0 8px; }
+    .annot-bar a { color: #fff; text-decoration: none; margin-left: 12px; }
+    .app { display: flex; height: 100vh; }
+    .sidebar { width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+    .sidebar-top { padding: 12px; }
+    .btn-new { width: 100%; background: var(--surface2); border: 1px solid var(--border2); color: var(--text); border-radius: var(--radius); padding: 10px 16px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .btn-new:hover { background: var(--surface3); }
+    .sidebar-search { padding: 0 12px 8px; }
+    .sidebar-search input { width: 100%; background: var(--surface2); border: 1px solid var(--border2); color: var(--text); border-radius: var(--radius); padding: 8px 12px; font-size: 13px; outline: none; }
+    .sidebar-search input::placeholder { color: var(--text-dim); }
+    .session-list { flex: 1; overflow-y: auto; padding: 0 8px; }
+    .session-item { padding: 8px 12px; border-radius: var(--radius); cursor: pointer; font-size: 13px; color: var(--text-dim); margin-bottom: 2px; display: flex; align-items: center; gap: 8px; }
+    .session-item:hover { background: var(--surface2); }
+    .session-item.active { background: var(--surface3); color: var(--text); }
+    .session-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim2); flex-shrink: 0; }
+    .session-item.active .dot { background: var(--accent); }
+    .sidebar-bottom { padding: 12px; border-top: 1px solid var(--border); }
+    .conn-status { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+    .conn-dot { color: var(--green); }
+    .sidebar-meta { font-size: 11px; color: var(--text-dim2); }
+    .sidebar-meta a { color: var(--text-dim); text-decoration: none; }
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar { height: 48px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; }
+    .topbar-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 6px; border-radius: 6px; display: flex; align-items: center; }
+    .topbar-btn:hover { background: var(--surface2); color: var(--text); }
+    .topbar-title { font-size: 14px; color: var(--text-dim); flex: 1; }
+    .model-badge { font-size: 12px; color: var(--accent2); background: var(--surface2); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border2); }
+    .messages { flex: 1; overflow-y: auto; padding: 24px 0; }
+    .msg-wrapper { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+    .msg { margin-bottom: 24px; }
+    .msg-header { font-size: 12px; color: var(--text-dim2); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .msg-role { font-weight: 600; }
+    .msg-role.user { color: var(--accent2); }
+    .msg-role.assistant { color: var(--green); }
+    .msg-body { font-size: 14px; line-height: 1.7; color: var(--text); }
+    .msg-body p { margin-bottom: 8px; }
+    .msg-body code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent2); font-family: 'SF Mono', Consolas, monospace; }
+    .msg-body pre { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; overflow-x: auto; margin: 8px 0; }
+    .msg-body pre code { background: none; padding: 0; color: var(--text); }
+    .msg-body ul { padding-left: 20px; margin-bottom: 8px; }
+    .msg-body li { margin-bottom: 4px; }
+    .msg-actions { display: flex; gap: 4px; margin-top: 8px; opacity: 0.4; transition: opacity .15s; }
+    .msg:hover .msg-actions { opacity: 1; }
+    .msg-action-btn { background: none; border: none; color: var(--text-dim2); cursor: pointer; font-size: 12px; padding: 2px 6px; border-radius: 4px; }
+    .msg-action-btn:hover { background: var(--surface2); color: var(--text); }
+    .input-area { border-top: 1px solid var(--border); padding: 16px 24px; flex-shrink: 0; }
+    .input-wrapper { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; }
+    .input-box { flex: 1; background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius); padding: 12px 16px; color: var(--text); font-size: 14px; font-family: inherit; resize: none; min-height: 44px; max-height: 200px; outline: none; line-height: 1.5; }
+    .input-box::placeholder { color: var(--text-dim); }
+    .input-box:focus { border-color: var(--accent); }
+    .btn-send { background: var(--accent); color: #fff; border: none; border-radius: var(--radius); padding: 0 20px; height: 44px; cursor: pointer; font-size: 14px; font-weight: 500; }
+    .btn-send:hover { opacity: 0.9; }
+    .input-hint { text-align: center; font-size: 11px; color: var(--text-dim2); margin-top: 8px; }
+  </style>
+</head>
+<body>
+<div class="annot-bar">桌面网页端原型 · 1440×900 · <a href="index.html">← 返回总览</a></div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <button class="btn-new">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        <span>新对话</span>
+      </button>
+    </div>
+    <div class="sidebar-search">
+      <input type="text" placeholder="搜索会话… (Ctrl+K)">
+    </div>
+    <div class="session-list">
+      <div class="session-item active"><span class="dot"></span>帮我分析这段代码的性能瓶颈</div>
+      <div class="session-item"><span class="dot"></span>VPC 网络拓扑设计</div>
+      <div class="session-item"><span class="dot"></span>Terraform ECS 模块编写</div>
+      <div class="session-item"><span class="dot"></span>华为云 OBS 桶创建流程</div>
+      <div class="session-item"><span class="dot"></span>React 组件性能优化方案</div>
+      <div class="session-item"><span class="dot"></span>Git rebase vs merge 区别</div>
+      <div class="session-item"><span class="dot"></span>Docker 多阶段构建最佳实践</div>
+      <div class="session-item"><span class="dot"></span>K8s Pod 调度策略详解</div>
+      <div class="session-item"><span class="dot"></span>Python 异步编程入门</div>
+    </div>
+    <div class="sidebar-bottom">
+      <div class="conn-status"><span class="conn-dot">●</span> 已连接 · ws://localhost:3000</div>
+      <div class="sidebar-meta"><a href="#">pi.dev</a> · <a href="#">pi-web-chat</a><br><span>v2.13.0</span></div>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <button class="topbar-btn" title="切换侧边栏 (Ctrl+B)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
+      <span class="topbar-title">帮我分析这段代码的性能瓶颈</span>
+      <span class="model-badge">pi-2.5-pro · thinking</span>
+      <button class="topbar-btn" title="设置">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+    <div class="messages">
+      <div class="msg-wrapper">
+        <div class="msg">
+          <div class="msg-header"><span class="msg-role user">You</span></div>
+          <div class="msg-body">
+            <p>帮我分析这段 Python 代码的性能瓶颈：</p>
+            <pre><code>def find_duplicates(lst):
+    result = []
+    for i in range(len(lst)):
+        for j in range(i + 1, len(lst)):
+            if lst[i] == lst[j] and lst[i] not in result:
+                result.append(lst[i])
+    return result</code></pre>
+          </div>
+          <div class="msg-actions"><button class="msg-action-btn">📋 复制</button><button class="msg-action-btn">✏️ 编辑</button></div>
+        </div>
+        <div class="msg">
+          <div class="msg-header"><span class="msg-role assistant">Pi</span> · 2.5-pro</div>
+          <div class="msg-body">
+            <p>这段代码有两个性能瓶颈：</p>
+            <ul>
+              <li><strong>O(n²) 双重循环</strong>：嵌套 <code>for</code> 遍历所有元素对，列表长度 1000 时需 ~50 万次比较</li>
+              <li><strong>O(n) 的 <code>not in</code> 检查</strong>：<code>result</code> 是列表，每次 <code>not in</code> 又是 O(n) 线性扫描</li>
+            </ul>
+            <p>优化方案 — 用集合去重，降到 O(n)：</p>
+            <pre><code>def find_duplicates(lst):
+    seen = set()
+    result = set()
+    for item in lst:
+        if item in seen:
+            result.add(item)
+        else:
+            seen.add(item)
+    return list(result)</code></pre>
+          </div>
+          <div class="msg-actions"><button class="msg-action-btn">📋 复制</button><button class="msg-action-btn">🔄 重新生成</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="input-area">
+      <div class="input-wrapper">
+        <textarea class="input-box" placeholder="输入消息… (Enter 发送, Shift+Enter 换行)" rows="1"></textarea>
+        <button class="btn-send">发送</button>
+      </div>
+      <div class="input-hint">pi-chat · Ctrl+M 切换模型 · Ctrl+Shift+N 新对话 · Ctrl+B 侧边栏</div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
