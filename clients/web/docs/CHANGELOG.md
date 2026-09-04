@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.14.0] - 2026-09-04
+
+### Changed
+- 全端版本号统一递增至 2.14.0（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+- 触发 CI 发布流程，产出全平台交付物（NPM 包 / HarmonyOS 包 / Android APK / GitHub Release）。
+
 ## [2.13.1] - 2026-09-04
 
 ### Fixed
