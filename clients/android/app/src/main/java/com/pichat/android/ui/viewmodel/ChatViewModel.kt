@@ -62,6 +62,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _serverConfig = MutableStateFlow<ServerConfig?>(null)
     val serverConfig: StateFlow<ServerConfig?> = _serverConfig.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     private var collectorJobs: List<Job> = emptyList()
 
     init {
@@ -82,7 +85,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch { repo.availableModels.collect { _availableModels.value = it } },
             viewModelScope.launch { repo.thinkingLevel.collect { _thinkingLevel.value = it } },
             viewModelScope.launch { repo.currentCwd.collect { _currentCwd.value = it } },
-            viewModelScope.launch { repo.serverConfig.collect { _serverConfig.value = it } }
+            viewModelScope.launch { repo.serverConfig.collect { _serverConfig.value = it } },
+            viewModelScope.launch { repo.error.collect { _error.value = it } }
         )
     }
 
@@ -97,8 +101,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendSteer(text: String) {
         if (text.isBlank()) return
-        // If send fails, the steer text is still added to UI by the caller;
-        // repository.sendSteer returns false but we have no error toast flow.
         repository.sendSteer(text)
     }
 
@@ -135,6 +137,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshModels() {
         repository.fetchAvailableModels()
+    }
+
+    fun clearError() {
+        _error.value = null
     }
 
     fun reconnect() {

@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.json.Json
 import okhttp3.*
 import java.util.concurrent.TimeUnit
+import android.util.Log
 
 enum class ConnectionState {
     DISCONNECTED,
@@ -62,7 +63,6 @@ class WebSocketClient(
         val wsUrlBuilder = StringBuilder("$pathBase?")
         if (cwd.isNotEmpty()) wsUrlBuilder.append("cwd=").append(java.net.URLEncoder.encode(cwd, "UTF-8")).append("&")
         if (!sessionPath.isNullOrEmpty()) wsUrlBuilder.append("session=").append(java.net.URLEncoder.encode(sessionPath, "UTF-8")).append("&")
-        if (!token.isNullOrEmpty()) wsUrlBuilder.append("token=").append(java.net.URLEncoder.encode(token, "UTF-8")).append("&")
 
         val request = Request.Builder()
             .url(wsUrlBuilder.toString().removeSuffix("&").removeSuffix("?"))
@@ -83,9 +83,11 @@ class WebSocketClient(
             override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
                     val msg = json.decodeFromString<GenericServerMessage>(text)
-                    _incomingMessages.tryEmit(msg)
+                    if (!_incomingMessages.tryEmit(msg)) {
+                        Log.w("WebSocketClient", "Incoming message buffer full, dropping message of type=${msg.type}")
+                    }
                 } catch (e: Exception) {
-                    // Ignore parse error
+                    Log.w("WebSocketClient", "Failed to parse WebSocket message: ${e.message}")
                 }
             }
 

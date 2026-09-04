@@ -19,7 +19,7 @@ class ApiService(
 
     suspend fun getConfig(): Result<ServerConfig> = withContext(Dispatchers.IO) {
         try {
-            val url = "$baseUrl/api/config".let { if (!token.isNullOrEmpty()) "$it?token=$token" else it }
+            val url = "$baseUrl/api/config"
             val request = Request.Builder()
                 .url(url)
                 .apply { if (!token.isNullOrEmpty()) header("Authorization", "Bearer $token") }
@@ -38,9 +38,7 @@ class ApiService(
 
     suspend fun getSessions(cwd: String = ""): Result<SessionsResponse> = withContext(Dispatchers.IO) {
         try {
-            var url = "$baseUrl/api/sessions?cwd=${java.net.URLEncoder.encode(cwd, "UTF-8")}"
-            if (!token.isNullOrEmpty()) url += "&token=${java.net.URLEncoder.encode(token, "UTF-8")}"
-
+            val url = "$baseUrl/api/sessions?cwd=${java.net.URLEncoder.encode(cwd, "UTF-8")}"
             val request = Request.Builder()
                 .url(url)
                 .apply { if (!token.isNullOrEmpty()) header("Authorization", "Bearer $token") }
@@ -59,9 +57,7 @@ class ApiService(
 
     suspend fun getSession(file: String): Result<SessionDetailResponse> = withContext(Dispatchers.IO) {
         try {
-            var url = "$baseUrl/api/session?file=${java.net.URLEncoder.encode(file, "UTF-8")}"
-            if (!token.isNullOrEmpty()) url += "&token=${java.net.URLEncoder.encode(token, "UTF-8")}"
-
+            val url = "$baseUrl/api/session?file=${java.net.URLEncoder.encode(file, "UTF-8")}"
             val request = Request.Builder()
                 .url(url)
                 .apply { if (!token.isNullOrEmpty()) header("Authorization", "Bearer $token") }
@@ -80,9 +76,7 @@ class ApiService(
 
     suspend fun deleteSession(file: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            var url = "$baseUrl/api/session?file=${java.net.URLEncoder.encode(file, "UTF-8")}"
-            if (!token.isNullOrEmpty()) url += "&token=${java.net.URLEncoder.encode(token, "UTF-8")}"
-
+            val url = "$baseUrl/api/session?file=${java.net.URLEncoder.encode(file, "UTF-8")}"
             val request = Request.Builder()
                 .url(url)
                 .delete()

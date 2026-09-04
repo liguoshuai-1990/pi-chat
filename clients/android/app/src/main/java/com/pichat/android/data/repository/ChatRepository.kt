@@ -16,6 +16,7 @@ import com.pichat.android.data.protocol.GenericServerMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,7 +72,14 @@ class ChatRepository(
     private val _serverConfig = MutableStateFlow<ServerConfig?>(null)
     val serverConfig: StateFlow<ServerConfig?> = _serverConfig.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     private var activeCwd: String = ""
+
+    // Watchdog: if streaming stays true for too long without agent_end, reset it
+    private var streamingWatchdogJob: Job? = null
+    private val STREAMING_WATCHDOG_MS = 5L * 60 * 1000 // 5 minutes
 
     init {
         scope.launch {
@@ -130,6 +138,8 @@ class ChatRepository(
                         _thinkingLevel.value = def.thinkingLevel
                     }
                 }
+            }.onFailure { e ->
+                _error.value = "Failed to load server config: ${e.message}"
             }
         }
     }
@@ -149,7 +159,6 @@ class ChatRepository(
             put("modelId", modelId)
         }
         wsClient.sendRaw(payload.toString())
-        // Optimistically update local model
         val found = _availableModels.value.find { it.id == modelId && (it.provider == null || it.provider == provider) }
         if (found != null) {
             _currentModel.value = found
@@ -181,8 +190,27 @@ class ChatRepository(
             val result = apiService.getSessions(cwd)
             result.onSuccess { res ->
                 _sessions.value = res.sessions
+            }.onFailure { e ->
+                _error.value = "Failed to load sessions: ${e.message}"
             }
         }
+    }
+
+    private fun startStreamingWatchdog() {
+        cancelStreamingWatchdog()
+        streamingWatchdogJob = scope.launch {
+            kotlinx.coroutines.delay(STREAMING_WATCHDOG_MS)
+            if (_isStreaming.value) {
+                _isStreaming.value = false
+                markLastMessageDone()
+                _error.value = "Streaming timed out after ${STREAMING_WATCHDOG_MS / 1000}s"
+            }
+        }
+    }
+
+    private fun cancelStreamingWatchdog() {
+        streamingWatchdogJob?.cancel()
+        streamingWatchdogJob = null
     }
 
     fun sendPrompt(text: String, images: List<ImageAttachment> = emptyList()) {
@@ -201,6 +229,7 @@ class ChatRepository(
 
         _messages.value = _messages.value + userMsg + assistantMsg
         _isStreaming.value = true
+        startStreamingWatchdog()
 
         val payload = buildJsonObject {
             put("type", "prompt")
@@ -218,9 +247,19 @@ class ChatRepository(
             }
         }
         if (!wsClient.sendRaw(payload.toString())) {
-            // WebSocket send failed — roll back streaming state to avoid UI stuck
+            // WebSocket send failed — mark user message as ERROR and remove assistant placeholder
             _isStreaming.value = false
-            _messages.value = _messages.value.dropLast(1) // remove the streaming assistant placeholder
+            cancelStreamingWatchdog()
+            val list = _messages.value.toMutableList()
+            if (list.isNotEmpty() && list.last().role == MessageRole.ASSISTANT && list.last().status == MessageStatus.STREAMING) {
+                list.removeAt(list.size - 1)
+            }
+            if (list.isNotEmpty() && list.last().role == MessageRole.USER) {
+                val last = list[list.size - 1]
+                list[list.size - 1] = last.copy(status = MessageStatus.ERROR)
+            }
+            _messages.value = list
+            _error.value = "Failed to send message: WebSocket not connected"
         }
     }
 
@@ -229,7 +268,11 @@ class ChatRepository(
             put("type", "steer")
             put("message", text)
         }
-        return wsClient.sendRaw(payload.toString())
+        val sent = wsClient.sendRaw(payload.toString())
+        if (!sent) {
+            _error.value = "Failed to send steer: WebSocket not connected"
+        }
+        return sent
     }
 
     fun abort() {
@@ -238,6 +281,7 @@ class ChatRepository(
         }
         if (wsClient.sendRaw(payload.toString())) {
             _isStreaming.value = false
+            cancelStreamingWatchdog()
         }
     }
 
@@ -247,7 +291,7 @@ class ChatRepository(
             put("sessionPath", sessionPath)
         }
         if (!wsClient.sendRaw(payload.toString())) {
-            // WebSocket send failed — don't clear messages to avoid state desync
+            _error.value = "Failed to switch session: WebSocket not connected"
             return
         }
         _currentSessionFile.value = sessionPath
@@ -265,6 +309,8 @@ class ChatRepository(
                 } else {
                     loadSessions()
                 }
+            }.onFailure { e ->
+                _error.value = "Failed to delete session: ${e.message}"
             }
         }
     }
@@ -373,6 +419,8 @@ class ChatRepository(
                     }
                 }
                 _messages.value = reconstructed
+            }.onFailure { e ->
+                _error.value = "Failed to load session history: ${e.message}"
             }
         }
     }
@@ -495,6 +543,7 @@ class ChatRepository(
             }
             "agent_start" -> {
                 _isStreaming.value = true
+                startStreamingWatchdog()
                 val list = _messages.value.toMutableList()
                 if (list.isEmpty() || list.last().role != MessageRole.ASSISTANT || list.last().status != MessageStatus.STREAMING) {
                     list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING, turnStartedAt = System.currentTimeMillis()))
@@ -531,8 +580,12 @@ class ChatRepository(
             }
             "agent_end", "agent_settled", "error", "pi_exit" -> {
                 _isStreaming.value = false
+                cancelStreamingWatchdog()
                 markLastMessageDone()
                 loadSessions()
+                if (msg.type == "error" || msg.type == "pi_exit") {
+                    _error.value = msg.error ?: msg.message ?: "Agent error"
+                }
             }
             "remote_user_prompt" -> {
                 val text = msg.message ?: ""
@@ -551,6 +604,7 @@ class ChatRepository(
                     )
                     _messages.value = _messages.value + userMsg + assistantMsg
                     _isStreaming.value = true
+                    startStreamingWatchdog()
                 }
             }
         }

@@ -24,15 +24,35 @@ android {
 
     signingConfigs {
         create("release") {
-            // Default to debug keystore for reproducible local release builds if custom release keystore is not provided
-            val debugKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
-            if (debugKeystore.exists()) {
-                storeFile = debugKeystore
-                storePassword = "android"
-                keyAlias = "androiddebugkey"
-                keyPassword = "android"
+            // Support proper release signing via environment variables or Gradle properties.
+            // Falls back to debug keystore for local development builds, but emits a warning
+            // so production releases are not accidentally signed with a debug key.
+            val releaseStoreFile = System.getenv("PI_RELEASE_STORE_FILE")
+                ?: gradleLocalProperty("piReleaseStoreFile")
+            val releaseStorePassword = System.getenv("PI_RELEASE_STORE_PASSWORD")
+                ?: gradleLocalProperty("piReleaseStorePassword")
+            val releaseKeyAlias = System.getenv("PI_RELEASE_KEY_ALIAS")
+                ?: gradleLocalProperty("piReleaseKeyAlias")
+            val releaseKeyPassword = System.getenv("PI_RELEASE_KEY_PASSWORD")
+                ?: gradleLocalProperty("piReleaseKeyPassword")
+
+            if (!releaseStoreFile.isNullOrEmpty() && file(releaseStoreFile).exists()) {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             } else {
-                initWith(getByName("debug"))
+                // Fallback to debug keystore for local development
+                val debugKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+                if (debugKeystore.exists()) {
+                    storeFile = debugKeystore
+                    storePassword = "android"
+                    keyAlias = "androiddebugkey"
+                    keyPassword = "android"
+                } else {
+                    initWith(getByName("debug"))
+                }
+                logger.warn("WARNING: Release build using debug keystore. Set PI_RELEASE_STORE_FILE etc. for production signing.")
             }
         }
     }
@@ -99,4 +119,15 @@ dependencies {
     // Debugging
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+/**
+ * Reads a property from local.properties (project root) if it exists.
+ */
+fun gradleLocalProperty(key: String): String? {
+    val localProps = rootProject.file("local.properties")
+    if (!localProps.exists()) return null
+    val props = java.util.Properties()
+    localProps.inputStream().use { props.load(it) }
+    return props.getProperty(key)
 }

@@ -52,10 +52,11 @@ export class WebSocketManager {
       connectUrl += '/ws';
     }
 
+    // Token is sent via Authorization header only — NOT in the query string
+    // to avoid leaking it in server/proxy access logs.
     const params: string[] = [];
     if (cwd) params.push(`cwd=${encodeURIComponent(cwd)}`);
     if (session) params.push(`session=${encodeURIComponent(session)}`);
-    if (token) params.push(`token=${encodeURIComponent(token)}`);
     if (params.length > 0) {
       connectUrl += `?${params.join('&')}`;
     }
@@ -76,7 +77,11 @@ export class WebSocketManager {
         try {
           const msg = JSON.parse(value) as PiProtocol.ServerMessage;
           this.notifyMessage(msg);
-        } catch (e) {}
+        } catch (e) {
+          console.error(`[WebSocketManager] Failed to parse message: ${e}`);
+        }
+      } else {
+        console.warn('[WebSocketManager] Received non-string WebSocket message, ignoring');
       }
     });
 
@@ -92,6 +97,7 @@ export class WebSocketManager {
 
     this.ws.on('error', (err) => {
       if (this.ws !== wsRef) return; // stale handler
+      console.error(`[WebSocketManager] WebSocket error: ${err}`);
       this.isConnected = false;
       this.notifyState(false);
       this.stopHeartbeat();
@@ -102,12 +108,24 @@ export class WebSocketManager {
 
     this.ws.connect(connectUrl, {
       header: token ? { 'Authorization': `Bearer ${token}` } : {}
+    }).catch((e: Error) => {
+      console.error(`[WebSocketManager] WebSocket connect failed: ${e}`);
+      this.isConnected = false;
+      this.notifyState(false);
+      if (!this.isManualClose) {
+        this.scheduleReconnect();
+      }
     });
   }
 
   public send(data: string): boolean {
     if (this.ws && this.isConnected) {
-      this.ws.send(data);
+      // ws.send() returns a Promise<boolean> in HarmonyOS API.
+      // We return true optimistically (the data was queued for send),
+      // but catch any rejection to avoid unhandled promise rejection.
+      this.ws.send(data).catch((e: Error) => {
+        console.error(`[WebSocketManager] WebSocket send failed: ${e}`);
+      });
       return true;
     }
     return false;
@@ -181,6 +199,15 @@ export class WebSocketManager {
   private disconnectInternal() {
     this.stopHeartbeat();
     if (this.ws) {
+      try {
+        // Remove event listeners to prevent memory leaks across reconnect cycles
+        this.ws.off('open');
+        this.ws.off('message');
+        this.ws.off('close');
+        this.ws.off('error');
+      } catch (e) {
+        // off() may throw if no handler was registered; safe to ignore
+      }
       try {
         this.ws.close();
       } catch (e) {}

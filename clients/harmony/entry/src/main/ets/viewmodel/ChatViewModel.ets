@@ -12,6 +12,7 @@ export class ChatViewModel {
   public cwd: string = '';
   public serverUrl: string = 'http://10.0.2.2:3000'; // Default, overridable via init()
   public token: string = '';
+  public errorMessage: string = '';
 
   private wsManager: WebSocketManager = WebSocketManager.getInstance();
   private httpService: HttpService = new HttpService(this.serverUrl, this.token);
@@ -20,6 +21,10 @@ export class ChatViewModel {
   // Track listener references so we can remove them on re-init to prevent leaks
   private stateListener: ((connected: boolean) => void) | null = null;
   private messageListener: ((msg: PiProtocol.ServerMessage) => void) | null = null;
+
+  // Watchdog: if streaming stays true for too long without agent_end, reset it
+  private streamingWatchdogTimer: number = -1;
+  private readonly STREAMING_WATCHDOG_MS: number = 5 * 60 * 1000; // 5 minutes
 
   public bindUI(cb: () => void) {
     this.updateCallback = cb;
@@ -52,6 +57,7 @@ export class ChatViewModel {
 
     // Reset streaming state from any previous session to avoid orphaned streaming bubble
     this.isStreaming = false;
+    this.cancelStreamingWatchdog();
 
     this.connect();
     this.loadSessions();
@@ -96,32 +102,47 @@ export class ChatViewModel {
     this.messages.push(userMsg);
     this.messages.push(assistantMsg);
     this.isStreaming = true;
+    this.startStreamingWatchdog();
     this.notifyUI();
 
     if (!this.wsManager.send(PiProtocol.createPrompt(text, images))) {
-      // WebSocket send failed — roll back streaming state to avoid UI stuck
+      // WebSocket send failed — mark user message as ERROR and remove assistant placeholder
       this.isStreaming = false;
-      this.messages = this.messages.slice(0, -1); // remove streaming assistant placeholder
+      this.cancelStreamingWatchdog();
+      // Remove the streaming assistant placeholder
+      if (this.messages.length > 0 && this.messages[this.messages.length - 1].role === MessageRole.ASSISTANT && this.messages[this.messages.length - 1].status === MessageStatus.STREAMING) {
+        this.messages = this.messages.slice(0, -1);
+      }
+      // Mark the user message as ERROR so the user sees the failure
+      if (this.messages.length > 0 && this.messages[this.messages.length - 1].role === MessageRole.USER) {
+        this.messages[this.messages.length - 1].status = MessageStatus.ERROR;
+      }
+      this.errorMessage = 'Failed to send message: WebSocket not connected';
       this.notifyUI();
     }
   }
 
   public sendSteer(text: string) {
     if (!text.trim()) return;
-    this.wsManager.send(PiProtocol.createSteer(text));
-    // If send fails, steer is silently dropped — no error surfacing mechanism
+    if (!this.wsManager.send(PiProtocol.createSteer(text))) {
+      this.errorMessage = 'Failed to send steer: WebSocket not connected';
+      this.notifyUI();
+    }
   }
 
   public abort() {
     if (this.wsManager.send(PiProtocol.createAbort())) {
       this.isStreaming = false;
+      this.cancelStreamingWatchdog();
       this.notifyUI();
     }
   }
 
   public newSession() {
     if (!this.wsManager.send(PiProtocol.createNewSession())) {
-      return; // WebSocket send failed — don't clear messages to avoid state desync
+      this.errorMessage = 'Failed to create new session: WebSocket not connected';
+      this.notifyUI();
+      return;
     }
     this.messages = [];
     this.currentTitle = 'New Chat';
@@ -130,7 +151,9 @@ export class ChatViewModel {
 
   public switchSession(session: SessionInfo) {
     if (!this.wsManager.send(PiProtocol.createSwitchSession(session.file))) {
-      return; // WebSocket send failed — don't clear messages to avoid state desync
+      this.errorMessage = 'Failed to switch session: WebSocket not connected';
+      this.notifyUI();
+      return;
     }
     this.messages = [];
     this.currentTitle = session.sessionName || session.firstUser || session.name;
@@ -205,6 +228,10 @@ export class ChatViewModel {
       }
       this.messages = reconstructed;
       this.notifyUI();
+    } else if (!detail) {
+      // Session history load failed — don't leave the user with a blank screen
+      this.errorMessage = 'Failed to load session history';
+      this.notifyUI();
     }
   }
 
@@ -224,10 +251,30 @@ export class ChatViewModel {
     return '';
   }
 
+  private startStreamingWatchdog() {
+    this.cancelStreamingWatchdog();
+    this.streamingWatchdogTimer = setTimeout(() => {
+      if (this.isStreaming) {
+        this.isStreaming = false;
+        this.markAssistantDone();
+        this.errorMessage = `Streaming timed out after ${this.STREAMING_WATCHDOG_MS / 1000}s`;
+        this.notifyUI();
+      }
+    }, this.STREAMING_WATCHDOG_MS);
+  }
+
+  private cancelStreamingWatchdog() {
+    if (this.streamingWatchdogTimer !== -1) {
+      clearTimeout(this.streamingWatchdogTimer);
+      this.streamingWatchdogTimer = -1;
+    }
+  }
+
   private handleServerMessage(msg: PiProtocol.ServerMessage) {
     switch (msg.type) {
       case 'agent_start':
         this.isStreaming = true;
+        this.startStreamingWatchdog();
         if (this.messages.length === 0 || this.messages[this.messages.length - 1].role !== MessageRole.ASSISTANT || this.messages[this.messages.length - 1].status !== MessageStatus.STREAMING) {
           this.messages.push({
             id: `assistant_${Date.now()}`,
@@ -256,39 +303,55 @@ export class ChatViewModel {
       case 'error':
       case 'pi_exit':
         this.isStreaming = false;
+        this.cancelStreamingWatchdog();
         this.markAssistantDone();
+        if (msg.type === 'error' || msg.type === 'pi_exit') {
+          this.errorMessage = (msg as any).error || (msg as any).message || 'Agent error';
+          this.notifyUI();
+        }
         break;
       case 'remote_user_prompt':
         if (msg.message && !msg.isSteer) {
-          // Dedup: skip if the last user message already has this content (locally sent)
-          const lastMsg = this.messages[this.messages.length - 1];
-          const secondLastMsg = this.messages[this.messages.length - 2];
-          if (secondLastMsg && secondLastMsg.role === MessageRole.USER && secondLastMsg.content === msg.message) {
-            break;
+          // Dedup: skip if the last user message already has this content (locally sent).
+          // Check the last message that is a USER role message — this handles both
+          // the case where an assistant placeholder follows the user message and
+          // where the user message is truly last.
+          const lastUserIdx = this.messages.length - 1;
+          // Walk backwards to find the most recent USER message
+          for (let i = this.messages.length - 1; i >= 0; i--) {
+            if (this.messages[i].role === MessageRole.USER) {
+              if (this.messages[i].content === msg.message) {
+                // This prompt was already sent locally, skip duplicate
+                break;
+              }
+              // Found a different user message — this is a remote prompt from another client
+              this.messages.push({
+                id: `user_sync_${Date.now()}`,
+                role: MessageRole.USER,
+                content: msg.message,
+                thinkingContent: '',
+                isThinking: false,
+                images: [],
+                status: MessageStatus.DONE,
+                timestamp: Date.now()
+              });
+              this.messages.push({
+                id: `assistant_${Date.now()}`,
+                role: MessageRole.ASSISTANT,
+                content: '',
+                thinkingContent: '',
+                isThinking: false,
+                turnStartedAt: Date.now(),
+                images: [],
+                status: MessageStatus.STREAMING,
+                timestamp: Date.now()
+              });
+              this.isStreaming = true;
+              this.startStreamingWatchdog();
+              this.notifyUI();
+              break;
+            }
           }
-          this.messages.push({
-            id: `user_sync_${Date.now()}`,
-            role: MessageRole.USER,
-            content: msg.message,
-            thinkingContent: '',
-            isThinking: false,
-            images: [],
-            status: MessageStatus.DONE,
-            timestamp: Date.now()
-          });
-          this.messages.push({
-            id: `assistant_${Date.now()}`,
-            role: MessageRole.ASSISTANT,
-            content: '',
-            thinkingContent: '',
-            isThinking: false,
-            turnStartedAt: Date.now(),
-            images: [],
-            status: MessageStatus.STREAMING,
-            timestamp: Date.now()
-          });
-          this.isStreaming = true;
-          this.notifyUI();
         }
         break;
     }
