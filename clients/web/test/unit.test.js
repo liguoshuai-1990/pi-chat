@@ -55,14 +55,11 @@ describe("pi-web-chat Unit Tests", () => {
   });
 
   test("Markdown URL sanitizer blocks javascript: protocol", () => {
-    function sanitizeUrl(url) {
-      if (!url) return "#";
-      const trimmed = url.trim();
-      if (/^(https?:\/\/|mailto:)/i.test(trimmed)) {
-        return trimmed.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-      }
-      return "#";
-    }
+    // Load and evaluate markdown.js in isolated scope to verify module
+    const markdownSource = readFileSync(path.resolve(__dirname, "../public/markdown.js"), "utf8");
+    const testModule = { exports: {} };
+    new Function("module", "exports", markdownSource)(testModule, testModule.exports);
+    const { sanitizeUrl, renderMarkdown, escapeHtml } = testModule.exports.PiMarkdown ? testModule.exports : (globalThis.PiMarkdown || testModule.exports);
 
     assert.equal(sanitizeUrl("https://example.com"), "https://example.com");
     assert.equal(sanitizeUrl("http://foo.bar/baz?a=1&b=2"), "http://foo.bar/baz?a=1&b=2");
@@ -70,6 +67,12 @@ describe("pi-web-chat Unit Tests", () => {
     assert.equal(sanitizeUrl("JAVASCRIPT:alert(document.cookie)"), "#");
     assert.equal(sanitizeUrl("data:text/html,<script>alert(1)</script>"), "#");
     assert.equal(sanitizeUrl("vbscript:msgbox(1)"), "#");
+
+    // Render markdown test
+    const mdResult = renderMarkdown("# Hello\n```js\nconsole.log(1);\n```");
+    assert.ok(mdResult.includes("<h1>Hello</h1>"));
+    assert.ok(mdResult.includes("<code data-lang=\"js\">console.log(1);\n</code>"));
+    assert.equal(escapeHtml("<script>"), "&lt;script&gt;");
   });
 
   test("Path traversal security check", () => {
@@ -142,5 +145,28 @@ describe("pi-web-chat Unit Tests", () => {
     assert.equal(serverPkg.version, rootPkg.version, "Server package version must match root");
     assert.equal(protocolPkg.version, rootPkg.version, "Protocol package version must match root");
     assert.equal(harmonyPkg.version, rootPkg.version, "Harmony package version must match root");
+
+    // Android build.gradle.kts check
+    const androidGradle = readFileSync(path.resolve(__dirname, "../../../clients/android/app/build.gradle.kts"), "utf8");
+    const androidVersionNameMatch = androidGradle.match(/versionName\s*=\s*"([^"]+)"/);
+    const androidVersionCodeMatch = androidGradle.match(/versionCode\s*=\s*(\d+)/);
+    assert.ok(androidVersionNameMatch, "Android versionName must exist in build.gradle.kts");
+    assert.ok(androidVersionCodeMatch, "Android versionCode must exist in build.gradle.kts");
+    assert.equal(androidVersionNameMatch[1], rootPkg.version, "Android versionName must match root version");
+
+    const [major, minor, patch] = rootPkg.version.split(".").map(Number);
+    const expectedAndroidCode = major * 10000 + minor * 100 + patch;
+    assert.equal(Number(androidVersionCodeMatch[1]), expectedAndroidCode, "Android versionCode must follow MAJOR*10000 + MINOR*100 + PATCH");
+
+    // HarmonyOS AppScope/app.json5 check
+    const harmonyAppJson5 = readFileSync(path.resolve(__dirname, "../../../clients/harmony/AppScope/app.json5"), "utf8");
+    const harmonyVersionNameMatch = harmonyAppJson5.match(/"versionName"\s*:\s*"([^"]+)"/);
+    const harmonyVersionCodeMatch = harmonyAppJson5.match(/"versionCode"\s*:\s*(\d+)/);
+    assert.ok(harmonyVersionNameMatch, "HarmonyOS versionName must exist in app.json5");
+    assert.ok(harmonyVersionCodeMatch, "HarmonyOS versionCode must exist in app.json5");
+    assert.equal(harmonyVersionNameMatch[1], rootPkg.version, "HarmonyOS versionName must match root version");
+
+    const expectedHarmonyCode = major * 1000000 + minor * 10000 + patch * 100;
+    assert.equal(Number(harmonyVersionCodeMatch[1]), expectedHarmonyCode, "HarmonyOS versionCode must follow MAJOR*1000000 + MINOR*10000 + PATCH*100");
   });
 });

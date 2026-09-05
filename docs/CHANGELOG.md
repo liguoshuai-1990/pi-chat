@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.15.2] - 2026-09-05
+
+### Fixed
+- **网关核心运行时依赖修正**：将 `server/package.json` 中的 `express` 与 `ws` 从 `devDependencies` 正式移入 `dependencies`，避免独立安装或作为库引用 `@liguoshuai/pi-chat-server` 时出现 `Cannot find module` 运行时崩溃。
+
+### Added & Enhanced
+- **全仓版本一致性测试加固**：在 `clients/web/test/unit.test.js` 中新增对 Android（`build.gradle.kts` 的 `versionName` 与 `versionCode`）及 HarmonyOS（`app.json5` 的 `versionName` 与 `versionCode`）元数据的自动化断言校验，实现全仓 8 个版本清单文件 100% 自动化测试守卫。
+- **配置与文档补全**：根目录 `.env.example` 补充 `LONG_RUNNING_TIMEOUT_MS=600000` 长任务超时环境变量说明与注释。
+- **构建命令与测试解耦**：解耦根 `package.json` 中 `build` 脚本与 `test` 脚本，新增 `check`（一键检查 `build + test`），消除 CI 流水线中重复跑两遍测试的问题。
+- **前端渲染模块化抽离**：将 Web 端 `clients/web/public/app.js` 中独立自包含的 Markdown 渲染与安全清洗逻辑提取至单独的 `markdown.js` 模块，提升前端架构可维护性与代码整洁度，保持零打包构建与开箱即用特性。
+
+### Changed
+- 全端版本号统一递增至 2.15.2（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+
 ## [2.15.1] - 2026-09-05
 
 ### Fixed
@@ -14,16 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - 全端版本号统一递增至 2.15.1（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
 
+
 ## [2.15.0] - 2026-09-05
-
-### Added
-- **移动端对话页面下拉刷新功能**：Android 与 HarmonyOS 客户端对话页面现支持在消息列表顶部下拉触发刷新，重新加载当前会话的历史消息。
-  - **Android**：使用 Material3 `PullToRefreshBox` 包裹 `LazyColumn`，下拉时调用 `ChatViewModel.refreshCurrentSession()` 重新拉取当前会话历史。
-  - **HarmonyOS**：使用 ArkUI `Refresh` 组件包裹消息 `List`，`onRefreshing` 回调调用 `ChatViewModel.refreshCurrentSession()` 重新加载历史。
-  - 两端均在无当前会话（新对话）时不触发刷新，避免无效请求。
-
-### Changed
-- 全端版本号统一递增至 2.15.0（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
 
 
 ## [2.14.14] - 2026-09-05
