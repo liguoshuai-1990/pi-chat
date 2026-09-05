@@ -142,21 +142,21 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
     const optRes = await fetch(`http://127.0.0.1:${port}/api/config`, {
       method: "OPTIONS",
       headers: {
-        Origin: "http://example.com",
+        Origin: "http://localhost:3000",
         "Access-Control-Request-Method": "GET",
         "Access-Control-Request-Headers": "authorization,content-type",
       },
     });
     assert.equal(optRes.status, 204);
-    assert.equal(optRes.headers.get("access-control-allow-origin"), "http://example.com");
+    assert.equal(optRes.headers.get("access-control-allow-origin"), "http://localhost:3000");
     assert.ok(optRes.headers.get("access-control-allow-methods")?.includes("OPTIONS"));
 
     // GET with origin
     const getRes = await fetch(`http://127.0.0.1:${port}/api/config`, {
-      headers: { Origin: "http://example.com" },
+      headers: { Origin: "http://localhost:3000" },
     });
     assert.equal(getRes.status, 200);
-    assert.equal(getRes.headers.get("access-control-allow-origin"), "http://example.com");
+    assert.equal(getRes.headers.get("access-control-allow-origin"), "http://localhost:3000");
 
     await serverInstance.close();
   });

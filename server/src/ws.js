@@ -226,7 +226,7 @@ export function setupWebSocketGateway(httpServer) {
               activeAgent.setStreaming(false);
               try { ws.send(JSON.stringify(res)); } catch {}
             }
-          });
+          }).catch((err) => { console.warn("[Gateway] Prompt send error:", err.message); });
           break;
         }
 
@@ -238,7 +238,7 @@ export function setupWebSocketGateway(httpServer) {
             if (res && res.success === false) {
               try { ws.send(JSON.stringify(res)); } catch {}
             }
-          });
+          }).catch((err) => { console.warn("[Gateway] Steer send error:", err.message); });
           break;
 
         case ClientMessageType.ABORT:
@@ -256,7 +256,7 @@ export function setupWebSocketGateway(httpServer) {
                 if (res && res.success === false) {
                   try { ws.send(JSON.stringify(res)); } catch {}
                 }
-              });
+              }).catch((err) => { console.warn("[Gateway] New session send error:", err.message); });
             } else {
               activeAgent.lastUserPrompt = null;
               activeAgent.eventBuffer = [];
@@ -265,7 +265,7 @@ export function setupWebSocketGateway(httpServer) {
                 if (res && res.success === false) {
                   try { ws.send(JSON.stringify(res)); } catch {}
                 }
-              });
+              }).catch((err) => { console.warn("[Gateway] New session send error:", err.message); });
             }
           } catch (err) {
             try {

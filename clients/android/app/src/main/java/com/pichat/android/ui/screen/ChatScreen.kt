@@ -108,6 +108,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val thinkingLevel by viewModel.thinkingLevel.collectAsState()
     val currentCwd by viewModel.currentCwd.collectAsState()
     val serverConfig by viewModel.serverConfig.collectAsState()
+    val error by viewModel.error.collectAsState()
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
@@ -133,9 +134,22 @@ fun ChatScreen(viewModel: ChatViewModel) {
         }
     }
 
-    LaunchedEffect(messages.size, messages.lastOrNull()?.content?.length) {
+    // Auto-scroll to bottom: smooth animation on new message, instant snap during streaming
+    LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+    LaunchedEffect(messages.lastOrNull()?.content?.length) {
+        if (messages.isNotEmpty() && isStreaming) {
+            listState.scrollToItem(messages.size - 1)
+        }
+    }
+
+    // Show scroll-to-top button when user has scrolled away from top
+    val showScrollToTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 200
         }
     }
 
@@ -340,6 +354,9 @@ fun ChatScreen(viewModel: ChatViewModel) {
                         .padding(paddingValues)
                 )
             } else {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(paddingValues)
+                ) {
                 PullToRefreshBox(
                     isRefreshing = isRefreshing,
                     onRefresh = {
@@ -352,8 +369,32 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxSize().padding(paddingValues)
+                    modifier = Modifier.fillMaxSize()
                 ) {
+                    if (error != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF451A1A))
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = error!!,
+                                color = Color(0xFFFCA5A5),
+                                fontSize = 13.sp,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            IconButton(
+                                onClick = { viewModel.clearError() },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "关闭错误", tint = Color(0xFF9CA3AF), modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
@@ -372,6 +413,36 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             )
                         }
                     }
+                }
+
+                // Scroll-to-top floating button (matches web FAB behavior)
+                AnimatedVisibility(
+                    visible = showScrollToTop,
+                    enter = fadeIn(animationSpec = tween(200)) + slideInVertically(animationSpec = tween(200), initialOffsetY = { it }),
+                    exit = fadeOut(animationSpec = tween(200)) + slideOutVertically(animationSpec = tween(200), targetOffsetY = { it }),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 16.dp)
+                ) {
+                    FloatingActionButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                listState.animateScrollToItem(0)
+                            }
+                        },
+                        modifier = Modifier.size(44.dp),
+                        containerColor = BgInput,
+                        contentColor = TextPrimary,
+                        shape = CircleShape,
+                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.KeyboardArrowUp,
+                            contentDescription = "回到顶部",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
                 }
             }
         }

@@ -36,6 +36,7 @@ export function handleSseStream(req, res) {
       clearInterval(sseKeepAlive);
     }
   }, 15000);
+  sseKeepAlive.unref();
 
   req.on("close", () => {
     clearInterval(sseKeepAlive);

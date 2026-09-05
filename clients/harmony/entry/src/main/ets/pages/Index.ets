@@ -111,7 +111,7 @@ struct Index {
             .fontSize(11)
             .fontColor('#6B7280')
           Blank()
-          Text('v2.11.3')
+          Text('v2.16.0')
             .fontSize(11)
             .fontColor('#6B7280')
         }
@@ -178,6 +178,26 @@ struct Index {
         .height(56)
         .padding({ left: 12, right: 12 })
         .backgroundColor('#1E1E24')
+
+        // Error banner — show errorMessage when set
+        if (this.viewModel.errorMessage.length > 0) {
+          Row() {
+            Text(this.viewModel.errorMessage)
+              .fontSize(13)
+              .fontColor('#FCA5A5')
+              .maxLines(2)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .layoutWeight(1)
+            Button('×')
+              .fontSize(16)
+              .fontColor('#9CA3AF')
+              .backgroundColor(Color.Transparent)
+              .onClick(() => { this.viewModel.errorMessage = ''; })
+          }
+          .width('100%')
+          .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+          .backgroundColor('#451A1A')
+        }
 
         // Message List (with pull-to-refresh)
         Refresh({ refreshing: $$this.isRefreshing }) {

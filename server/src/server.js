@@ -101,7 +101,14 @@ export function createServer(options = {}) {
           res.setHeader("Access-Control-Allow-Origin", origin);
         }
       } else {
-        res.setHeader("Access-Control-Allow-Origin", origin);
+        // Default: only allow localhost origins when ALLOWED_ORIGINS is not set
+        try {
+          const originUrl = new URL(origin);
+          const isLocal = originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1" || originUrl.hostname === "::1";
+          if (isLocal) {
+            res.setHeader("Access-Control-Allow-Origin", origin);
+          }
+        } catch {}
       }
     } else {
       res.setHeader("Access-Control-Allow-Origin", "*");
@@ -119,7 +126,7 @@ export function createServer(options = {}) {
   app.use(compressionMiddleware);
 
   // JSON parser
-  app.use(express.json({ limit: "50mb" }));
+  app.use(express.json({ limit: "10mb" }));
 
   // Check static web assets from explicit option, clients/web/public or local public
   const staticDirs = [

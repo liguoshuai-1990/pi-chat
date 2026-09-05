@@ -23,6 +23,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - 全端版本号统一递增至 2.15.7（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
 
+## [2.16.0] - 2026-09-05
+
+### Added
+- **Android: 消息列表"回到顶部"浮动按钮** — 当用户向下滚动离开顶部时，右下角自动出现上箭头 FAB，点击平滑滚动到第一条消息，与 Web 端 mobileToolbarFab 行为一致。
+- **Android: 消息列表自动滚动优化** — 新消息出现时平滑动画滚到底部，流式输出内容更新时瞬时 snap 到底部，避免动画高频中断导致的滚动失效。
+
+## [2.15.7] - 2026-09-05
+
+### Fixed
+- **Server: /api/log-error 端点添加认证中间件** — 修复未认证客户端可无限调用日志注入端点的安全漏洞 (S1)。
+- **Server: 添加 unhandledRejection / uncaughtException 全局异常兜底** — 防止未捕获的 Promise rejection 导致进程崩溃 (C1)。
+- **Server: CORS 默认策略收紧** — 未配置 ALLOWED_ORIGINS 时仅允许 localhost 跨域，不再反射任意 Origin (C2)。
+- **Server: WebSocket 消息处理补全 .catch()** — PROMPT/STEER/NEW_SESSION 三处 agent.send().then() 均添加错误捕获 (H1)。
+- **Server: SSE keepalive setInterval 添加 .unref()** — 防止 SSE 连接阻止进程优雅退出 (H2)。
+- **Server: Express body parser 限制从 50MB 降至 10MB** — 减少内存耗尽攻击面 (M11)。
+- **HarmonyOS: 侧边栏版本号修正** — 从硬编码的 v2.11.3 修正为 v2.15.7 (HC3)。
+- **HarmonyOS: errorMessage 渲染到 UI** — 添加错误横幅，之前 12+ 处错误赋值对用户完全不可见 (HC2)。
+- **Android: error StateFlow 渲染到 UI** — 收集并显示 error 流，添加可关闭的错误横幅 (AC3)。
+
 ## [2.15.6] - 2026-09-05
 
 ### Added & Enhanced

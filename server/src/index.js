@@ -28,3 +28,11 @@ process.on("SIGTERM", () => handleExit("SIGTERM"));
 process.on("exit", () => {
   shutdownAllAgents("Exit");
 });
+
+// Global handlers for uncaught errors — prevent silent process crash
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[Pi-Chat Server] Unhandled Rejection at:", promise, "reason:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[Pi-Chat Server] Uncaught Exception:", err);
+});
