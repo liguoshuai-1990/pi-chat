@@ -741,6 +741,9 @@ body {
   stroke-linejoin: round;
   flex-shrink: 0;
 }
+.btn-copy-code svg *, .btn-copy-msg svg *, .btn-copy-tool svg * {
+  fill: none;
+}
 .msg.assistant .content ul, .msg.assistant .content ol { margin: 8px 0 12px 24px; }
 .msg.assistant .content li { margin: 4px 0; }
 .msg.assistant .content h1, .msg.assistant .content h2, .msg.assistant .content h3,

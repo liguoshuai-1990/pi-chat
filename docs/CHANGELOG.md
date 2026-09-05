@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.15.5] - 2026-09-05
+
+### Fixed
+- **Web 端复制按钮 SVG 渲染深度加固**：
+  - 将 `makeCopyIconSvg()` 内部构造机制从基于 `innerHTML` 解析升级为直接通过 `document.createElementNS` 构建独立的 `rect` 与 `path` SVG 子元素节点，规避个别浏览器对 SVG 容器 `innerHTML` 命名空间属性继承不全的问题。
+  - 在 CSS 中增加 `.btn-copy-* svg * { fill: none; }` 样式重置规则，彻底消除任何残留的黑色填充块（黑斑）。
+
+### Changed
+- 全端版本号统一递增至 2.15.5（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+
 ## [2.15.4] - 2026-09-05
 
 ### Fixed
