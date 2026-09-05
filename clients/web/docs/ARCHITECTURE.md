@@ -1,6 +1,6 @@
 # 架构设计文档
 
-> pi-web-chat 的技术架构、数据流、关键设计决策与扩展点说明（对应 v2.14.5 版本）。
+> pi-web-chat 的技术架构、数据流、关键设计决策与扩展点说明（对应 v2.14.13 版本）。
 
 ---
 
@@ -164,7 +164,6 @@ Browser                         server.js                       pi RPC 子进程
 pi-web-chat/
 ├── README.md                       # 主说明文档
 ├── package.json
-├── package-lock.json
 ├── server.js                       # Express + WebSocket 服务器与 PiAgent 管理
 ├── bin/
 │   └── pi-web-chat.js              # 可执行入口
@@ -172,11 +171,9 @@ pi-web-chat/
 │   ├── index.html                  # 单页 UI
 │   ├── app.js                      # 前端逻辑与状态机
 │   └── style.css                   # CSS 样式
-├── docs/                           # 所有文档统一收纳
+├── docs/                           # 本模块文档（CHANGELOG / ISSUES 已移至项目根 docs/）
 │   ├── ARCHITECTURE.md             # 架构设计文档（本文件）
-│   ├── DESIGN.md                   # 详细设计与决策文档
-│   ├── ISSUES.md                   # 排查与修补记录
-│   └── CHANGELOG.md                # 版本变更日志
+│   └── DESIGN.md                   # 详细设计与决策文档
 └── scripts/                        # 服务安装/卸载脚本
     ├── install-service.sh
     ├── uninstall-service.sh

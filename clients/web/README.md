@@ -212,9 +212,7 @@ pi-web-chat/
 │   └── uninstall-service.sh        一键卸载脚本
 └── docs/                           项目文档库
     ├── ARCHITECTURE.md             架构设计文档
-    ├── DESIGN.md                   详细设计与决策文档
-    ├── ISSUES.md                   历次问题排查与修补记录
-    └── CHANGELOG.md                版本变更日志
+    └── DESIGN.md                   详细设计与决策文档
 ```
 
 ---

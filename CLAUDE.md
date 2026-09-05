@@ -17,7 +17,7 @@
   - `package.json`、`packages/protocol/package.json`、`server/package.json`、`clients/web/package.json`、`clients/harmony/package.json`（`version`）
   - `clients/harmony/AppScope/app.json5`（`versionName`、`versionCode`）
   - `clients/android/app/build.gradle.kts`（`versionName`、`versionCode`）
-  - `clients/web/docs/CHANGELOG.md`
+  - `docs/CHANGELOG.md`
 - **跨端版本展示**：Web 侧边栏 `#appVersion`、Android `BuildConfig.VERSION_NAME`、HarmonyOS 侧边栏底部。
 
 ## 3. Always Test, Commit & Push to Remote

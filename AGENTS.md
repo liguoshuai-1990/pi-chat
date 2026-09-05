@@ -32,7 +32,7 @@
   5. 鸿蒙客户端包：`clients/harmony/package.json` (`version`)
   6. 鸿蒙应用元数据：`clients/harmony/AppScope/app.json5` (`versionName` 与 `versionCode`)
   7. Android 构建脚本：`clients/android/app/build.gradle.kts` (`versionName` 与 `versionCode`)
-  8. 更新日志：`clients/web/docs/CHANGELOG.md`（按 Keep a Changelog 格式记录更新说明）
+  8. 更新日志：`docs/CHANGELOG.md`（按 Keep a Changelog 格式记录更新说明）
 
 - **版本号跨端正确展示规范 (Multi-Client UI Display)**：
   - **Web 端**：网关在 `/api/config` 动态输出 `config.version`，前端 `clients/web/public/app.js` 将版本号绑定渲染至侧边栏底部 `#appVersion` 元素（例如 `v2.5.1`）。
@@ -108,7 +108,7 @@
  ├─ 编写 / 修改核心业务逻辑
  ├─ 递增全仓版本号 (SemVer: MAJOR.MINOR.PATCH)
  ├─ 确认 Web 与移动端 UI 上的版本号展示正确
- └─ 在 clients/web/docs/CHANGELOG.md 中记录更新项
+ └─ 在 docs/CHANGELOG.md 中记录更新项
          │
          ▼
 [Step 4: 构建与全量测试]

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.14.13] - 2026-09-05
+
+### Fixed
+- **文档整理与路径修正**：
+  - 将 `CHANGELOG.md` 与 `ISSUES.md` 从 `clients/web/docs/` 迁移至项目根 `docs/`，与 `ARCHITECTURE.md`、`USER_JOURNEY.md` 统一收纳。
+  - 修复 `clients/web/docs/ARCHITECTURE.md` 中残留的旧版本号引用（v2.14.5 → v2.14.13）及过时的目录结构（移除不存在的 `package-lock.json`、已迁出的 `ISSUES.md` / `CHANGELOG.md`）。
+  - 同步更新 `AGENTS.md`、`CLAUDE.md`、`clients/web/README.md` 中对 CHANGELOG 路径的引用。
+
+### Changed
+- 全端版本号统一递增至 2.14.13（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 ## [2.14.12] - 2026-09-05
 
 ### Fixed
