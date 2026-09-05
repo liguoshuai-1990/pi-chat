@@ -1396,6 +1396,17 @@ private fun AssistantContent(message: ChatMessage) {
             Spacer(Modifier.width(10.dp))
             Text("思考中…", fontSize = 13.sp, color = TextSecondary)
         }
+    } else if (message.status == MessageStatus.ERROR && message.content.isEmpty()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF2A1515))
+                .border(BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.3f)), RoundedCornerShape(10.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Text("⚠️ 生成失败，请检查模型或网络配置后重试", fontSize = 13.sp, color = Color(0xFFFCA5A5))
+        }
     }
 }
 

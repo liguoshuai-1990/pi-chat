@@ -4,6 +4,8 @@ import com.pichat.android.data.model.ImageAttachment
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 @Serializable
 sealed class ClientMessage {
@@ -68,7 +70,7 @@ data class SetThinkingLevelMessage(
 data class AssistantMessageEvent(
     val type: String? = null,
     val delta: String? = null,
-    val content: String? = null
+    val content: JsonElement? = null
 )
 
 @Serializable
@@ -76,14 +78,14 @@ data class GenericServerMessage(
     val type: String,
     val assistantMessageEvent: AssistantMessageEvent? = null,
     val delta: String? = null,
-    val content: String? = null,
-    val message: String? = null,
+    val content: JsonElement? = null,
+    val message: JsonElement? = null,
     val isThinking: Boolean? = null,
     val isSteer: Boolean? = null,
     val status: String? = null,
-    val id: String? = null,
+    val id: JsonElement? = null,
     val success: Boolean? = null,
-    val code: String? = null,
+    val code: JsonElement? = null,
     val count: Int? = null,
     val streaming: Boolean? = null,
     val state: String? = null,
@@ -97,4 +99,27 @@ data class GenericServerMessage(
     val result: JsonElement? = null,
     val partialResult: JsonElement? = null,
     val isError: Boolean? = null
-)
+) {
+    val messageText: String?
+        get() = when (val m = message) {
+            is JsonPrimitive -> m.content
+            is JsonObject -> (m["errorMessage"] as? JsonPrimitive)?.content
+                ?: (m["text"] as? JsonPrimitive)?.content
+            else -> null
+        }
+
+    val messageObject: JsonObject?
+        get() = message as? JsonObject
+
+    val codeString: String?
+        get() = when (val c = code) {
+            is JsonPrimitive -> c.content
+            else -> null
+        }
+
+    val idString: String?
+        get() = when (val i = id) {
+            is JsonPrimitive -> i.content
+            else -> null
+        }
+}

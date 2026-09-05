@@ -139,13 +139,17 @@ export class ChatViewModel {
   }
 
   public newSession() {
-    if (!this.wsManager.send(PiProtocol.createNewSession())) {
-      this.errorMessage = 'Failed to create new session: WebSocket not connected';
-      this.notifyUI();
-      return;
-    }
     this.messages = [];
     this.currentTitle = 'New Chat';
+    this.isStreaming = false;
+    this.cancelStreamingWatchdog();
+    if (!this.wsManager.send(PiProtocol.createNewSession())) {
+      this.connect();
+    } else {
+      this.wsManager.send(JSON.stringify({ type: 'get_state' }));
+      this.wsManager.send(JSON.stringify({ type: 'get_available_models' }));
+    }
+    this.loadSessions();
     this.notifyUI();
   }
 
@@ -272,7 +276,44 @@ export class ChatViewModel {
 
   private handleServerMessage(msg: PiProtocol.ServerMessage) {
     switch (msg.type) {
+      case 'response':
+        if (msg.command === 'new_session') {
+          if (msg.success) {
+            this.messages = [];
+            this.currentTitle = 'New Chat';
+            this.isStreaming = false;
+            this.cancelStreamingWatchdog();
+            this.wsManager.send(JSON.stringify({ type: 'get_state' }));
+            this.wsManager.send(JSON.stringify({ type: 'get_available_models' }));
+            this.loadSessions();
+          } else {
+            this.errorMessage = msg.error || 'Failed to create new session';
+          }
+          this.notifyUI();
+        } else if (msg.command === 'prompt') {
+          if (msg.success === false) {
+            this.isStreaming = false;
+            this.cancelStreamingWatchdog();
+            const errMsg = msg.error || 'Generation failed (model error)';
+            const lastIdx = this.messages.length - 1;
+            if (lastIdx >= 0 && this.messages[lastIdx].role === MessageRole.ASSISTANT && this.messages[lastIdx].status === MessageStatus.STREAMING) {
+              this.messages[lastIdx].status = MessageStatus.ERROR;
+              this.messages[lastIdx].content = `⚠️ ${errMsg}`;
+            }
+            this.errorMessage = errMsg;
+            this.notifyUI();
+          }
+        } else if (msg.command === 'switch_session') {
+          if (msg.success) {
+            this.wsManager.send(JSON.stringify({ type: 'get_state' }));
+          } else {
+            this.errorMessage = msg.error || 'Failed to switch session';
+            this.notifyUI();
+          }
+        }
+        break;
       case 'agent_start':
+      case 'message_start':
         this.isStreaming = true;
         this.startStreamingWatchdog();
         if (this.messages.length === 0 || this.messages[this.messages.length - 1].role !== MessageRole.ASSISTANT || this.messages[this.messages.length - 1].status !== MessageStatus.STREAMING) {
@@ -290,6 +331,19 @@ export class ChatViewModel {
         }
         this.notifyUI();
         break;
+      case 'message_end':
+        const m = (msg as any).message;
+        if (m && m.role === 'assistant' && m.stopReason === 'error') {
+          const errMsg = m.errorMessage || '生成失败（模型返回错误）。可能是当前模型不可用，请切换模型后重试。';
+          const lastIdx = this.messages.length - 1;
+          if (lastIdx >= 0 && this.messages[lastIdx].role === MessageRole.ASSISTANT && !this.messages[lastIdx].content) {
+            this.messages[lastIdx].content = `⚠️ ${errMsg}`;
+            this.messages[lastIdx].status = MessageStatus.ERROR;
+          }
+          this.errorMessage = errMsg;
+          this.notifyUI();
+        }
+        break;
       case 'agent_stream':
       case 'message_update':
         const delta = msg.assistantMessageEvent?.delta || msg.delta || '';
@@ -306,9 +360,21 @@ export class ChatViewModel {
         this.cancelStreamingWatchdog();
         this.markAssistantDone();
         if (msg.type === 'error' || msg.type === 'pi_exit') {
-          this.errorMessage = (msg as any).error || (msg as any).message || 'Agent error';
-          this.notifyUI();
+          const errMsg = (msg as any).error || (msg as any).message || 'Agent error';
+          const lastIdx = this.messages.length - 1;
+          if (lastIdx >= 0 && this.messages[lastIdx].role === MessageRole.ASSISTANT) {
+            if (!this.messages[lastIdx].content) {
+              this.messages[lastIdx].content = `⚠️ ${errMsg}`;
+            }
+            this.messages[lastIdx].status = MessageStatus.ERROR;
+          }
+          this.errorMessage = errMsg;
         }
+        if (msg.type === 'agent_settled') {
+          this.wsManager.send(JSON.stringify({ type: 'get_state' }));
+          this.loadSessions();
+        }
+        this.notifyUI();
         break;
       case 'remote_user_prompt':
         if (msg.message && !msg.isSteer) {

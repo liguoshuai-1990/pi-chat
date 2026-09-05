@@ -451,10 +451,18 @@ class ChatRepository(
     fun newSession() {
         _currentSessionFile.value = null
         _messages.value = emptyList()
+        _isStreaming.value = false
+        cancelStreamingWatchdog()
         val payload = buildJsonObject {
             put("type", "new_session")
         }
-        wsClient.sendRaw(payload.toString())
+        val sent = wsClient.sendRaw(payload.toString())
+        if (!sent) {
+            connect(cwd = activeCwd, sessionPath = null)
+        } else {
+            fetchState()
+            fetchAvailableModels()
+        }
         loadSessions()
     }
 
@@ -505,6 +513,11 @@ class ChatRepository(
                             if (!cwd.isNullOrEmpty()) {
                                 _currentCwd.value = cwd
                             }
+                            val sf = (dataObj["sessionFile"] as? JsonPrimitive)?.content
+                                ?: (dataObj["sessionPath"] as? JsonPrimitive)?.content
+                            if (!sf.isNullOrEmpty()) {
+                                _currentSessionFile.value = sf
+                            }
                         }
                     }
                     "get_available_models" -> {
@@ -526,10 +539,14 @@ class ChatRepository(
                             if (parsedModel != null) {
                                 _currentModel.value = parsedModel
                             }
+                        } else {
+                            _error.value = "切换模型失败: ${msg.error ?: "未知错误"}"
                         }
                     }
                     "set_thinking_level" -> {
-                        // Confirmed on server
+                        if (msg.success == false) {
+                            _error.value = "设置思考深度失败: ${msg.error ?: "未知错误"}"
+                        }
                     }
                     "cycle_thinking_level" -> {
                         val dataObj = msg.data as? JsonObject
@@ -539,9 +556,57 @@ class ChatRepository(
                             _thinkingLevel.value = level
                         }
                     }
+                    "new_session" -> {
+                        if (msg.success == true) {
+                            _currentSessionFile.value = null
+                            _messages.value = emptyList()
+                            _isStreaming.value = false
+                            cancelStreamingWatchdog()
+                            fetchState()
+                            fetchAvailableModels()
+                            _currentModel.value?.let { setModel(it.provider ?: "", it.id) }
+                            setThinkingLevel(_thinkingLevel.value)
+                        } else {
+                            _error.value = "新建会话失败: ${msg.error ?: "未知错误"}"
+                        }
+                    }
+                    "prompt" -> {
+                        if (msg.success == false) {
+                            _isStreaming.value = false
+                            cancelStreamingWatchdog()
+                            val errMsg = msg.error ?: "生成失败（模型返回错误）"
+                            val list = _messages.value.toMutableList()
+                            val idx = indexOfLastAssistantMessage()
+                            if (idx != -1) {
+                                val last = list[idx]
+                                if (last.content.isEmpty()) {
+                                    list[idx] = last.copy(content = "⚠️ $errMsg", status = MessageStatus.ERROR)
+                                } else {
+                                    list[idx] = last.copy(status = MessageStatus.ERROR)
+                                }
+                                _messages.value = list
+                            }
+                            _error.value = errMsg
+                        }
+                    }
+                    "switch_session" -> {
+                        if (msg.success == true) {
+                            fetchState()
+                        } else {
+                            _error.value = "切换会话失败: ${msg.error ?: "未知错误"}"
+                        }
+                    }
                 }
             }
-            "agent_start" -> {
+            "model_select" -> {
+                val dataObj = msg.data as? JsonObject
+                val modelObj = (dataObj?.get("model") as? JsonObject) ?: dataObj
+                val m = parseModelInfo(modelObj)
+                if (m != null) {
+                    _currentModel.value = m
+                }
+            }
+            "agent_start", "message_start" -> {
                 _isStreaming.value = true
                 startStreamingWatchdog()
                 val list = _messages.value.toMutableList()
@@ -550,6 +615,24 @@ class ChatRepository(
                     _messages.value = list
                 }
                 loadSessions()
+            }
+            "message_end" -> {
+                val msgObj = msg.messageObject
+                val stopReason = (msgObj?.get("stopReason") as? JsonPrimitive)?.content
+                if (stopReason == "error") {
+                    val errMsg = (msgObj?.get("errorMessage") as? JsonPrimitive)?.content
+                        ?: "生成失败（模型返回错误）。可能是当前模型不可用，请切换模型后重试。"
+                    val list = _messages.value.toMutableList()
+                    val idx = indexOfLastAssistantMessage()
+                    if (idx != -1) {
+                        val last = list[idx]
+                        if (last.content.isEmpty()) {
+                            list[idx] = last.copy(content = "⚠️ $errMsg", status = MessageStatus.ERROR)
+                            _messages.value = list
+                        }
+                    }
+                    _error.value = errMsg
+                }
             }
             "agent_stream", "message_update" -> {
                 val ev = msg.assistantMessageEvent
@@ -583,28 +666,48 @@ class ChatRepository(
                 cancelStreamingWatchdog()
                 markLastMessageDone()
                 loadSessions()
+                if (msg.type == "agent_settled") {
+                    fetchState()
+                }
                 if (msg.type == "error" || msg.type == "pi_exit") {
-                    _error.value = msg.error ?: msg.message ?: "Agent error"
+                    val errMsg = msg.error ?: msg.messageText ?: if (msg.type == "pi_exit") "Agent 进程退出 (code=${msg.codeString ?: "unknown"})" else "Agent 错误"
+                    val list = _messages.value.toMutableList()
+                    val idx = indexOfLastAssistantMessage()
+                    if (idx != -1) {
+                        val last = list[idx]
+                        if (last.status == MessageStatus.STREAMING) {
+                            if (last.content.isEmpty()) {
+                                list[idx] = last.copy(content = "⚠️ $errMsg", status = MessageStatus.ERROR)
+                            } else {
+                                list[idx] = last.copy(status = MessageStatus.ERROR)
+                            }
+                            _messages.value = list
+                        }
+                    }
+                    _error.value = errMsg
                 }
             }
             "remote_user_prompt" -> {
-                val text = msg.message ?: ""
+                val text = msg.messageText ?: ""
                 val isSteer = msg.isSteer == true
                 if (!isSteer && text.isNotEmpty()) {
-                    val userMsg = ChatMessage(
-                        role = MessageRole.USER,
-                        content = text,
-                        status = MessageStatus.DONE
-                    )
-                    val assistantMsg = ChatMessage(
-                        role = MessageRole.ASSISTANT,
-                        content = "",
-                        status = MessageStatus.STREAMING,
-                        turnStartedAt = System.currentTimeMillis()
-                    )
-                    _messages.value = _messages.value + userMsg + assistantMsg
-                    _isStreaming.value = true
-                    startStreamingWatchdog()
+                    val lastUser = _messages.value.findLast { it.role == MessageRole.USER }
+                    if (lastUser?.content != text) {
+                        val userMsg = ChatMessage(
+                            role = MessageRole.USER,
+                            content = text,
+                            status = MessageStatus.DONE
+                        )
+                        val assistantMsg = ChatMessage(
+                            role = MessageRole.ASSISTANT,
+                            content = "",
+                            status = MessageStatus.STREAMING,
+                            turnStartedAt = System.currentTimeMillis()
+                        )
+                        _messages.value = _messages.value + userMsg + assistantMsg
+                        _isStreaming.value = true
+                        startStreamingWatchdog()
+                    }
                 }
             }
         }

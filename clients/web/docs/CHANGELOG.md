@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.14.8] - 2026-09-05
+
+### Fixed
+- **修复移动端（Android & HarmonyOS）新会话无法正常拉起且卡在“思考中…”的关键 Bug**：
+  - **反序列化强类型报错丢包修复**：`GenericServerMessage` 中 `message`、`code`、`id`、`content` 等多态字段由 `String?` 调整为 `JsonElement?`。修复 Pi 发送 `message_start` / `message_end`（`message` 为 JSON 对象）及 `pi_exit`（`code` 为数字）时抛出 `JsonDecodingException: Expected string, but had BEGIN_OBJECT/0` 导致事件被静默丢弃、会话状态无法流转的问题。
+  - **Prompt 失败响应与错误透传闭环**：服务端在 `activeAgent.send(prompt)` 发生预检失败或 Agent 进程死亡时立即回传 `success: false` 响应；移动端（Android `ChatRepository` 与鸿蒙 `ChatViewModel`）补充 `response.command === "prompt"` 失败处理分支，立即重置 `isStreaming = false` 并展示错误卡片，杜绝无响应时永久卡在“思考中…”。
+  - **新建会话状态全链路同步**：移动端在触发 `new_session` 成功后，自动重置流式状态并向服务端重新请求 `get_state` 与 `get_available_models`，同时将当前已选模型及思考级别重新应用到新会话 Agent 实例中。
+  - **模型报错与异常 UI 渲染完善**：补充 `message_end` 中 `stopReason === "error"` 及 `MessageStatus.ERROR` 的多端错误占位与提示渲染，避免异常时产生空白或假死气泡。
+- **单元测试防挂死与超时保护**：为全仓 Node 测试命令增加 `--test-timeout=30000` 超时保护，网关 WebSocket 单元测试增加显式超时 reject 与 `try ... finally` 资源安全释放，防止异常未捕获导致测试进程永久挂起阻塞流水线。
+
 ## [2.14.7] - 2026-09-05
 
 ### Fixed

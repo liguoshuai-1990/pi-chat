@@ -216,7 +216,12 @@ export function setupWebSocketGateway(httpServer) {
           }
           activeAgent.broadcast({ type: "remote_user_prompt", message: promptText, images: promptImages }, ws);
           activeAgent.lastUserPrompt = { text: promptText, isSteer: false, at: nowMs };
-          activeAgent.send({ type: "prompt", message: promptText, images: promptImages, id: msg.id });
+          activeAgent.send({ type: "prompt", message: promptText, images: promptImages, id: msg.id }).then((res) => {
+            if (res && res.success === false) {
+              activeAgent.setStreaming(false);
+              try { ws.send(JSON.stringify(res)); } catch {}
+            }
+          });
           break;
         }
 
@@ -224,7 +229,11 @@ export function setupWebSocketGateway(httpServer) {
           if (!msg.message || !msg.message.trim()) return;
           activeAgent.broadcast({ type: "remote_user_prompt", message: msg.message, isSteer: true }, ws);
           activeAgent.lastUserPrompt = { text: msg.message, isSteer: true, at: nowMs };
-          activeAgent.send({ type: "steer", message: msg.message, id: msg.id });
+          activeAgent.send({ type: "steer", message: msg.message, id: msg.id }).then((res) => {
+            if (res && res.success === false) {
+              try { ws.send(JSON.stringify(res)); } catch {}
+            }
+          });
           break;
 
         case ClientMessageType.ABORT:
@@ -232,31 +241,63 @@ export function setupWebSocketGateway(httpServer) {
           break;
 
         case ClientMessageType.NEW_SESSION:
-          if (activeAgent.sessionKey || activeAgent.isBusy) {
-            activeAgent.detachWs(ws);
-            const newAgent = getOrCreateAgent(activeAgent.cwd || cwd, null);
-            newAgent.attachWs(ws);
-            ws.piAgent = newAgent;
-            newAgent.send({ type: "new_session", id: msg.id });
-          } else {
-            activeAgent.lastUserPrompt = null;
-            activeAgent.eventBuffer = [];
-            activeAgent.bufferHead = 0;
-            activeAgent.send({ type: "new_session", id: msg.id });
+          try {
+            if (activeAgent.sessionKey || activeAgent.isBusy) {
+              activeAgent.detachWs(ws);
+              const newAgent = getOrCreateAgent(activeAgent.cwd || cwd, null);
+              newAgent.attachWs(ws);
+              ws.piAgent = newAgent;
+              newAgent.send({ type: "new_session", id: msg.id }).then((res) => {
+                if (res && res.success === false) {
+                  try { ws.send(JSON.stringify(res)); } catch {}
+                }
+              });
+            } else {
+              activeAgent.lastUserPrompt = null;
+              activeAgent.eventBuffer = [];
+              activeAgent.bufferHead = 0;
+              activeAgent.send({ type: "new_session", id: msg.id }).then((res) => {
+                if (res && res.success === false) {
+                  try { ws.send(JSON.stringify(res)); } catch {}
+                }
+              });
+            }
+          } catch (err) {
+            try {
+              ws.send(JSON.stringify({
+                type: "response",
+                command: "new_session",
+                ...(msg.id !== undefined ? { id: msg.id } : {}),
+                success: false,
+                error: err.message
+              }));
+            } catch {}
           }
           break;
 
         case ClientMessageType.SWITCH_SESSION: {
           if (!msg.sessionPath) break;
-          const targetKey = `${normalizeCwd(activeAgent.cwd || cwd)}:${normalizePath(msg.sessionPath)}`;
-          if (activeAgent.sessionKey === targetKey) {
-            activeAgent.send({ type: "get_state", id: msg.id });
-          } else {
-            activeAgent.detachWs(ws);
-            const targetAgent = getOrCreateAgent(activeAgent.cwd || cwd, msg.sessionPath);
-            targetAgent.attachWs(ws);
-            ws.piAgent = targetAgent;
-            targetAgent.send({ type: "get_state", id: msg.id });
+          try {
+            const targetKey = `${normalizeCwd(activeAgent.cwd || cwd)}:${normalizePath(msg.sessionPath)}`;
+            if (activeAgent.sessionKey === targetKey) {
+              activeAgent.send({ type: "get_state", id: msg.id });
+            } else {
+              activeAgent.detachWs(ws);
+              const targetAgent = getOrCreateAgent(activeAgent.cwd || cwd, msg.sessionPath);
+              targetAgent.attachWs(ws);
+              ws.piAgent = targetAgent;
+              targetAgent.send({ type: "get_state", id: msg.id });
+            }
+          } catch (err) {
+            try {
+              ws.send(JSON.stringify({
+                type: "response",
+                command: "switch_session",
+                ...(msg.id !== undefined ? { id: msg.id } : {}),
+                success: false,
+                error: err.message
+              }));
+            } catch {}
           }
           break;
         }

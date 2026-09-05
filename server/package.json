@@ -1,6 +1,6 @@
 {
   "name": "@liguoshuai/pi-chat-server",
-  "version": "2.14.7",
+  "version": "2.14.8",
   "description": "Pi Agent Gateway server for VPS hosting, bridging Web, Android, and HarmonyOS native apps to pi coding agent subprocesses",
   "type": "module",
   "main": "src/server.js",
@@ -28,12 +28,12 @@
     "build": "node --check src/index.js && node --check src/server.js && node --check src/agent.js && node --check src/auth.js && node --check src/config.js && node --check src/routes.js && node --check src/sse.js && node --check src/ws.js",
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node --test"
+    "test": "node --test --test-timeout=30000"
   },
   "keywords": [
     "pi-chat",
+    "server",
     "gateway",
-    "rpc",
     "websocket",
     "sse",
     "vps"
@@ -41,7 +41,9 @@
   "author": "Guoshuai Li",
   "license": "MIT",
   "dependencies": {
-    "@liguoshuai/pi-chat-protocol": "workspace:*",
+    "@liguoshuai/pi-chat-protocol": "workspace:*"
+  },
+  "devDependencies": {
     "express": "^4.21.2",
     "ws": "^8.18.0"
   }

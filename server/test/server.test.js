@@ -5,7 +5,7 @@ import { isAllowedOrigin } from "../src/ws.js";
 import { verifyToken, verifyWsAuth, authMiddleware } from "../src/auth.js";
 import { config, normalizePath, home } from "../src/config.js";
 import { createServer } from "../src/server.js";
-import { PiAgent, activeAgents } from "../src/agent.js";
+import { PiAgent, activeAgents, allAgents } from "../src/agent.js";
 import { fileURLToPath } from "node:url";
 
 // CI runners don't have the real `pi` CLI installed, so `PiAgent.start()`'s
@@ -272,5 +272,59 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
     assert.equal(mockSessions[0].id, "2"); // 2026 is latest
     assert.equal(mockSessions[1].id, "3");
     assert.equal(mockSessions[2].id, "1");
+  });
+
+  test("WebSocket gateway forwards prompt failure response when process is not alive", async () => {
+    const serverInstance = createServer();
+    const { httpServer } = await serverInstance.listen(0, "127.0.0.1");
+    const port = httpServer.address().port;
+
+    const wsUrl = `ws://127.0.0.1:${port}/ws`;
+    const ws = new WebSocket(wsUrl);
+
+    try {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error("Test timed out waiting for ws response"));
+        }, 5000);
+
+        ws.on("open", () => {
+          setTimeout(() => {
+            for (const agent of allAgents) {
+              agent.alive = false;
+              if (agent.proc) {
+                try { agent.proc.kill("SIGKILL"); } catch {}
+                agent.proc = null;
+              }
+            }
+
+            // Send a prompt on dead agent
+            ws.send(JSON.stringify({ type: "prompt", message: "test message", id: "prompt_fail_test" }));
+          }, 50);
+
+          ws.on("message", (data) => {
+            try {
+              const msg = JSON.parse(data.toString());
+              if (msg.type === "response" && msg.id === "prompt_fail_test") {
+                clearTimeout(timer);
+                assert.equal(msg.success, false);
+                ws.close();
+                resolve();
+              }
+            } catch (err) {
+              clearTimeout(timer);
+              reject(err);
+            }
+          });
+        });
+        ws.on("error", (err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      });
+    } finally {
+      try { ws.close(); } catch {}
+      await serverInstance.close();
+    }
   });
 });

@@ -16,20 +16,27 @@ export namespace PiProtocol {
     type: string;
     assistantMessageEvent?: AssistantMessageEvent;
     delta?: string;
-    content?: string;
-    message?: string;
+    content?: any;
+    message?: any;
     isThinking?: boolean;
     isSteer?: boolean;
     status?: string;
-    id?: string;
+    id?: any;
     success?: boolean;
-    code?: string;
+    code?: any;
     count?: number;
     streaming?: boolean;
     state?: string;
     overflowed?: boolean;
     data?: any;
     error?: string;
+    command?: string;
+    toolCallId?: string;
+    toolName?: string;
+    args?: any;
+    result?: any;
+    partialResult?: any;
+    isError?: boolean;
   }
 
   export function createPrompt(text: string, images: any[] = []): string {
