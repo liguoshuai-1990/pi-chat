@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - 全端版本号统一递增至 2.15.7（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
 
+## [2.16.3] - 2026-09-05
+
+### Fixed
+- **Android: 补全 animation import** — 添加 `androidx.compose.animation.*` 导入，修复 fadeIn/fadeOut/slideInVertically/slideOutVertically 未解析引用。
+
 ## [2.16.2] - 2026-09-05
 
 ### Fixed

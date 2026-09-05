@@ -111,7 +111,7 @@ struct Index {
             .fontSize(11)
             .fontColor('#6B7280')
           Blank()
-          Text('v2.16.2')
+          Text('v2.16.3')
             .fontSize(11)
             .fontColor('#6B7280')
         }
