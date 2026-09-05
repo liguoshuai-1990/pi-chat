@@ -837,7 +837,7 @@ async function syncSessionHistory(file, force = false) {
     // Only overwrite chat if not actively backfilling
     if (!state.isBackfilling && (force || !state.streaming)) {
       clearChat();
-      const msgs = reconstructFromEntries(data.entries || []);
+      const msgs = reconstructFromEntries(data.entries || [], data.timing || null);
       showEmptyState(msgs.length === 0);
       for (const m of msgs) {
         appendMessageNode(m.role, m);
@@ -883,7 +883,7 @@ function parseEntryTimestamp(ts) {
   return isNaN(parsed) ? null : parsed;
 }
 
-function reconstructFromEntries(entries) {
+function reconstructFromEntries(entries, timing = null) {
   // Map toolResults by toolCallId so we can attach them to their toolCall in the assistant message
   const toolResults = new Map();
   for (const e of entries) {
@@ -921,18 +921,35 @@ function reconstructFromEntries(entries) {
       out.push({ role: "user", text: extractContentText(m.content), images, ts: msgTs });
     } else if (m.role === "assistant") {
       let turnDurationMs = null;
-      if (lastUserTs && msgTs && msgTs >= lastUserTs) {
+      // Try timing data first, then fall back to timestamp heuristic
+      const turnTiming = timing ? timing[out.filter(o => o.role === "assistant").length] : null;
+      if (turnTiming?.turnDuration != null) {
+        turnDurationMs = turnTiming.turnDuration;
+      } else if (lastUserTs && msgTs && msgTs >= lastUserTs) {
         const diff = msgTs - lastUserTs;
         if (diff > 0 && diff < 15 * 60 * 1000) {
           turnDurationMs = diff;
         }
       }
+      let thinkingIdx = 0;
       const rawContent = Array.isArray(m.content) ? m.content : (m.content ? [{ type: "text", text: String(m.content) }] : []);
       const content = rawContent.map(part => {
+        if (part && part.type === "thinking") {
+          // Apply persisted thinking duration from timing data
+          let thinkingDurationMs = null;
+          if (turnTiming?.thinkingDurations && thinkingIdx < turnTiming.thinkingDurations.length) {
+            thinkingDurationMs = turnTiming.thinkingDurations[thinkingIdx];
+          }
+          thinkingIdx++;
+          return { ...part, durationMs: thinkingDurationMs };
+        }
         if (part && part.type === "toolCall") {
           const res = toolResults.get(part.id);
           let durationMs = null;
-          if (res) {
+          // Try timing data first
+          if (turnTiming?.toolDurations && part.id && turnTiming.toolDurations[part.id] != null) {
+            durationMs = turnTiming.toolDurations[part.id];
+          } else if (res) {
             const startTs = parseEntryTimestamp(part.timestamp || m.timestamp || e.timestamp);
             const endTs = res.entryTs || parseEntryTimestamp(res.timestamp);
             if (startTs && endTs && endTs >= startTs) {

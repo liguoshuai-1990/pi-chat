@@ -449,7 +449,17 @@ router.get("/api/session", authMiddleware, async (req, res) => {
       };
     }
 
-    res.json({ header, entries: activeEntries, model: sessionModel, sessionName, firstUser });
+    // Read persisted timing data for this session
+    let timing = null;
+    try {
+      const timingRaw = await readFile(resolvedFile + ".timing.json", "utf8");
+      const turns = JSON.parse(timingRaw);
+      if (Array.isArray(turns) && turns.length > 0) {
+        timing = turns;
+      }
+    } catch {}
+
+    res.json({ header, entries: activeEntries, model: sessionModel, sessionName, firstUser, timing });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: String(e) });

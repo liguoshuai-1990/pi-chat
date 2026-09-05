@@ -1,5 +1,7 @@
 import { spawn } from "child_process";
 import { StringDecoder } from "string_decoder";
+import { writeFile, readFile } from "fs/promises";
+import path from "path";
 import { config, normalizeCwd, normalizePath } from "./config.js";
 import { createBackfillStartMessage, createBackfillEndMessage } from "@liguoshuai/pi-chat-protocol";
 
@@ -29,6 +31,11 @@ export class PiAgent {
     this.bufferHead = 0;
     this.hasBufferOverflowed = false;
     this.lastUserPrompt = null;
+    // Timing tracking for persistence
+    this.turnStart = null;
+    this.thinkingStart = null;
+    this.toolStarts = new Map();
+    this.timingData = null;
   }
 
   get hasListeners() {
@@ -276,6 +283,9 @@ export class PiAgent {
         break;
     }
 
+    // Track timing for persistence (thinking, tool, turn durations)
+    this.trackTiming(obj);
+
     if (obj.type === "response" && (obj.command === "prompt" || obj.command === "abort") && !obj.success) {
       this.setStreaming(false);
     }
@@ -300,6 +310,71 @@ export class PiAgent {
     // When agent is idle or settled, eventBuffer is empty since full transcript is saved on disk.
     if (this.isStreaming || obj.type === "agent_start" || obj.type === "agent_end") {
       this.bufferEvent(obj);
+    }
+  }
+
+  trackTiming(obj) {
+    switch (obj.type) {
+      case "agent_start":
+        this.turnStart = Date.now();
+        this.thinkingStart = null;
+        this.toolStarts.clear();
+        this.timingData = { turnDuration: null, thinkingDurations: [], toolDurations: {} };
+        break;
+      case "agent_end":
+        if (this.turnStart && this.timingData) {
+          this.timingData.turnDuration = Math.max(0, Date.now() - this.turnStart);
+          this.saveTimingData();
+        }
+        break;
+      case "message_update": {
+        const ev = obj.assistantMessageEvent;
+        if (!ev) break;
+        if (ev.type === "thinking_start") {
+          this.thinkingStart = Date.now();
+        } else if (ev.type === "thinking_end") {
+          if (this.thinkingStart && this.timingData) {
+            this.timingData.thinkingDurations.push(Math.max(0, Date.now() - this.thinkingStart));
+            this.thinkingStart = null;
+          }
+        }
+        break;
+      }
+      case "tool_execution_start":
+        if (obj.toolCallId) this.toolStarts.set(obj.toolCallId, Date.now());
+        break;
+      case "tool_execution_end":
+        if (obj.toolCallId && this.toolStarts.has(obj.toolCallId) && this.timingData) {
+          const dur = Math.max(0, Date.now() - this.toolStarts.get(obj.toolCallId));
+          this.timingData.toolDurations[obj.toolCallId] = dur;
+          this.toolStarts.delete(obj.toolCallId);
+        }
+        break;
+    }
+  }
+
+  async saveTimingData() {
+    if (!this.timingData || !this.sessionKey) return;
+    try {
+      // sessionKey is "cwd:sessionPath" — extract sessionPath
+      const idx = this.sessionKey.indexOf(":");
+      if (idx < 0) return;
+      const sessionPath = this.sessionKey.slice(idx + 1);
+      const timingPath = sessionPath + ".timing.json";
+      // Read existing timing data (array of turns)
+      let turns = [];
+      try {
+        const existing = await readFile(timingPath, "utf8");
+        turns = JSON.parse(existing);
+        if (!Array.isArray(turns)) turns = [];
+      } catch {}
+      // Append current turn timing
+      turns.push(this.timingData);
+      // Keep last 200 turns to avoid unbounded growth
+      if (turns.length > 200) turns = turns.slice(-200);
+      await writeFile(timingPath, JSON.stringify(turns), "utf8");
+    } catch (e) {
+      console.warn("[PiAgent] Failed to save timing data:", e.message);
     }
   }
 
