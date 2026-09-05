@@ -380,12 +380,17 @@ router.get("/api/session", authMiddleware, async (req, res) => {
     const entries = [];
     let header = null;
     let sessionName = null;
+    let firstUser = null;
     for (const line of lines) {
       let o; try { o = JSON.parse(line); } catch { continue; }
       if (!o || typeof o !== "object") continue;
       if (o.type === "session") header = o;
       if (o.type === "session_info" && o.name) {
         sessionName = o.name.trim();
+      }
+      const msgContent = o.message?.content || (o.type === "message" ? o.content : null);
+      if (o.type === "message" && o.message && o.message.role === "user" && !firstUser && msgContent) {
+        firstUser = extractText(msgContent).slice(0, 80);
       }
       entries.push(o);
     }
@@ -444,7 +449,7 @@ router.get("/api/session", authMiddleware, async (req, res) => {
       };
     }
 
-    res.json({ header, entries: activeEntries, model: sessionModel, sessionName });
+    res.json({ header, entries: activeEntries, model: sessionModel, sessionName, firstUser });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: String(e) });

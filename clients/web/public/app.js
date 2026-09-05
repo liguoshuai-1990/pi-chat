@@ -831,7 +831,7 @@ async function syncSessionHistory(file, force = false) {
       renderModelPill();
     }
 
-    const topName = data.sessionName || (data.header?.id ? baseName(file) : "新对话");
+    const topName = data.sessionName || data.firstUser || "新对话";
     $("#topSessionName").textContent = topName;
 
     // Only overwrite chat if not actively backfilling
@@ -1959,9 +1959,8 @@ function handlePiMessage(obj) {
       const newUrl = window.location.pathname + "?session=" + encodeURIComponent(sessionFile);
       window.history.replaceState({ session: sessionFile }, "", newUrl);
     } catch {}
-    if ($("#topSessionName").textContent === "新对话") {
-      $("#topSessionName").textContent = baseName(sessionFile);
-    }
+    // Do not set baseName(sessionFile) as title — it's a session ID, not a user-friendly summary.
+    // The proper title will be set by syncSessionHistory (via firstUser) or by the user prompt.
     refreshSessions();
   }
 
@@ -2365,7 +2364,11 @@ function updateState(d) {
     renderThinkingPill();
   }
   updateEmptyStateModelInfo();
-  $("#topSessionName").textContent = d?.sessionName || (d?.sessionFile ? baseName(d.sessionFile) : "新对话");
+  // Only update top bar title from state if sessionName is explicitly available;
+  // otherwise keep current title (set by syncSessionHistory or user prompt) to avoid showing session file name.
+  if (d?.sessionName) {
+    $("#topSessionName").textContent = d.sessionName;
+  }
 
   // Sync streaming state upon state updates (e.g. after reconnect)
   if (d && typeof d.isStreaming === "boolean") {
