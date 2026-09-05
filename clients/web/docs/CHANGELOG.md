@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.14.12] - 2026-09-05
+
+### Fixed
+- **修复 HarmonyOS `versionCode` 位数与数值回退**：将 `clients/harmony/AppScope/app.json5` 的 `versionCode` 从错误的三位缩短格式（`21411`）恢复为标准的七位格式（`2141200`），并统一全仓版本号至 2.14.12。修正自 2.14.7 起 `versionCode` 由 `2140600` 误缩为 `21407` 造成的数值回退，避免 HarmonyOS 应用商店因版本号非单调递增而拒绝上架。
+
 ## [2.14.11] - 2026-09-05
 
 ### Fixed
