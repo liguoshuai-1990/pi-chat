@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.14.9] - 2026-09-05
+
+### Fixed
+- **修复 CI 依赖安装与 Lockfile 同步**：补全 `clients/web/package.json` 中的依赖声明并同步 `pnpm-lock.yaml`，修复 GitHub Actions 流水线中 `pnpm install --frozen-lockfile` 报错。
+
 ## [2.14.8] - 2026-09-05
 
 ### Fixed

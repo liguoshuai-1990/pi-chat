@@ -30,6 +30,7 @@ importers:
       '@liguoshuai/pi-chat-protocol':
         specifier: workspace:*
         version: link:../packages/protocol
+    devDependencies:
       express:
         specifier: ^4.21.2
         version: 4.22.2
