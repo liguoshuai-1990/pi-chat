@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.14.5] - 2026-09-05
+
+### Fixed
+- 修复 CI `publish-npm` 与 `publish-release` 的依赖判定：将 `!cancelled()` 改为 `success()`，测试失败时不会发布 NPM 包与 GitHub Release。
+- 修正 README、各客户端 README、UED 原型、架构文档中残留的旧版本号（2.12.7 / 2.12.9 / 2.13.0），并同步全仓版本至 2.14.5。
+
+### Docs
+- 精简 `CLAUDE.md`，明确以 `AGENTS.md` 为唯一权威来源，补齐铁律四（CI 绿勾闭环）。
+
 ## [2.14.4] - 2026-09-05
 
 ### Performance

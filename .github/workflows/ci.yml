@@ -139,7 +139,7 @@ jobs:
   publish-npm:
     name: Publish to NPM Registry
     needs: [build-and-test, npm-deliverables]
-    if: (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish_npm == 'true' || github.event.inputs.publish_npm == true) && !cancelled()
+    if: (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish_npm == 'true' || github.event.inputs.publish_npm == true) && success()
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -177,7 +177,7 @@ jobs:
   publish-release:
     name: Publish Full Release (All Deliverables)
     needs: [build-and-test, npm-deliverables, harmony-deliverables, android-build, publish-npm]
-    if: startsWith(github.ref, 'refs/tags/v') && !cancelled()
+    if: startsWith(github.ref, 'refs/tags/v') && success()
     runs-on: ubuntu-latest
     permissions:
       contents: write

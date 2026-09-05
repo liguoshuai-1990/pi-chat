@@ -1,4 +1,4 @@
-# 📱 Pi Chat Android App (v2.12.7)
+# 📱 Pi Chat Android App (v2.14.5)
 
 Pi Chat Android 原生移动端应用，与 Web 端实现全要素体验对齐，让开发者能够在手机上随时随地操控 VPS / 远程服务器上的 Pi 编程智能体。
 
@@ -51,7 +51,7 @@ Pi Chat Android 原生移动端应用，与 Web 端实现全要素体验对齐�
 ```
 clients/android/
 ├── app/
-│   ├── build.gradle.kts                      # 模块构建脚本 (versionName "2.12.7")
+│   ├── build.gradle.kts                      # 模块构建脚本 (versionName "2.14.5")
 │   └── src/main/
 │       ├── AndroidManifest.xml
 │       └── java/com/pichat/android/
@@ -86,7 +86,7 @@ clients/android/
 
 ### 方式 1：直接下载 APK（推荐）
 每次代码合并或打 Release Tag 后，GitHub Actions 会自动编译并打包最新的 Debug APK：
-- 在 GitHub 仓库的 **[Actions 页面](https://github.com/liguoshuai-1990/pi-chat/actions)** 或 **[Releases 页面](https://github.com/liguoshuai-1990/pi-chat/releases)** 下载 `pi-chat-android-apk` 压缩包解压即可获得 `pi-chat-v2.12.7-debug.apk`。
+- 在 GitHub 仓库的 **[Actions 页面](https://github.com/liguoshuai-1990/pi-chat/actions)** 或 **[Releases 页面](https://github.com/liguoshuai-1990/pi-chat/releases)** 下载 `pi-chat-android-apk` 压缩包解压即可获得 `pi-chat-v2.14.5-debug.apk`。
 
 ### 方式 2：使用 Android Studio 源码运行
 1. 使用 **Android Studio (Ladybug / Iguana 或更高版本)** 打开 `clients/android` 目录。
@@ -102,8 +102,8 @@ cd clients/android
 # 编译 Debug APK
 ./gradlew assembleDebug
 
-# 生成路径：app/build/outputs/apk/debug/pi-chat-v2.12.7-debug.apk
+# 生成路径：app/build/outputs/apk/debug/pi-chat-v2.14.5-debug.apk
 
 # 通过 ADB 直接安装到手机
-adb install -r app/build/outputs/apk/debug/pi-chat-v2.12.7-debug.apk
+adb install -r app/build/outputs/apk/debug/pi-chat-v2.14.5-debug.apk
 ```
