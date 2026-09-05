@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.15.3] - 2026-09-05
+
+### Fixed
+- **修复 pnpm-lock.yaml 与 server/package.json 不一致**：`express` 和 `ws` 从 devDependencies 移至 dependencies 后未同步更新 lockfile，导致 CI `frozen-lockfile` 安装失败（`ERR_PNPM_OUTDATED_LOCKFILE`）。
+
+### Changed
+- 全端版本号统一递增至 2.15.3（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 ## [2.15.2] - 2026-09-05
 
 ### Fixed
