@@ -15,8 +15,8 @@ android {
         applicationId = "com.pichat.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 21405
-        versionName = "2.14.5"
+        versionCode = 21406
+        versionName = "2.14.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
