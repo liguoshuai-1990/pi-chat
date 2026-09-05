@@ -604,7 +604,8 @@ function stopStreamingTimer() {
 function sameSession(a, b) {
   if (!a || !b) return false;
   if (a === b) return true;
-  return a.replace(/^[.~]\//, "") === b.replace(/^[.~]\//, "");
+  const norm = (s) => s.replace(/^(?:\.\.?|~)\//, "").replace(/^~$/, "").replace(/\/+$/, "");
+  return norm(a) === norm(b);
 }
 
 // ---- Sidebar / sessions ----
@@ -771,7 +772,7 @@ async function deleteSession(file, title) {
     }
     showToast("会话已删除");
     if (state.currentSessionFile === file) {
-      startNewSession(false);
+      startNewSession();
     } else {
       await refreshSessions();
     }
@@ -900,6 +901,7 @@ function reconstructFromEntries(entries, timing = null) {
 
   const out = [];
   let lastUserTs = null;
+  let assistantMsgCount = 0;
   for (const e of entries) {
     if (e.type !== "message") continue;
     const m = e.message;
@@ -922,7 +924,7 @@ function reconstructFromEntries(entries, timing = null) {
     } else if (m.role === "assistant") {
       let turnDurationMs = null;
       // Try timing data first, then fall back to timestamp heuristic
-      const turnTiming = timing ? timing[out.filter(o => o.role === "assistant").length] : null;
+      const turnTiming = timing ? timing[assistantMsgCount] : null;
       if (turnTiming?.turnDuration != null) {
         turnDurationMs = turnTiming.turnDuration;
       } else if (lastUserTs && msgTs && msgTs >= lastUserTs) {
@@ -969,6 +971,7 @@ function reconstructFromEntries(entries, timing = null) {
         content.push({ type: "text", text: `⚠️ **生成失败**: ${errMsg}` });
       }
       out.push({ role: "assistant", content, ts: msgTs, turnDurationMs, usage: m.usage });
+      assistantMsgCount++;
     }
     // toolResult entries are attached directly to assistant toolCall parts, so they don't produce standalone messages
   }
@@ -3193,7 +3196,7 @@ async function init() {
   await loadServerConfig();
 
   // event listeners
-  $("#btnNew").addEventListener("click", () => startNewSession(true));
+  $("#btnNew").addEventListener("click", () => startNewSession());
 
   $("#sendBtn").addEventListener("click", () => {
     if (state.streaming) {
@@ -3266,7 +3269,7 @@ async function init() {
 
     if (isCmdOrCtrl && e.shiftKey && (e.key.toLowerCase() === "n" || e.key.toLowerCase() === "o")) {
       e.preventDefault();
-      startNewSession(true);
+      startNewSession();
       return;
     }
     if ((isCmdOrCtrl && e.key.toLowerCase() === "k") || (e.ctrlKey && e.key === "/")) {

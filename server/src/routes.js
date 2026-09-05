@@ -517,6 +517,9 @@ router.delete("/api/session", authMiddleware, async (req, res) => {
 
     await unlink(resolvedFile);
 
+    // Clean up associated .timing.json file if it exists
+    try { await unlink(resolvedFile + ".timing.json"); } catch {}
+
     res.json({ success: true, file: requestedPath });
   } catch (e) {
     console.error("Delete session error:", e);
