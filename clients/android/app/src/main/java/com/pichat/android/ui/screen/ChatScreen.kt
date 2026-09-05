@@ -1863,6 +1863,23 @@ private fun FormattedMarkdownText(text: String) {
                     )
                 }
                 is MarkdownSegment.BulletItem -> {
+                    val isChecked = part.text.startsWith("[x] ", ignoreCase = true)
+                    val isUnchecked = part.text.startsWith("[ ] ")
+                    val displayText = when {
+                        isChecked -> part.text.substring(4)
+                        isUnchecked -> part.text.substring(4)
+                        else -> part.text
+                    }
+                    val bulletChar = when {
+                        isChecked -> "☑"
+                        isUnchecked -> "☐"
+                        else -> "•"
+                    }
+                    val bulletColor = when {
+                        isChecked -> Accent
+                        isUnchecked -> TextDim
+                        else -> Accent
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1870,17 +1887,17 @@ private fun FormattedMarkdownText(text: String) {
                         verticalAlignment = Alignment.Top
                     ) {
                         Text(
-                            "•",
-                            fontSize = 14.sp,
+                            bulletChar,
+                            fontSize = if (isChecked || isUnchecked) 13.sp else 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Accent,
+                            color = bulletColor,
                             modifier = Modifier.padding(start = 4.dp, end = 8.dp)
                         )
                         Text(
-                            text = buildAnnotatedMarkdownString(part.text),
+                            text = buildAnnotatedMarkdownString(displayText),
                             fontSize = 14.sp,
                             lineHeight = 21.sp,
-                            color = TextPrimary,
+                            color = if (isChecked) TextSecondary else TextPrimary,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -1930,6 +1947,50 @@ private fun FormattedMarkdownText(text: String) {
                             lineHeight = 20.sp,
                             color = TextSecondary
                         )
+                    }
+                }
+                is MarkdownSegment.Table -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF141418))
+                            .border(BorderStroke(1.dp, Border), RoundedCornerShape(8.dp))
+                            .horizontalScroll(rememberScrollState())
+                            .padding(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .background(Color(0xFF1E1E26), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            for (h in part.headers) {
+                                Text(
+                                    text = buildAnnotatedMarkdownString(h),
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary,
+                                    modifier = Modifier.widthIn(min = 90.dp).padding(horizontal = 6.dp)
+                                )
+                            }
+                        }
+                        HorizontalDivider(color = Border, thickness = 1.dp)
+                        for ((idx, row) in part.rows.withIndex()) {
+                            Row(
+                                modifier = Modifier
+                                    .background(if (idx % 2 == 1) Color(0xFF18181F) else Color.Transparent)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                for (cell in row) {
+                                    Text(
+                                        text = buildAnnotatedMarkdownString(cell),
+                                        fontSize = 12.5.sp,
+                                        color = TextSecondary,
+                                        modifier = Modifier.widthIn(min = 90.dp).padding(horizontal = 6.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 is MarkdownSegment.Divider -> {
@@ -2012,6 +2073,7 @@ sealed class MarkdownSegment {
     data class BulletItem(val text: String) : MarkdownSegment()
     data class NumberedItem(val number: String, val text: String) : MarkdownSegment()
     data class Blockquote(val text: String) : MarkdownSegment()
+    data class Table(val headers: List<String>, val rows: List<List<String>>) : MarkdownSegment()
     object Divider : MarkdownSegment()
     data class CodeBlock(val lang: String, val code: String) : MarkdownSegment()
 }
@@ -2032,7 +2094,10 @@ private fun parseMarkdownSegments(raw: String): List<MarkdownSegment> {
         paraBuffer.clear()
     }
 
-    for (line in lines) {
+    var i = 0
+    while (i < lines.size) {
+        val line = lines[i]
+
         if (line.startsWith("```")) {
             if (inCode) {
                 result.add(MarkdownSegment.CodeBlock(codeLang, codeBuffer.toString().trimEnd()))
@@ -2043,25 +2108,53 @@ private fun parseMarkdownSegments(raw: String): List<MarkdownSegment> {
                 codeLang = line.removePrefix("```").trim()
                 inCode = true
             }
+            i++
             continue
         }
 
         if (inCode) {
             if (codeBuffer.isNotEmpty()) codeBuffer.append("\n")
             codeBuffer.append(line)
+            i++
             continue
         }
 
         val trimmed = line.trim()
         if (trimmed.isEmpty()) {
             flushPara()
+            i++
             continue
         }
 
         if (trimmed == "---" || trimmed == "***" || trimmed == "___") {
             flushPara()
             result.add(MarkdownSegment.Divider)
+            i++
             continue
+        }
+
+        // Table detection: line has | and next line is table divider |--|--|
+        if (trimmed.contains("|") && i + 1 < lines.size) {
+            val nextTrimmed = lines[i + 1].trim()
+            if (nextTrimmed.contains("-") && Regex("^\\|?[\\s\\-:\\|]+\\|?$").matches(nextTrimmed)) {
+                flushPara()
+                val parseCols = { l: String ->
+                    val rawParts = l.split("|")
+                    rawParts.map { it.trim() }.filterIndexed { idx, _ ->
+                        !(idx == 0 && rawParts.first().isBlank()) && !(idx == rawParts.lastIndex && rawParts.last().isBlank())
+                    }
+                }
+                val headers = parseCols(line)
+                i += 2 // skip header and divider
+                val rows = mutableListOf<List<String>>()
+                while (i < lines.size && lines[i].trim().contains("|")) {
+                    val r = parseCols(lines[i].trim())
+                    if (r.isNotEmpty()) rows.add(r)
+                    i++
+                }
+                result.add(MarkdownSegment.Table(headers, rows))
+                continue
+            }
         }
 
         val headingMatch = Regex("^(#{1,6})\\s+(.*)$").matchEntire(trimmed)
@@ -2070,6 +2163,7 @@ private fun parseMarkdownSegments(raw: String): List<MarkdownSegment> {
             val level = headingMatch.groupValues[1].length
             val title = headingMatch.groupValues[2].trim()
             result.add(MarkdownSegment.Heading(level, title))
+            i++
             continue
         }
 
@@ -2077,6 +2171,7 @@ private fun parseMarkdownSegments(raw: String): List<MarkdownSegment> {
             flushPara()
             val quoteText = trimmed.removePrefix(">").trim()
             result.add(MarkdownSegment.Blockquote(quoteText))
+            i++
             continue
         }
 
@@ -2084,6 +2179,7 @@ private fun parseMarkdownSegments(raw: String): List<MarkdownSegment> {
         if (bulletMatch != null) {
             flushPara()
             result.add(MarkdownSegment.BulletItem(bulletMatch.groupValues[1].trim()))
+            i++
             continue
         }
 
@@ -2091,11 +2187,13 @@ private fun parseMarkdownSegments(raw: String): List<MarkdownSegment> {
         if (numMatch != null) {
             flushPara()
             result.add(MarkdownSegment.NumberedItem(numMatch.groupValues[1], numMatch.groupValues[2].trim()))
+            i++
             continue
         }
 
         if (paraBuffer.isNotEmpty()) paraBuffer.append("\n")
         paraBuffer.append(line)
+        i++
     }
 
     if (inCode && codeBuffer.isNotEmpty()) {

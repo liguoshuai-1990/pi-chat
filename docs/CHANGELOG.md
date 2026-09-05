@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.15.6] - 2026-09-05
+
+### Added & Enhanced
+- **Android 富文本 Markdown 原生表格与任务清单支持**：
+  - 在 `FormattedMarkdownText` 中实现 Markdown 表格语法树节点 `MarkdownSegment.Table` 及其水平平滑滚动的专属原生暗黑表格卡片展示，支持多列对齐、表头高亮与斑马纹隔行底色。
+  - 支持 GFM 任务列表语法（`- [x]` / `- [ ]`），渲染为精致直观的勾选框（`☑`）与未勾选框（`☐`），进一步提升开发任务清单、参数表与测试用例报告的阅读质感。
+
+### Changed
+- 全端版本号统一递增至 2.15.6（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+
 ## [2.15.5] - 2026-09-05
 
 ### Fixed
