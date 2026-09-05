@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.15.1] - 2026-09-05
+
+### Fixed
+- **修复 Android ChatScreen.kt 编译错误**：删除 `ToolCallBlock` 函数中残留的孤立代码片段（来自此前重构的遗留），修复大括号不平衡导致的 `Syntax error: Expecting a top level declaration` 编译失败。
+
+### Changed
+- 全端版本号统一递增至 2.15.1（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 ## [2.15.0] - 2026-09-05
 
 ### Added

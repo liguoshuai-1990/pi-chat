@@ -1628,36 +1628,6 @@ private fun ToolCallBlock(tool: ToolCall) {
         }
     }
 }
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("输出:", fontSize = 11.sp, color = TextDim)
-                        IconButton(
-                            onClick = {
-                                copyToClipboard(context, "工具输出", tool.output)
-                                Toast.makeText(context, "已复制工具输出", Toast.LENGTH_SHORT).show()
-                            },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(Icons.Outlined.ContentCopy, contentDescription = "复制输出", tint = TextDim, modifier = Modifier.size(13.dp))
-                        }
-                    }
-                    Text(
-                        tool.output,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        lineHeight = 17.sp,
-                        color = Color(0xFFCFCFCF),
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun FormattedMarkdownText(text: String) {
