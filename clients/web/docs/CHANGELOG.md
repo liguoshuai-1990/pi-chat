@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.14.7] - 2026-09-05
+
+### Fixed
+- **修复僵死任务问题**：服务端 `send()` 对 `prompt`/`steer`/`client_send` 等长运行命令增加可配置超时（默认 10 分钟，环境变量 `LONG_RUNNING_TIMEOUT_MS`），超时后清理 pending entry、重置 streaming 状态并广播 error 事件，防止 pi 子进程挂起时 agent 成为不可回收的僵尸。
+- **前端 `tool_execution_end` 清理 activeToolCalls**：工具执行完成时从 `activeToolCalls` Map 中删除该 entry，避免 stale 条目累积。此前仅在 `finalizeStreamingMsg`/`clearChat` 等批量清空，若 `tool_execution_end` 事件丢失则工具永远卡在"执行中…"。
+- **WebSocket 断线时标记 stale 工具为"已中断"**：`ws.onclose` 中遍历 `activeToolCalls`，将仍为"执行中…"状态的 tool block 标记为"已中断"并停止计时，防止断线后残留僵尸工具块。
+- **`backfill_end` 后清理 stale 工具**：重连回放结束后，若服务端表示 `!streaming`，将所有仍为"执行中…"的 tool block 标记为"已中断"，处理 buffer 溢出丢失 `tool_execution_end` 事件的场景。
+
 ## [2.14.6] - 2026-09-05
 
 ### Docs

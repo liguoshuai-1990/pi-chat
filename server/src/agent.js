@@ -493,6 +493,17 @@ export class PiAgent {
         timeoutId = setTimeout(() => {
           complete({ type: "response", id, success: false, error: "timeout" });
         }, 15000);
+      } else if (config.longRunningTimeoutMs > 0) {
+        // Long-running commands (prompt, steer, client_send) get a configurable
+        // timeout (default 10 min). Without this, a hung pi subprocess leaves the
+        // pending entry forever, making isBusy permanently true and the agent
+        // becomes an unreclaimable zombie.
+        timeoutId = setTimeout(() => {
+          console.warn(`[PiAgent] long-running command "${cmd.type}" (id=${id}) timed out after ${config.longRunningTimeoutMs}ms`);
+          this.setStreaming(false);
+          this.broadcast({ type: "error", code: "long_running_timeout", message: `任务执行超时（${Math.round(config.longRunningTimeoutMs / 1000)}秒），可能子进程已僵死` });
+          complete({ type: "response", id, success: false, error: "long_running_timeout" });
+        }, config.longRunningTimeoutMs);
       }
     });
   }

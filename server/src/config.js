@@ -120,4 +120,9 @@ export const config = {
   maxConcurrentAgents: parseEnvNum("MAX_CONCURRENT_AGENTS", 0, { integer: true }),
   idleDropHeap: process.env.IDLE_DROP_HEAP === "1" || process.env.IDLE_DROP_HEAP === "true",
   allowedOrigins: process.env.ALLOWED_ORIGINS || "",
+  // Timeout for long-running commands (prompt, steer, client_send) in ms.
+  // 0 = disabled (wait forever). Default: 10 minutes.
+  // When the timeout fires, the pending entry is rejected, streaming state is
+  // reset, and an error event is broadcast — preventing zombie agents.
+  longRunningTimeoutMs: parseEnvNum("LONG_RUNNING_TIMEOUT_MS", 10 * 60 * 1000),
 };

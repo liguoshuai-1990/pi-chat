@@ -1932,6 +1932,22 @@ function connectWs(opts = {}) {
     isConnecting = false;
     if (ws._suppressOnclose) return;
 
+    // Mark any tool blocks still in "执行中…" as interrupted — otherwise they
+    // stay as zombie "执行中…" blocks forever after a disconnect mid-execution.
+    for (const [, tc] of state.activeToolCalls) {
+      const stateEl = tc.head?.querySelector(".state");
+      if (stateEl && stateEl.classList.contains("running")) {
+        stateEl.className = "state error";
+        stateEl.textContent = "已中断";
+      }
+      if (tc.durationEl && tc.durationEl._startedAt) {
+        const dur = Math.max(0, Date.now() - tc.durationEl._startedAt);
+        tc.durationEl.className = "tool-duration";
+        tc.durationEl._startedAt = null;
+        tc.durationEl.textContent = `耗时 ${formatDuration(dur)}`;
+      }
+    }
+
     wasDisconnected = true;
     setConnStatus("disconnected");
     scheduleReconnect();
@@ -2006,6 +2022,22 @@ function handlePiMessage(obj) {
         syncSessionHistory(state.currentSessionFile, false);
       }
     } else {
+      // Server says not streaming — finalize any stale tool blocks that were
+      // left in "执行中…" by a partial backfill (e.g. buffer overflow lost
+      // the matching tool_execution_end event).
+      for (const [, tc] of state.activeToolCalls) {
+        const stateEl = tc.head?.querySelector(".state");
+        if (stateEl && stateEl.classList.contains("running")) {
+          stateEl.className = "state error";
+          stateEl.textContent = "已中断";
+        }
+        if (tc.durationEl && tc.durationEl._startedAt) {
+          const dur = Math.max(0, Date.now() - tc.durationEl._startedAt);
+          tc.durationEl.className = "tool-duration";
+          tc.durationEl._startedAt = null;
+          tc.durationEl.textContent = `耗时 ${formatDuration(dur)}`;
+        }
+      }
       finalizeStreamingMsg();
       state.streaming = false;
       state.aborting = false;
@@ -2285,6 +2317,10 @@ function handlePiMessage(obj) {
           stateEl.textContent = obj.isError ? "错误" : "完成";
           stateEl.className = "state" + (obj.isError ? " error" : "");
         }
+        // Remove from activeToolCalls so stale entries don't accumulate.
+        // Previously only cleared wholesale in finalizeStreamingMsg/clearChat/etc,
+        // which meant a missed tool_execution_end left tools stuck in "执行中…" forever.
+        state.activeToolCalls.delete(obj.toolCallId);
       }
       break;
     }
