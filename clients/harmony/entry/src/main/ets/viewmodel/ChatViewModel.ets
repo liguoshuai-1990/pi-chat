@@ -9,6 +9,7 @@ export class ChatViewModel {
   public isConnected: boolean = false;
   public isStreaming: boolean = false;
   public currentTitle: string = 'New Chat';
+  public currentSessionFile: string = '';
   public cwd: string = '';
   public serverUrl: string = 'http://10.0.2.2:3000'; // Default, overridable via init()
   public token: string = '';
@@ -161,8 +162,20 @@ export class ChatViewModel {
     }
     this.messages = [];
     this.currentTitle = session.sessionName || session.firstUser || session.name;
+    this.currentSessionFile = session.file;
     this.notifyUI();
     this.loadSessionHistory(session.file);
+  }
+
+  /**
+   * 重新加载当前会话的历史消息（下拉刷新调用）。
+   * 如果没有当前会话（新对话/无会话），则不做任何操作。
+   */
+  public async refreshCurrentSession() {
+    if (this.currentSessionFile) {
+      await this.loadSessionHistory(this.currentSessionFile);
+      this.notifyUI();
+    }
   }
 
   public async loadSessionHistory(sessionPath: string) {

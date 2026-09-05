@@ -8,6 +8,7 @@ struct Index {
   @State viewModel: ChatViewModel = new ChatViewModel();
   @State inputMessage: string = '';
   @State refreshTrigger: number = 0;
+  @State isRefreshing: boolean = false;
   @State isDrawerOpen: boolean = false;
   @State isSettingsOpen: boolean = false;
   @State settingsUrl: string = '';
@@ -178,18 +179,33 @@ struct Index {
         .padding({ left: 12, right: 12 })
         .backgroundColor('#1E1E24')
 
-        // Message List
-        List({ scroller: this.scroller, space: 12 }) {
-          ForEach(this.viewModel.messages, (msg: ChatMessage) => {
-            ListItem() {
-              this.MessageItem(msg)
-            }
-          }, (item: ChatMessage) => item.id + (item.status === 'streaming' ? `_${item.content.length}_${item.thinkingContent.length}` : ''))
+        // Message List (with pull-to-refresh)
+        Refresh({ refreshing: $$this.isRefreshing }) {
+          List({ scroller: this.scroller, space: 12 }) {
+            ForEach(this.viewModel.messages, (msg: ChatMessage) => {
+              ListItem() {
+                this.MessageItem(msg)
+              }
+            }, (item: ChatMessage) => item.id + (item.status === 'streaming' ? `_${item.content.length}_${item.thinkingContent.length}` : ''))
+          }
+          .layoutWeight(1)
+          .width('100%')
+          .padding(12)
+          .backgroundColor('#131316')
         }
+        .onRefreshing(() => {
+          if (this.viewModel.currentSessionFile) {
+            this.viewModel.refreshCurrentSession().then(() => {
+              this.isRefreshing = false;
+            }).catch(() => {
+              this.isRefreshing = false;
+            });
+          } else {
+            this.isRefreshing = false;
+          }
+        })
         .layoutWeight(1)
         .width('100%')
-        .padding(12)
-        .backgroundColor('#131316')
 
         // Bottom Input Bar
         Row() {

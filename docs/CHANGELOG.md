@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.15.0] - 2026-09-05
+
+### Added
+- **移动端对话页面下拉刷新功能**：Android 与 HarmonyOS 客户端对话页面现支持在消息列表顶部下拉触发刷新，重新加载当前会话的历史消息。
+  - **Android**：使用 Material3 `PullToRefreshBox` 包裹 `LazyColumn`，下拉时调用 `ChatViewModel.refreshCurrentSession()` 重新拉取当前会话历史。
+  - **HarmonyOS**：使用 ArkUI `Refresh` 组件包裹消息 `List`，`onRefreshing` 回调调用 `ChatViewModel.refreshCurrentSession()` 重新加载历史。
+  - 两端均在无当前会话（新对话）时不触发刷新，避免无效请求。
+
+### Changed
+- 全端版本号统一递增至 2.15.0（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 
 ## [2.14.14] - 2026-09-05
 

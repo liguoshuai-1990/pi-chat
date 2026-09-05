@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -110,6 +111,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    var isRefreshing by remember { mutableStateOf(false) }
 
     var inputText by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<ImageAttachment>>(emptyList()) }
@@ -337,24 +339,37 @@ fun ChatScreen(viewModel: ChatViewModel) {
                         .padding(paddingValues)
                 )
             } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(messages, key = { it.id }) { message ->
-                        MessageBubble(
-                            message = message,
-                            onImageClick = { lightboxImage = it },
-                            onRetry = {
-                                if (message.role == MessageRole.USER) {
-                                    viewModel.sendMessage(message.content, message.images)
-                                }
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing,
+                    onRefresh = {
+                        if (!isRefreshing) {
+                            isRefreshing = true
+                            coroutineScope.launch {
+                                viewModel.refreshCurrentSession()
+                                kotlinx.coroutines.delay(500)
+                                isRefreshing = false
                             }
-                        )
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize().padding(paddingValues)
+                ) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(messages, key = { it.id }) { message ->
+                            MessageBubble(
+                                message = message,
+                                onImageClick = { lightboxImage = it },
+                                onRetry = {
+                                    if (message.role == MessageRole.USER) {
+                                        viewModel.sendMessage(message.content, message.images)
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }

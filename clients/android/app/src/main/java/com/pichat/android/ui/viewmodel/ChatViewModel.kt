@@ -113,6 +113,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         repository.switchSession(session.file)
     }
 
+    /**
+     * 重新加载当前会话的历史消息（下拉刷新调用）。
+     * 如果没有当前会话（新对话/无会话），则不做任何操作。
+     */
+    fun refreshCurrentSession() {
+        val sessionFile = _currentSessionFile.value
+        if (sessionFile != null) {
+            repository.loadSessionHistory(sessionFile)
+        }
+    }
+
     fun deleteSession(file: String) {
         repository.deleteSession(file)
     }
