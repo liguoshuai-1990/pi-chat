@@ -171,7 +171,13 @@ export function createServer(options = {}) {
     return new Promise((resolve) => {
       clearInterval(heartbeatInterval);
       shutdownAllAgents("Server close");
+      for (const client of wss.clients) {
+        try { client.terminate(); } catch {}
+      }
       try { wss.close(); } catch {}
+      if (typeof httpServer.closeAllConnections === "function") {
+        try { httpServer.closeAllConnections(); } catch {}
+      }
       httpServer.close(() => resolve());
     });
   }

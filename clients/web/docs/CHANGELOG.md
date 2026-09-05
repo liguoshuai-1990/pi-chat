@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.14.11] - 2026-09-05
+
+### Fixed
+- **固化服务端与测试进程生命周期回收**：在 `createServer().close()` 中增加 `httpServer.closeAllConnections()` 及 `wss.clients` 强制 terminate 机制，杜绝单元测试及异常退出时因 TCP Keep-Alive 或 WebSocket 连接残留导致 `server.close()` 阻塞挂死。
+
 ## [2.14.10] - 2026-09-05
 
 ### Fixed
