@@ -102,6 +102,7 @@ class ChatRepository(
 
     fun close() {
         wsClient.shutdown()
+        apiService.close()
         scope.cancel()
     }
 
@@ -180,6 +181,8 @@ class ChatRepository(
         activeCwd = newCwd
         _currentCwd.value = newCwd.ifEmpty { "~" }
         _messages.value = emptyList()
+        wsClient.updateCwd(newCwd)
+        wsClient.updateSession(null)
         disconnect()
         connect(cwd = newCwd)
     }
@@ -286,6 +289,7 @@ class ChatRepository(
     }
 
     fun switchSession(sessionPath: String) {
+        wsClient.updateSession(sessionPath)
         val payload = buildJsonObject {
             put("type", "switch_session")
             put("sessionPath", sessionPath)
@@ -450,6 +454,7 @@ class ChatRepository(
 
     fun newSession() {
         _currentSessionFile.value = null
+        wsClient.updateSession(null)
         _messages.value = emptyList()
         _isStreaming.value = false
         cancelStreamingWatchdog()

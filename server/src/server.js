@@ -149,6 +149,9 @@ export function createServer(options = {}) {
   app.use(router);
 
   const httpServer = http.createServer(app);
+  httpServer.on("error", (err) => {
+    console.error("[Pi-Chat Server] HTTP Server error:", err);
+  });
   const { wss, heartbeatInterval } = setupWebSocketGateway(httpServer);
 
   function listen(port = options.port || config.port, host = options.host || config.host) {

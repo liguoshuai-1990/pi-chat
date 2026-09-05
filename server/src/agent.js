@@ -109,6 +109,10 @@ export class PiAgent {
     this.lastActivityAt = nowMs();
     this.cancelIdleKill();
     if (!this.hasListeners && !this.isBusy) {
+      if (!this.sessionKey) {
+        this.stop();
+        return;
+      }
       this.maybeScheduleIdleKill();
     }
   }
@@ -566,6 +570,16 @@ export function getOrCreateAgent(cwd, sessionPath = null) {
       return existing;
     }
     activeAgents.delete(key);
+  }
+
+  // If no sessionPath provided, reuse an existing idle unkeyed agent in the same cwd
+  // to prevent rapid reconnections from spawning redundant CLI processes and exhausting memory.
+  if (!sessionPath) {
+    for (const a of allAgents) {
+      if (a.alive && a.cwd === normCwd && !a.sessionKey && !a.hasListeners && !a.isBusy) {
+        return a;
+      }
+    }
   }
 
   if (config.maxConcurrentAgents > 0) {

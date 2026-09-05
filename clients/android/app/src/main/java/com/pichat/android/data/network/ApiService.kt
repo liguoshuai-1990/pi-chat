@@ -8,14 +8,26 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
 class ApiService(
     baseUrl: String,
     private val token: String? = null
 ) {
     private val baseUrl: String = baseUrl.removeSuffix("/")
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
     private val json = Json { ignoreUnknownKeys = true }
+
+    fun close() {
+        try {
+            client.dispatcher.executorService.shutdown()
+            client.connectionPool.evictAll()
+        } catch (_: Exception) {}
+    }
 
     suspend fun getConfig(): Result<ServerConfig> = withContext(Dispatchers.IO) {
         try {

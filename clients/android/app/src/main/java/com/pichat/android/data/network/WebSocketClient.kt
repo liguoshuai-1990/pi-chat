@@ -23,6 +23,7 @@ class WebSocketClient(
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .pingInterval(25, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
 ) {
@@ -38,16 +39,40 @@ class WebSocketClient(
     val connectionState: SharedFlow<ConnectionState> = _connectionState.asSharedFlow()
 
     private var heartbeatJob: Job? = null
+    private var reconnectJob: Job? = null
     private var isManualClose = false
     private var reconnectAttempts = 0
 
-    fun connect(cwd: String = "", sessionPath: String? = null) {
-        // Close any existing connection to prevent resource leaks when reconnecting
-        webSocket?.let { ws ->
-            try { ws.close(1000, "Reconnecting") } catch (_: Exception) {}
-        }
+    // Monotonically increasing generation ID to invalidate callbacks from stale sockets
+    private var currentGeneration = 0L
+
+    private var activeCwd: String = ""
+    private var activeSessionPath: String? = null
+
+    fun updateSession(sessionPath: String?) {
+        activeSessionPath = sessionPath
+    }
+
+    fun updateCwd(cwd: String) {
+        activeCwd = cwd
+    }
+
+    fun connect(cwd: String = activeCwd, sessionPath: String? = activeSessionPath) {
+        activeCwd = cwd
+        activeSessionPath = sessionPath
+
+        // Invalidate any callbacks from previous connections
+        val generation = ++currentGeneration
+        cancelReconnect()
+
+        // Close existing connection gracefully without triggering stale reconnect
+        val oldWs = webSocket
         webSocket = null
         stopHeartbeat()
+
+        if (oldWs != null) {
+            try { oldWs.close(1000, "Reconnecting") } catch (_: Exception) {}
+        }
 
         isManualClose = false
         _connectionState.tryEmit(ConnectionState.CONNECTING)
@@ -61,8 +86,8 @@ class WebSocketClient(
         val cleanBase = base.removeSuffix("/")
         val pathBase = if (cleanBase.endsWith("/ws")) cleanBase else "$cleanBase/ws"
         val wsUrlBuilder = StringBuilder("$pathBase?")
-        if (cwd.isNotEmpty()) wsUrlBuilder.append("cwd=").append(java.net.URLEncoder.encode(cwd, "UTF-8")).append("&")
-        if (!sessionPath.isNullOrEmpty()) wsUrlBuilder.append("session=").append(java.net.URLEncoder.encode(sessionPath, "UTF-8")).append("&")
+        if (activeCwd.isNotEmpty()) wsUrlBuilder.append("cwd=").append(java.net.URLEncoder.encode(activeCwd, "UTF-8")).append("&")
+        if (!activeSessionPath.isNullOrEmpty()) wsUrlBuilder.append("session=").append(java.net.URLEncoder.encode(activeSessionPath, "UTF-8")).append("&")
 
         val request = Request.Builder()
             .url(wsUrlBuilder.toString().removeSuffix("&").removeSuffix("?"))
@@ -74,13 +99,18 @@ class WebSocketClient(
             .build()
 
         webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
+            override fun onOpen(ws: WebSocket, response: Response) {
+                if (generation != currentGeneration) {
+                    try { ws.close(1000, "Stale generation") } catch (_: Exception) {}
+                    return
+                }
                 reconnectAttempts = 0
                 _connectionState.tryEmit(ConnectionState.CONNECTED)
-                startHeartbeat()
+                startHeartbeat(generation)
             }
 
-            override fun onMessage(webSocket: WebSocket, text: String) {
+            override fun onMessage(ws: WebSocket, text: String) {
+                if (generation != currentGeneration) return
                 try {
                     val msg = json.decodeFromString<GenericServerMessage>(text)
                     if (!_incomingMessages.tryEmit(msg)) {
@@ -91,34 +121,42 @@ class WebSocketClient(
                 }
             }
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                if (generation != currentGeneration) return
                 stopHeartbeat()
                 _connectionState.tryEmit(ConnectionState.DISCONNECTED)
                 if (!isManualClose) {
-                    scheduleReconnect(cwd, sessionPath)
+                    scheduleReconnect()
                 }
             }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                if (generation != currentGeneration) return
                 stopHeartbeat()
                 _connectionState.tryEmit(ConnectionState.ERROR)
                 if (!isManualClose) {
-                    scheduleReconnect(cwd, sessionPath)
+                    scheduleReconnect()
                 }
             }
         })
     }
 
     fun sendRaw(jsonString: String): Boolean {
-        return webSocket?.send(jsonString) ?: false
+        return try {
+            webSocket?.send(jsonString) ?: false
+        } catch (_: Exception) {
+            false
+        }
     }
 
-    private fun startHeartbeat() {
+    private fun startHeartbeat(generation: Long) {
         stopHeartbeat()
         heartbeatJob = scope.launch {
-            while (isActive) {
+            while (isActive && generation == currentGeneration) {
                 delay(30000)
-                sendRaw("""{"type":"ping"}""")
+                if (generation == currentGeneration && !isManualClose) {
+                    sendRaw("""{"type":"ping"}""")
+                }
             }
         }
     }
@@ -128,15 +166,21 @@ class WebSocketClient(
         heartbeatJob = null
     }
 
-    private fun scheduleReconnect(cwd: String, sessionPath: String?) {
-        scope.launch {
+    private fun cancelReconnect() {
+        reconnectJob?.cancel()
+        reconnectJob = null
+    }
+
+    private fun scheduleReconnect() {
+        cancelReconnect()
+        reconnectJob = scope.launch {
             val baseDelay = (1000L * (1L shl minOf(reconnectAttempts, 5)))
             val jitter = (0..1000).random().toLong()
             val delayMs = minOf(30000L, baseDelay + jitter)
             reconnectAttempts++
             delay(delayMs)
-            if (!isManualClose) {
-                connect(cwd, sessionPath)
+            if (!isManualClose && isActive) {
+                connect(activeCwd, activeSessionPath)
             }
         }
     }
@@ -144,8 +188,10 @@ class WebSocketClient(
     fun disconnect() {
         isManualClose = true
         reconnectAttempts = 0
+        currentGeneration++
+        cancelReconnect()
         stopHeartbeat()
-        webSocket?.close(1000, "User disconnected")
+        try { webSocket?.close(1000, "User disconnected") } catch (_: Exception) {}
         webSocket = null
         _connectionState.tryEmit(ConnectionState.DISCONNECTED)
     }

@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.7] - 2026-09-05
+
+### Fixed
+- **解决 Android 客户端断连重连导致网关 3000 端口挂掉的问题 (Reconnect Storm & Subprocess Flood Defense)**：
+  - **Android 端修复重连死循环与代次错乱**：
+    - 在 `WebSocketClient` 引入单调递增的代次 ID（`currentGeneration`），旧连接的所有回调（`onOpen`、`onMessage`、`onClosed`、`onFailure`）被强制屏蔽抛弃，杜绝主动关闭旧连接时旧回调反向触发 `scheduleReconnect` 导致的重连风暴。
+    - 将 `scheduleReconnect` 单例化管理（`reconnectJob`），确保并发失败或多次调用时旧重试任务被立即 `cancel()`，防止重试协程爆炸。
+    - 增加 `activeCwd` 与 `activeSessionPath` 状态追踪与更新机制，避免重连时 sessionPath 丢失导致的重复空会话创建。
+    - 在 `ApiService` 中统一配置 15s 连接超时与 30s 读写超时，并在 `ChatRepository.close()` 时安全释放线程池与连接池资源。
+  - **服务端加固进程容错与子进程防打爆机制**：
+    - 在 `server/src/index.js` 中增加全局 `uncaughtException` 与 `unhandledRejection` 事件监听，防止移动端网络异常、TCP RST 或未处理 socket 错误直接使网关退出。
+    - 在 `server/src/server.js` 与 `server/src/ws.js` 中分别为 `httpServer` 与 `wss` 注册 `error` 监听器，杜绝底层协议升级失败导致进程崩溃。
+    - 在 `server/src/agent.js` 中优化 `getOrCreateAgent`：无 `sessionPath` 时复用同 `cwd` 下空闲且无监听者的 unkeyed agent，杜绝频繁重连 spawn 多个 `pi` CLI 进程吃光服务器内存（OOM）。
+    - 在 `markActivity` 中对无 session 的孤儿 agent 实行闲置立即回收，杜绝后台僵尸进程堆积。
+
+### Changed
+- 全端版本号统一递增至 2.15.7（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
 
 ## [2.15.6] - 2026-09-05
 

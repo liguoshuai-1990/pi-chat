@@ -58,6 +58,11 @@ export function setupWebSocketGateway(httpServer) {
     }
   });
 
+  // Guard against unhandled WebSocketServer errors crashing the Node process
+  wss.on("error", (err) => {
+    console.error("[Pi-Chat Gateway] WebSocket Server error:", err);
+  });
+
   // Heartbeat interval at protocol frame level (ping/pong)
   const heartbeatInterval = setInterval(() => {
     wss.clients.forEach((ws) => {

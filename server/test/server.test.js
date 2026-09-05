@@ -5,7 +5,7 @@ import { isAllowedOrigin } from "../src/ws.js";
 import { verifyToken, verifyWsAuth, authMiddleware } from "../src/auth.js";
 import { config, normalizePath, home } from "../src/config.js";
 import { createServer } from "../src/server.js";
-import { PiAgent, activeAgents, allAgents } from "../src/agent.js";
+import { PiAgent, activeAgents, allAgents, getOrCreateAgent } from "../src/agent.js";
 import { fileURLToPath } from "node:url";
 
 // CI runners don't have the real `pi` CLI installed, so `PiAgent.start()`'s
@@ -323,8 +323,21 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
         });
       });
     } finally {
-      try { ws.close(); } catch {}
+      try { ws.close(1000); } catch {}
       await serverInstance.close();
     }
+  });
+
+  test("getOrCreateAgent reuses existing unkeyed idle agent in the same cwd", async () => {
+    const testCwd = "/tmp/test-cwd-reuse";
+    const agent1 = getOrCreateAgent(testCwd, null);
+    assert.ok(agent1);
+    assert.equal(agent1.sessionKey, null);
+
+    // Without any listeners, another call for same cwd and null session should return the same agent
+    const agent2 = getOrCreateAgent(testCwd, null);
+    assert.strictEqual(agent1, agent2, "Should reuse existing unkeyed idle agent");
+
+    agent1.stop();
   });
 });
