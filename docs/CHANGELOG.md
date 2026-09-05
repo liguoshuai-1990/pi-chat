@@ -13,9 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 在 `FormattedMarkdownText` 中实现 Markdown 表格语法树节点 `MarkdownSegment.Table` 及其水平平滑滚动的专属原生暗黑表格卡片展示，支持多列对齐、表头高亮与斑马纹隔行底色。
   - 支持 GFM 任务列表语法（`- [x]` / `- [ ]`），渲染为精致直观的勾选框（`☑`）与未勾选框（`☐`），进一步提升开发任务清单、参数表与测试用例报告的阅读质感。
 
+### Fixed
+- **Web: 刷新后耗时变 0** — `reconstructFromEntries` 中 timing 数组索引与 turn 错位修复：
+  - `assistantMsgCount`（每条 assistant 消息递增）替换为 `turnIndex`（每条 user 消息递增），与服务端 `saveTimingData()` 每轮一条的 timing 数组对齐
+  - `thinkingIdx` 从每条 assistant 消息重置改为每个 turn 重置，修复多消息 turn 中 thinking 时长取错索引
+  - `turnDurationMs` 仅在 turn 最后一条 assistant 消息上显示，避免轮内多条消息重复显示相同总耗时
+
 ### Changed
 - 全端版本号统一递增至 2.15.6（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
-
 
 ## [2.15.5] - 2026-09-05
 

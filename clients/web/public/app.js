@@ -683,16 +683,39 @@ function reconstructFromEntries(entries, timing = null) {
     }
   }
 
+  // Precompute which entry indices are the last assistant message in their turn.
+  // A turn is delimited by user messages; the last assistant message before the
+  // next user message (or end of entries) is the last in its turn.
+  // We only show the total turn duration on this final message, not on every
+  // intermediate assistant message (e.g. tool-call messages within the same turn).
+  const lastAssistantInTurn = new Set();
+  let lastAssistantIdx = null;
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    if (e.type !== "message" || !e.message) continue;
+    if (e.message.role === "assistant") {
+      lastAssistantIdx = i;
+    } else if (e.message.role === "user" && lastAssistantIdx != null) {
+      lastAssistantInTurn.add(lastAssistantIdx);
+      lastAssistantIdx = null;
+    }
+  }
+  if (lastAssistantIdx != null) lastAssistantInTurn.add(lastAssistantIdx);
+
   const out = [];
   let lastUserTs = null;
-  let assistantMsgCount = 0;
-  for (const e of entries) {
+  let turnIndex = -1;          // incremented per user message — aligns with timing[] (one entry per turn)
+  let thinkingIdx = 0;          // accumulated across assistant messages within the same turn
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
     if (e.type !== "message") continue;
     const m = e.message;
     if (!m || m.role === "bashExecution") continue;
     const msgTs = parseEntryTimestamp(m.timestamp || e.timestamp);
     if (m.role === "user") {
       lastUserTs = msgTs;
+      turnIndex++;
+      thinkingIdx = 0;          // reset thinking index for the new turn
       // Extract optional images from user message content array
       let images = [];
       if (Array.isArray(m.content)) {
@@ -707,17 +730,19 @@ function reconstructFromEntries(entries, timing = null) {
       out.push({ role: "user", text: extractContentText(m.content), images, ts: msgTs });
     } else if (m.role === "assistant") {
       let turnDurationMs = null;
-      // Try timing data first, then fall back to timestamp heuristic
-      const turnTiming = timing ? timing[assistantMsgCount] : null;
-      if (turnTiming?.turnDuration != null) {
-        turnDurationMs = turnTiming.turnDuration;
-      } else if (lastUserTs && msgTs && msgTs >= lastUserTs) {
-        const diff = msgTs - lastUserTs;
-        if (diff > 0 && diff < 15 * 60 * 1000) {
-          turnDurationMs = diff;
+      // Try timing data first, then fall back to timestamp heuristic.
+      // Only show turn duration on the last assistant message of the turn.
+      const turnTiming = timing ? timing[turnIndex] : null;
+      if (lastAssistantInTurn.has(i)) {
+        if (turnTiming?.turnDuration != null) {
+          turnDurationMs = turnTiming.turnDuration;
+        } else if (lastUserTs && msgTs && msgTs >= lastUserTs) {
+          const diff = msgTs - lastUserTs;
+          if (diff > 0 && diff < 15 * 60 * 1000) {
+            turnDurationMs = diff;
+          }
         }
       }
-      let thinkingIdx = 0;
       const rawContent = Array.isArray(m.content) ? m.content : (m.content ? [{ type: "text", text: String(m.content) }] : []);
       const content = rawContent.map(part => {
         if (part && part.type === "thinking") {
@@ -755,13 +780,11 @@ function reconstructFromEntries(entries, timing = null) {
         content.push({ type: "text", text: `⚠️ **生成失败**: ${errMsg}` });
       }
       out.push({ role: "assistant", content, ts: msgTs, turnDurationMs, usage: m.usage });
-      assistantMsgCount++;
     }
     // toolResult entries are attached directly to assistant toolCall parts, so they don't produce standalone messages
   }
   return out;
 }
-
 function extractContentText(content) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
