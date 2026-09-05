@@ -19,6 +19,7 @@ export const ClientMessageType = Object.freeze({
   SET_MODEL: "set_model",
   SET_THINKING_LEVEL: "set_thinking_level",
   CYCLE_THINKING_LEVEL: "cycle_thinking_level",
+  COMPACT: "compact",
   PING: "ping",
   EXTENSION_UI_RESPONSE: "extension_ui_response",
 });
@@ -134,6 +135,12 @@ export function createSetThinkingLevelMessage(level) {
 export function createCycleThinkingLevelMessage() {
   return {
     type: ClientMessageType.CYCLE_THINKING_LEVEL,
+  };
+}
+
+export function createCompactMessage() {
+  return {
+    type: ClientMessageType.COMPACT,
   };
 }
 
@@ -314,6 +321,7 @@ export function validateClientMessage(msg) {
     case ClientMessageType.GET_AVAILABLE_MODELS:
     case ClientMessageType.GET_ENTRIES:
     case ClientMessageType.CYCLE_THINKING_LEVEL:
+    case ClientMessageType.COMPACT:
     case ClientMessageType.PING:
     case "heartbeat":
       return { valid: true };

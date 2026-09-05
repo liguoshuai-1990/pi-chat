@@ -24,6 +24,7 @@
             "set_model",
             "set_thinking_level",
             "cycle_thinking_level",
+            "compact",
             "ping",
             "extension_ui_response"
           ]

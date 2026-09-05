@@ -1064,6 +1064,22 @@ async function handleIncomingFiles(files) {
 
 const handleImageFiles = handleIncomingFiles;
 
+/**
+ * 手动压缩当前会话上下文，释放长会话累积的 token，缓解越聊越慢。
+ * 触发后由 pi 端执行 compaction，返回结果通过 response 事件回显。
+ */
+function compactContext() {
+  if (state.streaming) {
+    showToast("请等待当前任务结束后再压缩上下文");
+    return;
+  }
+  if (!sendWs({ type: "compact" })) {
+    showToast("连接不可用，无法压缩上下文");
+    return;
+  }
+  showToast("正在压缩上下文…");
+}
+
 function exportCurrentSession() {
   const chatInner = $("#chat-inner");
   if (!chatInner || chatInner.children.length === 0) {
@@ -1926,6 +1942,19 @@ function handlePiMessage(obj) {
     } else if (obj.command === "abort") {
       state.aborting = false;
       setComposerStreaming(false);
+    }
+    else if (obj.command === "compact") {
+      if (obj.success) {
+        const after = obj.data?.estimatedTokensAfter;
+        const msg = typeof after === "number"
+          ? `上下文已压缩（预估剩余约 ${after} tokens）`
+          : "上下文已压缩";
+        showToast(msg);
+        appendSystemNotice(msg);
+        sendWs({ type: "get_state" });
+      } else {
+        showToast(`压缩上下文失败: ${obj.error || "未知错误"}`);
+      }
     }
     else if (obj.command === "switch_session" && obj.success) {
       // ask pi for current state so we can get session id, name
@@ -3209,6 +3238,12 @@ async function init() {
   const exportBtn = $("#btnExportChat");
   if (exportBtn) {
     exportBtn.addEventListener("click", exportCurrentSession);
+  }
+
+  // Compact context button (manual compaction for long/slow sessions)
+  const compactBtn = $("#btnCompactChat");
+  if (compactBtn) {
+    compactBtn.addEventListener("click", compactContext);
   }
 
   // Image and file attach / picker / paste / drag-and-drop

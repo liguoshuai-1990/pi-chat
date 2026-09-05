@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [2.16.5] - 2026-09-05
+
+### Added
+- **Web 端「压缩上下文」手动压缩按钮**：在顶栏新增「压缩」按钮，长会话越聊越慢时一键触发 pi 端 compact，释放历史上下文累积的 token；压缩完成后回显预估剩余 token 并同步会话状态。
+- **协议新增 `compact` 消息类型**：在 `packages/protocol` 中新增 `ClientMessageType.COMPACT`、`createCompactMessage()` 构造器、JSON Schema 枚举与 TS 类型，并在网关 `server/src/ws.js` 透传 `compact` RPC 命令。
+
+### Changed
+- **网关空闲回收与提示缓存配置优化**：
+  - `IDLE_TIMEOUT_MS` 默认由 `300000`（5 分钟）提升到 `1800000`（30 分钟），切项目/新会话后保持 pi 子进程热机，避免冷启动首句延迟。
+  - 新增 `PI_CACHE_RETENTION=long` 环境变量（已同步至根目录与 `server/.env.example`、`server/scripts/pi-chat-gateway.service`），拉长 provider 提示缓存跨空闲期/会话切换的保留时间，进一步降低首字延迟。
+- 全端版本号统一递增至 2.16.5（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+
 ## [2.16.4] - 2026-09-05
 
 ### Fixed

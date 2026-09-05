@@ -13,6 +13,7 @@ export type ClientMessageType =
   | "set_model"
   | "set_thinking_level"
   | "cycle_thinking_level"
+  | "compact"
   | "ping"
   | "extension_ui_response";
 
@@ -106,6 +107,10 @@ export interface ClientExtensionUiResponseMessage {
 
 export interface ClientCycleThinkingLevelMessage {
   type: "cycle_thinking_level";
+}
+
+export interface ClientCompactMessage {
+  type: "compact";
 }
 
 export interface AssistantMessageEvent {

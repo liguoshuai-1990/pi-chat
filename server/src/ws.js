@@ -343,6 +343,10 @@ export function setupWebSocketGateway(httpServer) {
           activeAgent.send({ type: "cycle_thinking_level", id: msg.id });
           break;
 
+        case ClientMessageType.COMPACT:
+          activeAgent.send({ type: "compact", id: msg.id });
+          break;
+
         case ClientMessageType.EXTENSION_UI_RESPONSE:
           activeAgent.sendNoReply({ type: "extension_ui_response", ...msg });
           break;

@@ -7,6 +7,10 @@ Type=simple
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOST=0.0.0.0
+# Keep the pi subprocess warm across idle gaps (avoid cold-start latency).
+Environment=IDLE_TIMEOUT_MS=1800000
+# Enable extended provider prompt caching across idle gaps / session switches.
+Environment=PI_CACHE_RETENTION=long
 # Environment=AUTH_TOKEN=your_secret_token_here
 WorkingDirectory=%h/projects/pi-chat/server
 ExecStart=/usr/bin/node src/index.js
