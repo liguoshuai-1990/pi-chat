@@ -734,6 +734,12 @@ body {
 .btn-copy-code svg, .btn-copy-msg svg, .btn-copy-tool svg {
   width: 12px;
   height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
 }
 .msg.assistant .content ul, .msg.assistant .content ol { margin: 8px 0 12px 24px; }
 .msg.assistant .content li { margin: 4px 0; }

@@ -31,14 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.AttachFile
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.Psychology
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -52,10 +45,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,6 +70,9 @@ import com.pichat.android.data.model.ToolCallState
 import com.pichat.android.data.network.ConnectionState
 import com.pichat.android.ui.theme.*
 import com.pichat.android.ui.viewmodel.ChatViewModel
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.launch
 
 private data class SuggestionPrompt(val icon: String, val label: String, val prompt: String)
@@ -1286,6 +1287,10 @@ fun MessageBubble(
                         userBubbleShape
                     )
                     .border(1.dp, Accent.copy(alpha = 0.35f), userBubbleShape)
+                    .clickable {
+                        copyToClipboard(context, "我的提问", message.content)
+                        Toast.makeText(context, "已复制消息内容", Toast.LENGTH_SHORT).show()
+                    }
                     .padding(horizontal = 14.dp, vertical = 11.dp)
             ) {
                 Text(
@@ -1303,7 +1308,9 @@ fun MessageBubble(
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = 4.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 4.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -1340,6 +1347,32 @@ fun MessageBubble(
                         .padding(horizontal = 4.dp, vertical = 1.dp)
                 )
             }
+            Spacer(Modifier.weight(1f))
+            if (message.content.isNotEmpty() || message.toolCalls.isNotEmpty()) {
+                val fullTextToCopy = remember(message) {
+                    if (message.content.isNotEmpty()) message.content
+                    else message.toolCalls.joinToString("\n\n") { "${it.name}: ${it.output.ifEmpty { it.args }}" }
+                }
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable {
+                            copyToClipboard(context, "pi 回答全文", fullTextToCopy)
+                            Toast.makeText(context, "已复制回答全文", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.ContentCopy,
+                        contentDescription = "复制全文",
+                        tint = TextDim,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text("复制全文", fontSize = 11.sp, color = TextDim)
+                }
+            }
         }
 
         Spacer(Modifier.height(2.dp))
@@ -1350,23 +1383,28 @@ fun MessageBubble(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = {
-                        copyToClipboard(context, "pi 回复", message.content)
-                        Toast.makeText(context, "已复制回复内容", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.size(28.dp)
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(BgHover)
+                        .clickable {
+                            copyToClipboard(context, "pi 回复", message.content)
+                            Toast.makeText(context, "已复制回复内容", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         Icons.Outlined.ContentCopy,
                         contentDescription = "复制回复",
                         tint = TextDim,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(13.dp)
                     )
+                    Spacer(Modifier.width(4.dp))
+                    Text("复制回复", fontSize = 11.sp, color = TextDim)
                 }
             }
         }
@@ -1497,21 +1535,82 @@ private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long, dur
     }
 }
 
+private fun parseToolSummary(name: String, args: String): String {
+    if (args.isBlank()) return ""
+    try {
+        val json = Json.parseToJsonElement(args)
+        if (json is JsonObject) {
+            when (name.lowercase()) {
+                "bash", "terminal", "sh" -> {
+                    (json["command"] as? JsonPrimitive)?.content?.let { return it }
+                    (json["cmd"] as? JsonPrimitive)?.content?.let { return it }
+                }
+                "read", "write", "edit", "ls" -> {
+                    (json["path"] as? JsonPrimitive)?.content?.let { return it }
+                    (json["file"] as? JsonPrimitive)?.content?.let { return it }
+                }
+                "grep", "find" -> {
+                    val p = (json["pattern"] as? JsonPrimitive)?.content
+                    val path = (json["path"] as? JsonPrimitive)?.content
+                    if (p != null) return if (path != null) "$p in $path" else p
+                }
+            }
+            for (key in listOf("command", "cmd", "path", "file", "pattern", "query", "url")) {
+                val v = (json[key] as? JsonPrimitive)?.content
+                if (!v.isNullOrBlank()) return v
+            }
+            if (json.size == 1) {
+                val firstVal = json.values.firstOrNull()
+                if (firstVal is JsonPrimitive && firstVal.content.isNotBlank()) {
+                    return firstVal.content
+                }
+            }
+        }
+    } catch (_: Exception) {}
+    return args.replace("\n", " ").trim()
+}
+
+private fun getToolCommandToCopy(name: String, args: String, output: String): String {
+    val summary = parseToolSummary(name, args)
+    if (summary.isNotEmpty()) return summary
+    if (args.isNotBlank()) return args
+    return output
+}
+
+@Composable
+private fun ToolIconView(name: String, isRunning: Boolean) {
+    val icon = when (name.lowercase()) {
+        "bash", "terminal", "sh" -> Icons.Outlined.Terminal
+        "read", "readfile" -> Icons.Outlined.Description
+        "edit", "editfile" -> Icons.Outlined.Edit
+        "write", "writefile" -> Icons.Outlined.Save
+        else -> Icons.Outlined.Build
+    }
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isRunning) Accent.copy(alpha = 0.2f) else Color(0xFF2B2B36)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = name,
+            tint = if (isRunning) Accent else TextSecondary,
+            modifier = Modifier.size(14.dp)
+        )
+    }
+}
+
 @Composable
 private fun ToolCallBlock(tool: ToolCall) {
-    var userExpanded by remember { mutableStateOf<Boolean?>(null) }
+    var userExpanded by remember(tool.id) { mutableStateOf(false) }
+    val expanded = userExpanded
     val isRunning = tool.state == ToolCallState.RUNNING
-    val expanded = userExpanded ?: isRunning
     val context = LocalContext.current
     val durationText = formatDuration(tool.durationMs ?: if (tool.endedAt != null) tool.endedAt - tool.startedAt else null)
-
-    val toolIcon = when (tool.name.lowercase()) {
-        "bash" -> "💻"
-        "read" -> "📄"
-        "edit" -> "✏️"
-        "write" -> "📁"
-        else -> "🛠️"
-    }
+    val summaryText = remember(tool.name, tool.args) { parseToolSummary(tool.name, tool.args) }
+    val cmdToCopy = remember(tool.name, tool.args, tool.output) { getToolCommandToCopy(tool.name, tool.args, tool.output) }
 
     Column(
         modifier = Modifier
@@ -1527,39 +1626,71 @@ private fun ToolCallBlock(tool: ToolCall) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { userExpanded = !expanded }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 10.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(toolIcon, fontSize = 13.sp)
-            Spacer(Modifier.width(6.dp))
-            Text(
-                tool.name.ifEmpty { "工具" },
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false)
-            )
+            ToolIconView(name = tool.name, isRunning = isRunning)
             Spacer(Modifier.width(8.dp))
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = tool.name.ifEmpty { "工具" },
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    maxLines = 1
+                )
+                if (summaryText.isNotEmpty()) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = summaryText,
+                        fontSize = 11.5.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = TextDim,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            if (cmdToCopy.isNotEmpty()) {
+                IconButton(
+                    onClick = {
+                        copyToClipboard(context, "${tool.name} 指令", cmdToCopy)
+                        Toast.makeText(context, "已复制指令", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.size(26.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.ContentCopy,
+                        contentDescription = "复制指令",
+                        tint = TextDim,
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+                Spacer(Modifier.width(2.dp))
+            }
             val stateText = when (tool.state) {
                 ToolCallState.RUNNING -> if (durationText.isNotEmpty()) "执行中 · $durationText" else "执行中…"
                 ToolCallState.DONE -> if (durationText.isNotEmpty()) "完成 · $durationText" else "完成"
                 ToolCallState.ERROR -> if (durationText.isNotEmpty()) "失败 · $durationText" else "失败"
             }
             Text(
-                stateText,
-                fontSize = 11.sp,
+                text = stateText,
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Medium,
                 color = if (tool.state == ToolCallState.ERROR) Danger else if (isRunning) Accent else TextSecondary,
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
                     .background(if (isRunning) Accent.copy(alpha = 0.15f) else BgHover)
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                    .padding(horizontal = 7.dp, vertical = 2.dp)
             )
             Spacer(Modifier.width(4.dp))
             Icon(
                 if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                contentDescription = null,
+                contentDescription = if (expanded) "折叠" else "展开",
                 tint = TextDim,
                 modifier = Modifier.size(16.dp)
             )
@@ -1567,6 +1698,13 @@ private fun ToolCallBlock(tool: ToolCall) {
         AnimatedVisibility(visible = expanded) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
                 if (tool.args.isNotEmpty()) {
+                    Text(
+                        "参数 / 指令",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextDim,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
                     Text(
                         tool.args,
                         fontSize = 12.sp,
@@ -1591,12 +1729,15 @@ private fun ToolCallBlock(tool: ToolCall) {
                             fontWeight = FontWeight.Medium,
                             color = TextDim
                         )
-                        IconButton(
-                            onClick = {
-                                copyToClipboard(context, "${tool.name} 输出", tool.output)
-                                Toast.makeText(context, "已复制工具输出", Toast.LENGTH_SHORT).show()
-                            },
-                            modifier = Modifier.size(20.dp)
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    copyToClipboard(context, "${tool.name} 输出", tool.output)
+                                    Toast.makeText(context, "已复制工具输出", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 Icons.Outlined.ContentCopy,
@@ -1604,6 +1745,8 @@ private fun ToolCallBlock(tool: ToolCall) {
                                 tint = TextDim,
                                 modifier = Modifier.size(12.dp)
                             )
+                            Spacer(Modifier.width(3.dp))
+                            Text("复制", fontSize = 11.sp, color = TextDim)
                         }
                     }
                     Text(
@@ -1612,8 +1755,9 @@ private fun ToolCallBlock(tool: ToolCall) {
                         fontFamily = FontFamily.Monospace,
                         lineHeight = 16.sp,
                         color = TextDim,
-                        maxLines = if (isRunning) 15 else 30,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 40,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
                     )
                 } else if (isRunning) {
                     Text(
@@ -1629,28 +1773,185 @@ private fun ToolCallBlock(tool: ToolCall) {
     }
 }
 
+private val INLINE_MD_REGEX = Regex("(`[^`\\n]+`|\\*\\*[^\\*\\n]+\\*\\*|__[^_\\n]+__|\\*[^\\*\\n]+\\*|_[^_\\n]+_|~~[^~\\n]+~~|\\[[^\\]\\n]+\\]\\([^)\\n]+\\))")
+
+private fun buildAnnotatedMarkdownString(text: String): AnnotatedString {
+    return buildAnnotatedString {
+        var lastIdx = 0
+        val matches = INLINE_MD_REGEX.findAll(text)
+        for (m in matches) {
+            val start = m.range.first
+            val end = m.range.last + 1
+            if (start > lastIdx) {
+                append(text.substring(lastIdx, start))
+            }
+            val token = m.value
+            when {
+                token.startsWith("`") && token.endsWith("`") -> {
+                    pushStyle(
+                        SpanStyle(
+                            fontFamily = FontFamily.Monospace,
+                            background = Color(0xFF22222B),
+                            color = Color(0xFF6EE7B7),
+                            fontSize = 12.5.sp
+                        )
+                    )
+                    append(token.removeSurrounding("`"))
+                    pop()
+                }
+                (token.startsWith("**") && token.endsWith("**")) || (token.startsWith("__") && token.endsWith("__")) -> {
+                    pushStyle(SpanStyle(fontWeight = FontWeight.Bold, color = TextPrimary))
+                    append(if (token.startsWith("**")) token.removeSurrounding("**") else token.removeSurrounding("__"))
+                    pop()
+                }
+                (token.startsWith("*") && token.endsWith("*")) || (token.startsWith("_") && token.endsWith("_")) -> {
+                    pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
+                    append(if (token.startsWith("*")) token.removeSurrounding("*") else token.removeSurrounding("_"))
+                    pop()
+                }
+                token.startsWith("~~") && token.endsWith("~~") -> {
+                    pushStyle(SpanStyle(textDecoration = TextDecoration.LineThrough, color = TextDim))
+                    append(token.removeSurrounding("~~"))
+                    pop()
+                }
+                token.startsWith("[") && token.contains("](") && token.endsWith(")") -> {
+                    val linkTitle = token.substringAfter("[").substringBefore("]")
+                    pushStyle(SpanStyle(color = Accent, textDecoration = TextDecoration.Underline))
+                    append(linkTitle)
+                    pop()
+                }
+                else -> {
+                    append(token)
+                }
+            }
+            lastIdx = end
+        }
+        if (lastIdx < text.length) {
+            append(text.substring(lastIdx))
+        }
+    }
+}
+
 @Composable
 private fun FormattedMarkdownText(text: String) {
     val context = LocalContext.current
-    // Split into code blocks and normal text segments
     val parts = remember(text) { parseMarkdownSegments(text) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (part in parts) {
             when (part) {
+                is MarkdownSegment.Heading -> {
+                    val fontSize = when (part.level) {
+                        1 -> 20.sp
+                        2 -> 18.sp
+                        3 -> 16.sp
+                        4 -> 15.sp
+                        else -> 14.sp
+                    }
+                    val topPadding = when (part.level) {
+                        1 -> 10.dp
+                        2 -> 8.dp
+                        3 -> 6.dp
+                        else -> 4.dp
+                    }
+                    Text(
+                        text = buildAnnotatedMarkdownString(part.text),
+                        fontSize = fontSize,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        modifier = Modifier.padding(top = topPadding, bottom = 2.dp)
+                    )
+                }
+                is MarkdownSegment.BulletItem -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 1.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text(
+                            "•",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Accent,
+                            modifier = Modifier.padding(start = 4.dp, end = 8.dp)
+                        )
+                        Text(
+                            text = buildAnnotatedMarkdownString(part.text),
+                            fontSize = 14.sp,
+                            lineHeight = 21.sp,
+                            color = TextPrimary,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                is MarkdownSegment.NumberedItem -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 1.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text(
+                            "${part.number}.",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Accent,
+                            modifier = Modifier.padding(start = 4.dp, end = 6.dp)
+                        )
+                        Text(
+                            text = buildAnnotatedMarkdownString(part.text),
+                            fontSize = 14.sp,
+                            lineHeight = 21.sp,
+                            color = TextPrimary,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                is MarkdownSegment.Blockquote -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(3.dp)
+                                .height(22.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(Accent.copy(alpha = 0.6f))
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = buildAnnotatedMarkdownString(part.text),
+                            fontSize = 13.5.sp,
+                            fontStyle = FontStyle.Italic,
+                            lineHeight = 20.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+                is MarkdownSegment.Divider -> {
+                    HorizontalDivider(
+                        color = Border,
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(vertical = 6.dp)
+                    )
+                }
                 is MarkdownSegment.CodeBlock -> {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(BgInput)
+                            .background(Color(0xFF141418))
                             .border(BorderStroke(1.dp, Border), RoundedCornerShape(8.dp))
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(SidebarBg)
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                                .background(Color(0xFF1E1E24))
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -1660,14 +1961,24 @@ private fun FormattedMarkdownText(text: String) {
                                 fontFamily = FontFamily.Monospace,
                                 color = TextSecondary
                             )
-                            IconButton(
-                                onClick = {
-                                    copyToClipboard(context, "代码片段", part.code)
-                                    Toast.makeText(context, "已复制代码", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.size(24.dp)
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable {
+                                        copyToClipboard(context, "代码片段", part.code)
+                                        Toast.makeText(context, "已复制代码", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Outlined.ContentCopy, contentDescription = "复制代码", tint = TextDim, modifier = Modifier.size(13.dp))
+                                Icon(
+                                    Icons.Outlined.ContentCopy,
+                                    contentDescription = "复制代码",
+                                    tint = TextDim,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(Modifier.width(3.dp))
+                                Text("复制", fontSize = 11.sp, color = TextDim)
                             }
                         }
                         Text(
@@ -1684,7 +1995,7 @@ private fun FormattedMarkdownText(text: String) {
                 }
                 is MarkdownSegment.Paragraph -> {
                     Text(
-                        part.text,
+                        text = buildAnnotatedMarkdownString(part.text),
                         fontSize = 14.sp,
                         lineHeight = 22.sp,
                         color = TextPrimary
@@ -1696,7 +2007,12 @@ private fun FormattedMarkdownText(text: String) {
 }
 
 sealed class MarkdownSegment {
+    data class Heading(val level: Int, val text: String) : MarkdownSegment()
     data class Paragraph(val text: String) : MarkdownSegment()
+    data class BulletItem(val text: String) : MarkdownSegment()
+    data class NumberedItem(val number: String, val text: String) : MarkdownSegment()
+    data class Blockquote(val text: String) : MarkdownSegment()
+    object Divider : MarkdownSegment()
     data class CodeBlock(val lang: String, val code: String) : MarkdownSegment()
 }
 
@@ -1708,6 +2024,14 @@ private fun parseMarkdownSegments(raw: String): List<MarkdownSegment> {
     val codeBuffer = StringBuilder()
     val paraBuffer = StringBuilder()
 
+    fun flushPara() {
+        val t = paraBuffer.toString().trim()
+        if (t.isNotEmpty()) {
+            result.add(MarkdownSegment.Paragraph(t))
+        }
+        paraBuffer.clear()
+    }
+
     for (line in lines) {
         if (line.startsWith("```")) {
             if (inCode) {
@@ -1715,29 +2039,71 @@ private fun parseMarkdownSegments(raw: String): List<MarkdownSegment> {
                 codeBuffer.clear()
                 inCode = false
             } else {
-                if (paraBuffer.isNotEmpty()) {
-                    result.add(MarkdownSegment.Paragraph(paraBuffer.toString().trimEnd()))
-                    paraBuffer.clear()
-                }
+                flushPara()
                 codeLang = line.removePrefix("```").trim()
                 inCode = true
             }
-        } else {
-            if (inCode) {
-                if (codeBuffer.isNotEmpty()) codeBuffer.append("\n")
-                codeBuffer.append(line)
-            } else {
-                if (paraBuffer.isNotEmpty()) paraBuffer.append("\n")
-                paraBuffer.append(line)
-            }
+            continue
         }
+
+        if (inCode) {
+            if (codeBuffer.isNotEmpty()) codeBuffer.append("\n")
+            codeBuffer.append(line)
+            continue
+        }
+
+        val trimmed = line.trim()
+        if (trimmed.isEmpty()) {
+            flushPara()
+            continue
+        }
+
+        if (trimmed == "---" || trimmed == "***" || trimmed == "___") {
+            flushPara()
+            result.add(MarkdownSegment.Divider)
+            continue
+        }
+
+        val headingMatch = Regex("^(#{1,6})\\s+(.*)$").matchEntire(trimmed)
+        if (headingMatch != null) {
+            flushPara()
+            val level = headingMatch.groupValues[1].length
+            val title = headingMatch.groupValues[2].trim()
+            result.add(MarkdownSegment.Heading(level, title))
+            continue
+        }
+
+        if (trimmed.startsWith(">")) {
+            flushPara()
+            val quoteText = trimmed.removePrefix(">").trim()
+            result.add(MarkdownSegment.Blockquote(quoteText))
+            continue
+        }
+
+        val bulletMatch = Regex("^[-*+]\\s+(.*)$").matchEntire(trimmed)
+        if (bulletMatch != null) {
+            flushPara()
+            result.add(MarkdownSegment.BulletItem(bulletMatch.groupValues[1].trim()))
+            continue
+        }
+
+        val numMatch = Regex("^(\\d+)\\.\\s+(.*)$").matchEntire(trimmed)
+        if (numMatch != null) {
+            flushPara()
+            result.add(MarkdownSegment.NumberedItem(numMatch.groupValues[1], numMatch.groupValues[2].trim()))
+            continue
+        }
+
+        if (paraBuffer.isNotEmpty()) paraBuffer.append("\n")
+        paraBuffer.append(line)
     }
 
     if (inCode && codeBuffer.isNotEmpty()) {
         result.add(MarkdownSegment.CodeBlock(codeLang, codeBuffer.toString().trimEnd()))
-    } else if (paraBuffer.isNotEmpty()) {
-        result.add(MarkdownSegment.Paragraph(paraBuffer.toString().trimEnd()))
+    } else {
+        flushPara()
     }
+
     return result
 }
 

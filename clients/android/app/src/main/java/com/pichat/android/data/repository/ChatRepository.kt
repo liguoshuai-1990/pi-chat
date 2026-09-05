@@ -678,10 +678,7 @@ class ChatRepository(
                         }
                     }
                     else -> {
-                        val delta = ev?.delta ?: msg.delta ?: ""
-                        if (delta.isNotEmpty()) {
-                            updateLastAssistantMessage(delta, msg.isThinking == true)
-                        }
+                        // Do not append unhandled tool/system delta payloads to message content
                     }
                 }
             }
@@ -974,11 +971,18 @@ class ChatRepository(
             } else {
                 last.turnDurationMs
             }
+            val updatedToolCalls = last.toolCalls.map {
+                if (it.state == ToolCallState.RUNNING) {
+                    val dur = if (it.startedAt > 0) now - it.startedAt else null
+                    it.copy(state = ToolCallState.DONE, endedAt = now, durationMs = it.durationMs ?: dur)
+                } else it
+            }
             list[idx] = last.copy(
                 status = MessageStatus.DONE,
                 isThinking = false,
                 thinkingDurationMs = thinkingDuration,
-                turnDurationMs = turnDuration
+                turnDurationMs = turnDuration,
+                toolCalls = updatedToolCalls
             )
             _messages.value = list
         }

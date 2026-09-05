@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.15.4] - 2026-09-05
+
+### Fixed
+- **Web 端复制按钮黑斑修复**：修复 Web 前端复制按钮 SVG 缺少 `viewBox="0 0 24 24"` 及 `fill="none"`、`stroke="currentColor"` 属性导致浏览器默认以黑色填充并在按钮左侧呈现黑斑的问题，同时在全局 CSS 中规范复制按钮 SVG 的线条轮廓样式。
+- **Android 工具执行卡片折叠与异常输出收拢**：
+  - 工具卡片默认采用折叠状态（与 Web 端保持一致），避免多行命令执行结果直接霸屏展开；用户可自主点击卡片展开/收起参数与输出日志。
+  - 修复 `ChatRepository` 在消息结算与 watchdog 超时退出时未将未完结工具状态标记为 DONE 的隐患，防止工具卡片永久处于运行中并展开。
+  - 过滤流式处理中非文本增量消息向 `message.content` 的错误追加，杜绝内部系统或工具结果泄漏进正文显示。
+
+### Added & Enhanced
+- **Android 工具卡片现代矢量图标与左右布局优化**：
+  - 替换原有粗糙的 Emoji 表情，重构为现代 Material Outlined 矢量图标（终端、文件、编辑、保存、工具等）及带圆角底色的专属图标徽章。
+  - 重构工具卡片顶栏布局：工具名称与指令摘要使用自适应权重展示，快捷复制指令按钮、耗时状态胶囊徽章与展开折叠箭头靠右对齐，彻底消除卡片右侧大片空白问题。
+- **Android 多维复制能力增强**：
+  - 在 Assistant 回答卡片顶部标题行新增“复制全文”快捷操作按钮，并在卡片底部提供清晰醒目的“复制回复”胶囊按钮。
+  - 用户消息气泡支持点击快捷复制提问内容。
+  - 工具卡片折叠与展开状态下均支持一键复制执行指令与输出结果，代码块组件保留显式复制按钮。
+- **Android 富文本 Markdown 渲染重构升级**：
+  - 深度重构 `FormattedMarkdownText`，全面支持多级标题（H1~H4）层级与字号间距排版、圆点无序列表、序号有序列表、引用块（带 Accent 竖条装饰）、分割线以及暗黑代码块。
+  - 引入基于 Compose `AnnotatedString` 的行内 Markdown 解析器，完整高亮行内代码（薄荷绿等宽字体与暗色衬底）、粗体、斜体、删除线与链接样式，大幅提升最终回复的可读性与美观度。
+
+### Changed
+- 全端版本号统一递增至 2.15.4（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+
 ## [2.15.3] - 2026-09-05
 
 ### Fixed
@@ -13,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - 全端版本号统一递增至 2.15.3（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
 
 ## [2.15.2] - 2026-09-05
 
@@ -56,12 +82,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **文档整理与路径修正**：
   - 将 `CHANGELOG.md` 与 `ISSUES.md` 从 `clients/web/docs/` 迁移至项目根 `docs/`，与 `ARCHITECTURE.md`、`USER_JOURNEY.md` 统一收纳。
   - 修复 `clients/web/docs/ARCHITECTURE.md` 中残留的旧版本号引用（v2.14.5 → v2.14.13）及过时的目录结构（移除不存在的 `package-lock.json`、已迁出的 `ISSUES.md` / `CHANGELOG.md`）。
-  - 同步更新 `AGENTS.md`、`CLAUDE.md`、`clients/web/README.md` 中对 CHANGELOG 路径的引用。
-
-### Changed
-- 全端版本号统一递增至 2.14.13（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
-
-## [2.14.12] - 2026-09-05
-
-### Fixed
-- **修复 HarmonyOS `versionCode` 位数与数值回退**：将 `clients/harmony/AppScope/app.json5` 的 `versionCode` 从错误的三位缩短格式（`21411`）恢复为标准的七位格式（`2141200`），并统一全仓版本号至 2.14.12。修正自 2.14.7 起 `versionCode` 由 `2140600` 误缩为 `21407` 造成的数值回退，避免 HarmonyOS 应用商店因版本号非单调递增而拒绝上架。
