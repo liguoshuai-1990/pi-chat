@@ -93,6 +93,20 @@ try {
   if (pkg.version) PKG_VERSION = pkg.version;
 } catch {}
 
+/**
+ * Parse a numeric environment variable with a fallback default.
+ * Returns defaultValue when the env var is unset, empty, non-finite, or negative.
+ * Pass { integer: true } to also reject non-integer values.
+ */
+function parseEnvNum(name, defaultValue, { integer = false } = {}) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return defaultValue;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return defaultValue;
+  if (integer && !Number.isInteger(n)) return defaultValue;
+  return n;
+}
+
 export const config = {
   port: Number(process.env.PORT) || 3000,
   host: process.env.HOST || "0.0.0.0",
@@ -100,30 +114,10 @@ export const config = {
   sessionsDir: process.env.PI_SESSIONS_DIR || path.join(home(), ".pi", "agent", "sessions"),
   piBin: resolvePiBin(),
   version: PKG_VERSION,
-  idleTimeoutMs: (() => {
-    const raw = process.env.IDLE_TIMEOUT_MS;
-    if (raw === undefined || raw === "") return 5 * 60 * 1000;
-    const n = Number(raw);
-    return !Number.isFinite(n) || n < 0 ? 5 * 60 * 1000 : n;
-  })(),
-  maxAgentLifetimeMs: (() => {
-    const raw = process.env.MAX_AGENT_LIFETIME_MS;
-    if (raw === undefined || raw === "") return 0;
-    const n = Number(raw);
-    return !Number.isFinite(n) || n < 0 ? 0 : n;
-  })(),
-  eventBufferSize: (() => {
-    const raw = process.env.EVENT_BUFFER_SIZE;
-    if (raw === undefined || raw === "") return 5000;
-    const n = Number(raw);
-    return !Number.isInteger(n) || n < 0 ? 5000 : n;
-  })(),
-  maxConcurrentAgents: (() => {
-    const raw = process.env.MAX_CONCURRENT_AGENTS;
-    if (raw === undefined || raw === "") return 0;
-    const n = Number(raw);
-    return !Number.isInteger(n) || n < 0 ? 0 : n;
-  })(),
+  idleTimeoutMs: parseEnvNum("IDLE_TIMEOUT_MS", 5 * 60 * 1000),
+  maxAgentLifetimeMs: parseEnvNum("MAX_AGENT_LIFETIME_MS", 0),
+  eventBufferSize: parseEnvNum("EVENT_BUFFER_SIZE", 5000, { integer: true }),
+  maxConcurrentAgents: parseEnvNum("MAX_CONCURRENT_AGENTS", 0, { integer: true }),
   idleDropHeap: process.env.IDLE_DROP_HEAP === "1" || process.env.IDLE_DROP_HEAP === "true",
   allowedOrigins: process.env.ALLOWED_ORIGINS || "",
 };

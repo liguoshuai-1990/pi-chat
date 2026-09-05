@@ -225,6 +225,48 @@ function resolveSessionPath(file) {
   return { resolvedSessionsDir, requestedPath: target };
 }
 
+/**
+ * Validates a session file path against path traversal attacks.
+ * Resolves the file and ensures it stays within the sessions directory.
+ * @returns {Promise<{resolvedFile: string, requestedPath: string} | {error: number, message: string}>}
+ */
+async function validateSessionFile(file) {
+  if (!file || typeof file !== "string" || !file.endsWith(".jsonl")) {
+    return { error: 400, message: "bad file" };
+  }
+
+  const resolvedInfo = resolveSessionPath(file);
+  if (!resolvedInfo) return { error: 400, message: "bad file" };
+
+  const { resolvedSessionsDir, requestedPath } = resolvedInfo;
+  const relPath = path.relative(resolvedSessionsDir, requestedPath);
+  if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
+    return { error: 403, message: "Access denied" };
+  }
+
+  let resolvedFile;
+  try {
+    resolvedFile = await fsRealpath(requestedPath);
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return { error: 404, message: "File not found" };
+    }
+    resolvedFile = requestedPath;
+  }
+
+  let canonicalSessionsDir = resolvedSessionsDir;
+  try {
+    canonicalSessionsDir = await fsRealpath(resolvedSessionsDir);
+  } catch {}
+
+  const realRel = path.relative(canonicalSessionsDir, resolvedFile);
+  if (realRel.startsWith("..") || path.isAbsolute(realRel)) {
+    return { error: 403, message: "Access denied" };
+  }
+
+  return { resolvedFile, requestedPath };
+}
+
 function extractText(content) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) {
@@ -341,31 +383,12 @@ router.get("/api/sessions", authMiddleware, async (req, res) => {
 router.get("/api/session", authMiddleware, async (req, res) => {
   try {
     const file = req.query.file;
-    if (!file || typeof file !== "string" || !file.endsWith(".jsonl")) return res.status(400).json({ error: "bad file" });
-
-    const resolvedInfo = resolveSessionPath(file);
-    if (!resolvedInfo) return res.status(400).json({ error: "bad file" });
-
-    const { resolvedSessionsDir, requestedPath } = resolvedInfo;
-    const relPath = path.relative(resolvedSessionsDir, requestedPath);
-    if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
-      return res.status(403).json({ error: "Access denied" });
+    const validation = await validateSessionFile(file);
+    if (validation.error) {
+      return res.status(validation.error).json({ error: validation.message });
     }
 
-    let resolvedFile;
-    try {
-      resolvedFile = await fsRealpath(requestedPath);
-    } catch {
-      resolvedFile = requestedPath;
-    }
-    let canonicalSessionsDir = resolvedSessionsDir;
-    try {
-      canonicalSessionsDir = await fsRealpath(resolvedSessionsDir);
-    } catch {}
-    const realRel = path.relative(canonicalSessionsDir, resolvedFile);
-    if (realRel.startsWith("..") || path.isAbsolute(realRel)) {
-      return res.status(403).json({ error: "Access denied" });
-    }
+    const { resolvedFile } = validation;
 
     let content;
     try {
@@ -470,38 +493,12 @@ router.get("/api/session", authMiddleware, async (req, res) => {
 router.delete("/api/session", authMiddleware, async (req, res) => {
   try {
     const file = req.query.file || req.body?.file;
-    if (!file || typeof file !== "string" || !file.endsWith(".jsonl")) {
-      return res.status(400).json({ error: "bad file" });
+    const validation = await validateSessionFile(file);
+    if (validation.error) {
+      return res.status(validation.error).json({ error: validation.message });
     }
 
-    const resolvedInfo = resolveSessionPath(file);
-    if (!resolvedInfo) return res.status(400).json({ error: "bad file" });
-
-    const { resolvedSessionsDir, requestedPath } = resolvedInfo;
-    const relPath = path.relative(resolvedSessionsDir, requestedPath);
-    if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    let resolvedFile;
-    try {
-      resolvedFile = await fsRealpath(requestedPath);
-    } catch (err) {
-      if (err.code === "ENOENT") {
-        return res.status(404).json({ error: "File not found" });
-      }
-      resolvedFile = requestedPath;
-    }
-
-    let canonicalSessionsDir = resolvedSessionsDir;
-    try {
-      canonicalSessionsDir = await fsRealpath(resolvedSessionsDir);
-    } catch {}
-
-    const realRel = path.relative(canonicalSessionsDir, resolvedFile);
-    if (realRel.startsWith("..") || path.isAbsolute(realRel)) {
-      return res.status(403).json({ error: "Access denied" });
-    }
+    const { resolvedFile, requestedPath } = validation;
 
     for (const [key, agent] of activeAgents.entries()) {
       if (key.endsWith(`:${requestedPath}`) || key.endsWith(`:${resolvedFile}`)) {

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.14.4] - 2026-09-05
+
+### Performance
+- **添加 HTTP gzip 压缩中间件**：使用 Node.js 内置 `zlib` 实现（零外部依赖），对 `app.js` (123KB→~30KB)、`style.css` (46KB→~10KB) 等文本资源自动 gzip，传输体积减少约 70%。
+- **添加静态资源 Cache-Control 头**：常规资源缓存 1 天，带哈希文件名的资源缓存 1 年（immutable），减少浏览器重复拉取。
+
+### Refactor
+- **提取路径遍历安全校验为 `validateSessionFile()` helper**：`routes.js` 中 GET /api/session 和 DELETE /api/session 的重复安全校验逻辑（~30 行 × 2）合并为一处，降低维护风险。
+- **提取环境变量数值解析为 `parseEnvNum()` helper**：`config.js` 中 4 处重复的 IIFE 模式合并为一个带 `{ integer }` 选项的 helper 函数。
+
+### Fixed
+- 修复 `agent.js` `saveTimingData()` 中注释与代码不一致：注释写 "Keep last 200 turns" 但实际保留 1000 条。
+
 ## [2.14.0] - 2026-09-04
 
 ### Changed

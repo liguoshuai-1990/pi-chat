@@ -370,7 +370,7 @@ export class PiAgent {
       } catch {}
       // Append current turn timing
       turns.push(this.timingData);
-      // Keep last 200 turns to avoid unbounded growth
+      // Keep last 1000 turns to avoid unbounded growth
       if (turns.length > 1000) turns = turns.slice(-1000);
       await writeFile(timingPath, JSON.stringify(turns), "utf8");
     } catch (e) {

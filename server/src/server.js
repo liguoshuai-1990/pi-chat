@@ -3,12 +3,90 @@ import http from "http";
 import path from "path";
 import { existsSync } from "fs";
 import { fileURLToPath } from "url";
+import zlib from "zlib";
 import { config } from "./config.js";
 import { router } from "./routes.js";
 import { setupWebSocketGateway } from "./ws.js";
 import { shutdownAllAgents } from "./agent.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// --- Lightweight gzip compression middleware (no external dependency) ---
+const COMPRESSIBLE_TYPES = new Set([
+  "text/html", "text/css", "text/javascript", "text/plain", "text/xml",
+  "application/json", "application/javascript", "application/xml",
+  "application/x-javascript", "image/svg+xml",
+]);
+const MIN_COMPRESS_SIZE = 1024; // Don't compress responses < 1KB
+
+function compressionMiddleware(req, res, next) {
+  // Only compress GET/HEAD responses
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+
+  const acceptEncoding = req.headers["accept-encoding"] || "";
+  if (!acceptEncoding.includes("gzip")) return next();
+
+  // Set Vary header for proper caching
+  const existingVary = res.getHeader("Vary");
+  if (existingVary) {
+    if (!String(existingVary).includes("Accept-Encoding")) {
+      res.setHeader("Vary", `${existingVary}, Accept-Encoding`);
+    }
+  } else {
+    res.setHeader("Vary", "Accept-Encoding");
+  }
+
+  const chunks = [];
+  let capturing = null; // null=unknown, true=capturing, false=passthrough
+
+  function shouldCapture() {
+    if (capturing !== null) return capturing;
+    const ct = (res.getHeader("Content-Type") || "").split(";")[0].trim().toLowerCase();
+    // Skip SSE and non-text types
+    capturing = (ct !== "text/event-stream" && COMPRESSIBLE_TYPES.has(ct));
+    return capturing;
+  }
+
+  const origWrite = res.write;
+  const origEnd = res.end;
+
+  res.write = function (chunk, ...args) {
+    if (shouldCapture() && chunk) {
+      chunks.push(Buffer.from(chunk));
+      return true;
+    }
+    return origWrite.call(this, chunk, ...args);
+  };
+
+  res.end = function (chunk, ...args) {
+    if (chunk && shouldCapture()) {
+      chunks.push(Buffer.from(chunk));
+    }
+    if (!shouldCapture()) {
+      return origEnd.call(this, chunk, ...args);
+    }
+    const body = Buffer.concat(chunks);
+    // Skip small responses or already-encoded
+    if (body.length < MIN_COMPRESS_SIZE || res.getHeader("Content-Encoding")) {
+      return origEnd.call(this, body);
+    }
+    // If headers already sent (streaming started), can't compress — send raw
+    if (res.headersSent) {
+      return origEnd.call(this, body);
+    }
+    zlib.gzip(body, { level: 6 }, (err, compressed) => {
+      if (err) {
+        return origEnd.call(this, body);
+      }
+      res.setHeader("Content-Encoding", "gzip");
+      res.setHeader("Content-Length", compressed.length);
+      res.removeHeader("ETag"); // ETag was for uncompressed body
+      origEnd.call(this, compressed);
+    });
+  };
+
+  next();
+}
 
 export function createServer(options = {}) {
   const app = express();
@@ -37,6 +115,9 @@ export function createServer(options = {}) {
     next();
   });
 
+  // Gzip compression for text-based responses (app.js, style.css, JSON, etc.)
+  app.use(compressionMiddleware);
+
   // JSON parser
   app.use(express.json({ limit: "50mb" }));
 
@@ -50,7 +131,16 @@ export function createServer(options = {}) {
 
   for (const pub of staticDirs) {
     if (existsSync(pub)) {
-      app.use(express.static(pub));
+      // Cache static assets: 1 day for regular files, 1 year for immutable hashed files
+      app.use(express.static(pub, {
+        maxAge: "1d",
+        setHeaders: (res, filePath) => {
+          // Longer cache for files with hash in name (e.g., app.abc123.js)
+          if (/\.[a-f0-9]{8,}\./.test(path.basename(filePath))) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          }
+        },
+      }));
       break;
     }
   }
