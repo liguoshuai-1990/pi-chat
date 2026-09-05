@@ -1,6 +1,6 @@
 {
   "name": "@liguoshuai/pi-chat-protocol",
-  "version": "2.14.9",
+  "version": "2.14.10",
   "description": "Standard communication protocol schema, types, and validators for pi-chat clients (Web, Android, HarmonyOS) and gateway",
   "type": "module",
   "main": "src/index.js",
@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "build": "node --check src/index.js",
-    "test": "node --test --test-timeout=30000"
+    "test": "node --test"
   },
   "keywords": [
     "pi-chat",

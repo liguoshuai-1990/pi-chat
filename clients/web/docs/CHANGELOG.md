@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.14.10] - 2026-09-05
+
+### Fixed
+- **兼容 Node 18+ 原生测试参数**：移除 `node --test` 中 Node 18 不支持的 `--test-timeout` 选项，统一在异步测试内部通过标准 `setTimeout` + `try ... finally` 进行跨版本超时控制与资源清理。
+
 ## [2.14.9] - 2026-09-05
 
 ### Fixed
