@@ -636,13 +636,57 @@ class ChatRepository(
             }
             "agent_stream", "message_update" -> {
                 val ev = msg.assistantMessageEvent
-                val delta = ev?.delta ?: msg.delta ?: ""
-                val isThinking = ev?.type == "thinking_delta" || msg.isThinking == true
-                if (delta.isNotEmpty()) {
-                    updateLastAssistantMessage(delta, isThinking)
+                val evType = ev?.type ?: if (msg.isThinking == true) "thinking_delta" else "text_delta"
+                when (evType) {
+                    "thinking_start" -> {
+                        startThinking()
+                    }
+                    "thinking_delta" -> {
+                        val delta = ev?.delta ?: msg.delta ?: ""
+                        if (delta.isNotEmpty()) {
+                            updateLastAssistantMessage(delta, isThinking = true)
+                        }
+                    }
+                    "thinking_end" -> {
+                        finishThinking()
+                    }
+                    "text_start" -> {
+                        finishThinking()
+                    }
+                    "text_delta" -> {
+                        val delta = ev?.delta ?: msg.delta ?: ""
+                        if (delta.isNotEmpty()) {
+                            updateLastAssistantMessage(delta, isThinking = false)
+                        }
+                    }
+                    "text_end" -> {
+                        finishThinking()
+                        val contentStr = extractJsonText(ev?.content)
+                        if (contentStr.isNotEmpty()) {
+                            setAssistantFinalText(contentStr)
+                        }
+                    }
+                    "toolcall_start", "toolcall_delta", "toolcall_end" -> {
+                        finishThinking()
+                        val tc = ev?.toolCall as? JsonObject
+                        val id = (tc?.get("id") as? JsonPrimitive)?.content ?: msg.toolCallId ?: ""
+                        val name = (tc?.get("name") as? JsonPrimitive)?.content ?: msg.toolName ?: ""
+                        val argsElem = tc?.get("arguments") ?: msg.args
+                        val args = jsonToString(argsElem)
+                        if (id.isNotEmpty()) {
+                            startToolCall(id, name, args)
+                        }
+                    }
+                    else -> {
+                        val delta = ev?.delta ?: msg.delta ?: ""
+                        if (delta.isNotEmpty()) {
+                            updateLastAssistantMessage(delta, msg.isThinking == true)
+                        }
+                    }
                 }
             }
             "tool_execution_start" -> {
+                finishThinking()
                 val id = msg.toolCallId ?: ""
                 val name = msg.toolName ?: ""
                 if (id.isNotEmpty()) {
@@ -747,6 +791,65 @@ class ChatRepository(
 
     private fun indexOfLastAssistantMessage(): Int {
         return _messages.value.indexOfLast { it.role == MessageRole.ASSISTANT }
+    }
+
+    private fun startThinking() {
+        val list = _messages.value.toMutableList()
+        var idx = indexOfLastAssistantMessage()
+        val now = System.currentTimeMillis()
+        if (idx == -1) {
+            list.add(
+                ChatMessage(
+                    role = MessageRole.ASSISTANT,
+                    content = "",
+                    thinkingContent = "",
+                    isThinking = true,
+                    thinkingStartedAt = now,
+                    status = MessageStatus.STREAMING,
+                    turnStartedAt = now
+                )
+            )
+        } else {
+            val last = list[idx]
+            list[idx] = last.copy(
+                isThinking = true,
+                thinkingStartedAt = last.thinkingStartedAt ?: now,
+                status = MessageStatus.STREAMING
+            )
+        }
+        _messages.value = list
+        _isStreaming.value = true
+    }
+
+    private fun finishThinking() {
+        val list = _messages.value.toMutableList()
+        val idx = indexOfLastAssistantMessage()
+        if (idx == -1) return
+        val last = list[idx]
+        if (last.isThinking) {
+            val now = System.currentTimeMillis()
+            val startTs = last.thinkingStartedAt ?: now
+            val duration = Math.max(0L, now - startTs)
+            list[idx] = last.copy(
+                isThinking = false,
+                thinkingEndedAt = now,
+                thinkingDurationMs = duration
+            )
+            _messages.value = list
+        }
+    }
+
+    private fun setAssistantFinalText(text: String) {
+        val list = _messages.value.toMutableList()
+        val idx = indexOfLastAssistantMessage()
+        if (idx == -1) return
+        val last = list[idx]
+        list[idx] = last.copy(
+            content = text,
+            isThinking = false,
+            status = MessageStatus.STREAMING
+        )
+        _messages.value = list
     }
 
     private fun startToolCall(id: String, name: String, args: String) {

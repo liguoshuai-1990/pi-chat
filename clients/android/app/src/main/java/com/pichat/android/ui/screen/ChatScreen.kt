@@ -1412,7 +1412,8 @@ private fun AssistantContent(message: ChatMessage) {
 
 @Composable
 private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long, durationMs: Long? = null) {
-    var expanded by remember { mutableStateOf(false) }
+    var userExpanded by remember { mutableStateOf<Boolean?>(null) }
+    val expanded = userExpanded ?: active
     val durationText = formatDuration(durationMs)
 
     Column(
@@ -1420,12 +1421,15 @@ private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long, dur
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(ThinkingBg)
-            .border(BorderStroke(1.dp, Border), RoundedCornerShape(10.dp))
+            .border(
+                BorderStroke(1.dp, if (active) Accent.copy(alpha = 0.4f) else Border),
+                RoundedCornerShape(10.dp)
+            )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded }
+                .clickable { userExpanded = !expanded }
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1450,6 +1454,14 @@ private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long, dur
                 )
             }
             Spacer(Modifier.weight(1f))
+            if (!active && !expanded) {
+                Text(
+                    "展开",
+                    fontSize = 11.sp,
+                    color = TextDim,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
             Icon(
                 if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                 contentDescription = null,
@@ -1457,7 +1469,7 @@ private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long, dur
                 modifier = Modifier.size(16.dp)
             )
         }
-        AnimatedVisibility(visible = expanded || active) {
+        AnimatedVisibility(visible = expanded) {
             Text(
                 content.ifEmpty { "正在生成思考过程…" },
                 fontSize = 12.sp,
@@ -1472,7 +1484,9 @@ private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long, dur
 
 @Composable
 private fun ToolCallBlock(tool: ToolCall) {
-    var expanded by remember { mutableStateOf(false) }
+    var userExpanded by remember { mutableStateOf<Boolean?>(null) }
+    val isRunning = tool.state == ToolCallState.RUNNING
+    val expanded = userExpanded ?: isRunning
     val context = LocalContext.current
     val durationText = formatDuration(tool.durationMs ?: if (tool.endedAt != null) tool.endedAt - tool.startedAt else null)
 
@@ -1489,12 +1503,15 @@ private fun ToolCallBlock(tool: ToolCall) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(ToolBg)
-            .border(BorderStroke(1.dp, Border), RoundedCornerShape(10.dp))
+            .border(
+                BorderStroke(1.dp, if (isRunning) Accent.copy(alpha = 0.4f) else Border),
+                RoundedCornerShape(10.dp)
+            )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded }
+                .clickable { userExpanded = !expanded }
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1518,10 +1535,10 @@ private fun ToolCallBlock(tool: ToolCall) {
             Text(
                 stateText,
                 fontSize = 11.sp,
-                color = if (tool.state == ToolCallState.ERROR) Danger else TextSecondary,
+                color = if (tool.state == ToolCallState.ERROR) Danger else if (isRunning) Accent else TextSecondary,
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
-                    .background(BgHover)
+                    .background(if (isRunning) Accent.copy(alpha = 0.15f) else BgHover)
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             )
             Spacer(Modifier.width(4.dp))
@@ -1547,6 +1564,55 @@ private fun ToolCallBlock(tool: ToolCall) {
                 if (tool.output.isNotEmpty()) {
                     HorizontalDivider(color = Border)
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp, bottom = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "输出结果",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextDim
+                        )
+                        IconButton(
+                            onClick = {
+                                copyToClipboard(context, "${tool.name} 输出", tool.output)
+                                Toast.makeText(context, "已复制工具输出", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.ContentCopy,
+                                contentDescription = "复制输出",
+                                tint = TextDim,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        tool.output,
+                        fontSize = 11.5.sp,
+                        fontFamily = FontFamily.Monospace,
+                        lineHeight = 16.sp,
+                        color = TextDim,
+                        maxLines = if (isRunning) 15 else 30,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                } else if (isRunning) {
+                    Text(
+                        "正在运行并等待输出…",
+                        fontSize = 11.5.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = TextDim,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 6.dp),

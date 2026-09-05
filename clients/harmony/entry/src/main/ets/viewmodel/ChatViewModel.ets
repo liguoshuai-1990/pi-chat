@@ -346,11 +346,27 @@ export class ChatViewModel {
         break;
       case 'agent_stream':
       case 'message_update':
-        const delta = msg.assistantMessageEvent?.delta || msg.delta || '';
-        const isThinking = msg.assistantMessageEvent?.type === 'thinking_delta' || msg.isThinking === true;
-        if (delta) {
-          this.updateAssistantStream(delta, isThinking);
+        const evType = msg.assistantMessageEvent?.type;
+        if (evType === 'thinking_start') {
+          this.startThinking();
+        } else if (evType === 'thinking_end' || evType === 'text_start') {
+          this.finishThinking();
+        } else if (evType === 'text_end') {
+          this.finishThinking();
+          const content = typeof msg.assistantMessageEvent?.content === 'string' ? msg.assistantMessageEvent.content : '';
+          if (content) {
+            this.setAssistantFinalText(content);
+          }
+        } else {
+          const delta = msg.assistantMessageEvent?.delta || msg.delta || '';
+          const isThinking = evType === 'thinking_delta' || msg.isThinking === true;
+          if (delta) {
+            this.updateAssistantStream(delta, isThinking);
+          }
         }
+        break;
+      case 'tool_execution_start':
+        this.finishThinking();
         break;
       case 'agent_end':
       case 'agent_settled':
@@ -420,6 +436,72 @@ export class ChatViewModel {
           }
         }
         break;
+    }
+  }
+
+  private startThinking() {
+    let lastIdx = -1;
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (this.messages[i].role === MessageRole.ASSISTANT && this.messages[i].status === MessageStatus.STREAMING) {
+        lastIdx = i;
+        break;
+      }
+    }
+    const now = Date.now();
+    if (lastIdx === -1) {
+      this.messages.push({
+        id: `assistant_${now}`,
+        role: MessageRole.ASSISTANT,
+        content: '',
+        thinkingContent: '',
+        isThinking: true,
+        thinkingStartedAt: now,
+        turnStartedAt: now,
+        images: [],
+        status: MessageStatus.STREAMING,
+        timestamp: now
+      });
+    } else {
+      this.messages[lastIdx].isThinking = true;
+      if (!this.messages[lastIdx].thinkingStartedAt) {
+        this.messages[lastIdx].thinkingStartedAt = now;
+      }
+    }
+    this.messages = [...this.messages];
+    this.notifyUI();
+  }
+
+  private finishThinking() {
+    let lastIdx = -1;
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (this.messages[i].role === MessageRole.ASSISTANT && this.messages[i].status === MessageStatus.STREAMING) {
+        lastIdx = i;
+        break;
+      }
+    }
+    if (lastIdx !== -1 && this.messages[lastIdx].isThinking) {
+      const now = Date.now();
+      this.messages[lastIdx].isThinking = false;
+      this.messages[lastIdx].thinkingEndedAt = now;
+      this.messages[lastIdx].thinkingDuration = now - (this.messages[lastIdx].thinkingStartedAt || now);
+      this.messages = [...this.messages];
+      this.notifyUI();
+    }
+  }
+
+  private setAssistantFinalText(content: string) {
+    let lastIdx = -1;
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (this.messages[i].role === MessageRole.ASSISTANT && this.messages[i].status === MessageStatus.STREAMING) {
+        lastIdx = i;
+        break;
+      }
+    }
+    if (lastIdx !== -1) {
+      this.messages[lastIdx].content = content;
+      this.messages[lastIdx].isThinking = false;
+      this.messages = [...this.messages];
+      this.notifyUI();
     }
   }
 

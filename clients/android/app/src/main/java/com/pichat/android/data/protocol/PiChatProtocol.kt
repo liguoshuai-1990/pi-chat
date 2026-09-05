@@ -70,7 +70,8 @@ data class SetThinkingLevelMessage(
 data class AssistantMessageEvent(
     val type: String? = null,
     val delta: String? = null,
-    val content: JsonElement? = null
+    val content: JsonElement? = null,
+    val toolCall: JsonElement? = null
 )
 
 @Serializable
