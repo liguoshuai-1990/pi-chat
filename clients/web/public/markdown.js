@@ -42,7 +42,7 @@
   function sanitizeUrl(url) {
     if (!url) return "#";
     const trimmed = url.trim();
-    if (/^(https?:\/\/|mailto:)/i.test(trimmed)) {
+    if (/^(https?:\/\/|mailto:|#)/i.test(trimmed)) {
       return trimmed.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
     return "#";
@@ -111,6 +111,7 @@
     }
     let outHtml = "";
     let para = [];
+    let quoteLines = [];
     let linkListOpen = null;
     let linkListOrdered = null;
 
@@ -120,6 +121,13 @@
         linkListOpen = null;
         linkListOrdered = null;
       }
+    }
+
+    function flushQuote() {
+      if (quoteLines.length === 0) return;
+      const block = quoteLines.map(l => mdInlineBlock(l)).join("<br>");
+      quoteLines = [];
+      outHtml += `<blockquote>${block}</blockquote>`;
     }
 
     function flushPara() {
@@ -132,30 +140,35 @@
       if (seg.kind === "table") {
         flushPara();
         flushList();
+        flushQuote();
         outHtml += mdTable(seg.lines);
       } else if (seg.kind === "line") {
         // horizontal rule
         if (/^\s*([-*_])\s*\1\s*\1[\s\-_*]*$/.test(seg.text)) {
           flushPara();
           flushList();
+          flushQuote();
           outHtml += "<hr>";
         } else if (/^(#{1,6})\s+(.*)$/.test(seg.text)) {
           // headings
           const m = seg.text.match(/^(#{1,6})\s+(.*)$/);
           flushPara();
           flushList();
+          flushQuote();
           const level = m[1].length;
           outHtml += `<h${level}>${mdInlineBlock(m[2])}</h${level}>`;
         } else if (/^\s*$/.test(seg.text)) {
           flushPara();
           flushList();
+          flushQuote();
         } else if (/^>\s?/.test(seg.text)) {
-          // blockquote line
+          // blockquote line (accumulate adjacent lines into a single blockquote)
           flushPara();
           flushList();
-          outHtml += `<blockquote>${mdInlineBlock(seg.text.replace(/^>\s?/, ""))}</blockquote>`;
+          quoteLines.push(seg.text.replace(/^>\s?/, ""));
         } else if (/^\s*[-*+]\s+/.test(seg.text) || /^\s*\d+\.\s+/.test(seg.text)) {
           // list item
+          flushQuote();
           const isOrdered = /^\s*\d+\.\s+/.test(seg.text);
           if (!linkListOpen || linkListOrdered !== isOrdered) {
             flushPara();
@@ -176,11 +189,13 @@
           outHtml += `<li>${taskPrefix}${mdInlineBlock(itemText)}</li>`;
         } else {
           flushList();
+          flushQuote();
           para.push(seg.text);
         }
       }
     }
     flushList();
+    flushQuote();
     flushPara();
     // restore inline code
     outHtml = outHtml.replace(/\u0000CODE(\d+)\u0000/g, (_, n) => {

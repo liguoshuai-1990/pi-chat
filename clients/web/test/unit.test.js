@@ -67,12 +67,17 @@ describe("pi-web-chat Unit Tests", () => {
     assert.equal(sanitizeUrl("JAVASCRIPT:alert(document.cookie)"), "#");
     assert.equal(sanitizeUrl("data:text/html,<script>alert(1)</script>"), "#");
     assert.equal(sanitizeUrl("vbscript:msgbox(1)"), "#");
+    assert.equal(sanitizeUrl("#quickstart"), "#quickstart");
 
     // Render markdown test
     const mdResult = renderMarkdown("# Hello\n```js\nconsole.log(1);\n```");
     assert.ok(mdResult.includes("<h1>Hello</h1>"));
     assert.ok(mdResult.includes("<code data-lang=\"js\">console.log(1);\n</code>"));
     assert.equal(escapeHtml("<script>"), "&lt;script&gt;");
+
+    // Blockquote multi-line merge test
+    const quoteResult = renderMarkdown("> Line 1\n> Line 2\n> Line 3");
+    assert.ok(quoteResult.includes("<blockquote>Line 1<br>Line 2<br>Line 3</blockquote>"));
   });
 
   test("Path traversal security check", () => {

@@ -125,7 +125,7 @@ class WebSocketClient(
                 if (generation != currentGeneration) return
                 stopHeartbeat()
                 _connectionState.tryEmit(ConnectionState.DISCONNECTED)
-                if (!isManualClose) {
+                if (!isManualClose && code != 4401) {
                     scheduleReconnect()
                 }
             }

@@ -206,6 +206,18 @@ export class PiAgent {
       });
     }
 
+    if (this.proc.stdout) {
+      this.proc.stdout.on("error", (err) => {
+        console.warn(`[PiAgent stdout error]`, err.message);
+      });
+    }
+
+    if (this.proc.stderr) {
+      this.proc.stderr.on("error", (err) => {
+        console.warn(`[PiAgent stderr error]`, err.message);
+      });
+    }
+
     this.proc.stdout.on("data", (d) => this.onStdout(d));
     this.proc.stderr.on("data", (d) => {
       process.stderr.write(`[pi stderr] ${d}`);
@@ -327,6 +339,10 @@ export class PiAgent {
         break;
       case "agent_end":
         if (this.turnStart && this.timingData) {
+          if (this.thinkingStart) {
+            this.timingData.thinkingDurations.push(Math.max(0, Date.now() - this.thinkingStart));
+            this.thinkingStart = null;
+          }
           this.timingData.turnDuration = Math.max(0, Date.now() - this.turnStart);
           this.saveTimingData();
         }

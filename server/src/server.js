@@ -138,13 +138,19 @@ export function createServer(options = {}) {
 
   for (const pub of staticDirs) {
     if (existsSync(pub)) {
-      // Cache static assets: 1 day for regular files, 1 year for immutable hashed files
+      // Cache static assets:
+      // - 1 year for immutable hashed files (e.g., app.abc123.js)
+      // - no-cache for HTML files & manifests so updates take effect immediately
+      // - no-cache for regular non-hashed assets (app.js, style.css) to enforce ETag conditional revalidation
       app.use(express.static(pub, {
-        maxAge: "1d",
         setHeaders: (res, filePath) => {
-          // Longer cache for files with hash in name (e.g., app.abc123.js)
-          if (/\.[a-f0-9]{8,}\./.test(path.basename(filePath))) {
+          const base = path.basename(filePath);
+          if (/\.[a-f0-9]{8,}\./.test(base)) {
             res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          } else if (base.endsWith(".html") || base === "manifest.webmanifest") {
+            res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          } else {
+            res.setHeader("Cache-Control", "no-cache");
           }
         },
       }));

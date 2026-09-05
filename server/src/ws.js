@@ -284,15 +284,23 @@ export function setupWebSocketGateway(httpServer) {
           if (!msg.sessionPath) break;
           try {
             const targetKey = `${normalizeCwd(activeAgent.cwd || cwd)}:${normalizePath(msg.sessionPath)}`;
-            if (activeAgent.sessionKey === targetKey) {
-              activeAgent.send({ type: "get_state", id: msg.id });
-            } else {
+            let targetAgent = activeAgent;
+            if (activeAgent.sessionKey !== targetKey) {
               activeAgent.detachWs(ws);
-              const targetAgent = getOrCreateAgent(activeAgent.cwd || cwd, msg.sessionPath);
+              targetAgent = getOrCreateAgent(activeAgent.cwd || cwd, msg.sessionPath);
               targetAgent.attachWs(ws);
               ws.piAgent = targetAgent;
-              targetAgent.send({ type: "get_state", id: msg.id });
             }
+            try {
+              ws.send(JSON.stringify({
+                type: "response",
+                command: "switch_session",
+                ...(msg.id !== undefined ? { id: msg.id } : {}),
+                success: true,
+                data: { sessionPath: msg.sessionPath }
+              }));
+            } catch {}
+            targetAgent.send({ type: "get_state" }).catch(() => {});
           } catch (err) {
             try {
               ws.send(JSON.stringify({

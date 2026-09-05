@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.16.4] - 2026-09-05
+
+### Fixed
+- **WebSocket 网关: switch_session 响应协议契约对齐**：
+  - 修复客户端发送带有 `id` 的 `switch_session` 请求时，服务端返回 `command: "get_state"` 导致 Android/HarmonyOS/Web 端 switch_session 回调无法命中或响应超时的缺陷。
+  - 网关直接向客户端回复标准 `{ type: "response", command: "switch_session", success: true, data: { sessionPath } }` 并后台触发 state 同步。
+- **Web 前端: 解决静态资源强缓存 1 天导致用户无法及时加载最新版本**：
+  - 优化 `server/src/server.js` 静态资源缓存策略：HTML/manifest 设置 `no-cache, no-store, must-revalidate`；未带 hash 的核心 JS/CSS（`app.js`, `style.css`）使用 `no-cache`（走 304 ETag 协商缓存），仅带 hash 的静态资源强缓存 1 年。
+- **Web 前端: 修复发送失败时用户输入内容丢失**：
+  - `submitPrompt` 若因网络断开等原因发送失败，自动将文本和上传附件图片恢复到输入框并重新聚焦，保障用户数据资产不丢失。
+- **Web 前端: 修复侧边栏在新建会话与请求异常时白屏闪烁**：
+  - 会话列表内存缓存至 `state.lastSessions`，`startNewSession()` 保留已有会话避免瞬间全空；`refreshSessions()` 异常时不再抹除既有列表；`deleteSession` 使用 `sameSession()` 正确匹配多格式会话路径。
+- **Web & Android: 流式输出时避免与用户争抢滚动条**：
+  - 引入智能吸底判断（`userScrolledUp` / `isNearBottom`）：当用户主动上滑查阅历史记录时，暂停流式生成的高频强制拉底，给用户完整的自由阅读体验；划回底部或手动发消息时自动恢复跟随。
+- **Markdown: 修复连续多行引用块 (blockquote) 样式断裂与锚点跳转失效**：
+  - 连续 `> text` 行合并入同一个 `<blockquote>` 容器，解决多行外边距及边框断裂问题；`sanitizeUrl` 扩展支持页面安全锚点 `#`。
+- **Web 前端: 浏览器标签页标题 (document.title) 动态同步**：
+  - 切换或新建会话时，实时将页面标题更新为对应会话名（如 `会话名 · pi-chat`），优化多 Tab 并发使用体验。
+- **服务端: 补全 child process stdio 异常处理与 timing 耗时统计**：
+  - 为 `proc.stdout` 和 `proc.stderr` 补充错误事件监听，防止未处理 stream error；在 `agent_end` 时自动归档未结束的 `thinkingDurations`。
+- **移动端 (Android / HarmonyOS): 4401 鉴权失败停止无意义重连**：
+  - 在检测到 4401 Unauthorized 关闭码时，停止自动重连风暴，避免无效重试刷爆服务端日志。
+
+### Changed
+- 全端版本号统一递增至 2.16.4（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+
+
 ## [2.15.7] - 2026-09-05
 
 ### Fixed

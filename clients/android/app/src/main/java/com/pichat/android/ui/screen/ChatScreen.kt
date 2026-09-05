@@ -135,14 +135,25 @@ fun ChatScreen(viewModel: ChatViewModel) {
         }
     }
 
-    // Auto-scroll to bottom: smooth animation on new message, instant snap during streaming
+    val isNearBottom by remember {
+        derivedStateOf {
+            val totalItems = listState.layoutInfo.totalItemsCount
+            if (totalItems <= 1) true
+            else {
+                val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                lastVisibleIndex >= totalItems - 2
+            }
+        }
+    }
+
+    // Auto-scroll to bottom: smooth animation on new message, instant snap during streaming if near bottom
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
     }
     LaunchedEffect(messages.lastOrNull()?.content?.length) {
-        if (messages.isNotEmpty() && isStreaming) {
+        if (messages.isNotEmpty() && isStreaming && isNearBottom) {
             listState.scrollToItem(messages.size - 1)
         }
     }

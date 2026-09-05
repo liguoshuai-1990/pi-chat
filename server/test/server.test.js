@@ -340,4 +340,69 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
 
     agent1.stop();
   });
+
+  test("WebSocket gateway replies with switch_session command response when switching session", async () => {
+    const serverInstance = createServer();
+    const { httpServer } = await serverInstance.listen(0, "127.0.0.1");
+    const port = httpServer.address().port;
+
+    const wsUrl = `ws://127.0.0.1:${port}/ws`;
+    const ws = new WebSocket(wsUrl);
+
+    try {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error("Test timed out waiting for switch_session response"));
+        }, 5000);
+
+        ws.on("open", () => {
+          ws.send(JSON.stringify({
+            type: "switch_session",
+            sessionPath: "/home/user/.pi/agent/sessions/test-target.jsonl",
+            id: "switch_1001"
+          }));
+
+          ws.on("message", (data) => {
+            try {
+              const msg = JSON.parse(data.toString());
+              if (msg.type === "response" && msg.id === "switch_1001") {
+                clearTimeout(timer);
+                assert.equal(msg.command, "switch_session");
+                assert.equal(msg.success, true);
+                ws.close();
+                resolve();
+              }
+            } catch (err) {
+              clearTimeout(timer);
+              reject(err);
+            }
+          });
+        });
+
+        ws.on("error", (err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      });
+    } finally {
+      try { ws.close(1000); } catch {}
+      await serverInstance.close();
+    }
+  });
+
+  test("Static assets set appropriate Cache-Control headers", async () => {
+    const serverInstance = createServer();
+    const { httpServer } = await serverInstance.listen(0, "127.0.0.1");
+    const port = httpServer.address().port;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/index.html`);
+      if (res.ok) {
+        const cc = res.headers.get("cache-control") || "";
+        assert.ok(cc.includes("no-cache"), `HTML should set no-cache, got: ${cc}`);
+      }
+    } finally {
+      await serverInstance.close();
+    }
+  });
 });

@@ -90,7 +90,7 @@ export class WebSocketManager {
       this.isConnected = false;
       this.notifyState(false);
       this.stopHeartbeat();
-      if (!this.isManualClose) {
+      if (!this.isManualClose && value?.code !== 4401) {
         this.scheduleReconnect();
       }
     });

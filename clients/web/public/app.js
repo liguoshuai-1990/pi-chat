@@ -81,6 +81,7 @@ const state = {
   attachedImages: [], // Array of { data: string (base64), mimeType: string, url: string }
   turnStartedAt: null,
   streamingMsgDurationEl: null,
+  lastSessions: [],
 };
 
 let toastTimer = null;
@@ -398,10 +399,14 @@ async function refreshSessions() {
   try {
     const res = await authFetch(`${API}/api/sessions?cwd=${encodeURIComponent(cwd)}`);
     const data = await res.json();
-    renderSidebar(data.sessions || []);
+    state.lastSessions = data.sessions || [];
+    renderSidebar(state.lastSessions);
   } catch (err) {
     console.warn("refreshSessions error:", err);
-    renderSidebar([]);
+    // Preserve existing sessions list rather than blanking out the sidebar on error
+    if (state.lastSessions && state.lastSessions.length > 0) {
+      renderSidebar(state.lastSessions);
+    }
   }
 }
 
@@ -529,6 +534,7 @@ function startNewSession() {
     window.history.replaceState({}, "", window.location.pathname);
   } catch {}
   $("#topSessionName").textContent = "新对话";
+  updatePageTitle(null);
   if (wasStreaming) {
     showToast("前一个会话已转入后台继续运行");
   }
@@ -536,8 +542,8 @@ function startNewSession() {
   if (window.innerWidth <= 768) closeSidebar();
 
   connectWs({ explicitNewSession: true }); // no session -> pi creates a new one
-  // Instantly render optimistic new session at the top of left sidebar
-  renderSidebar([]);
+  // Keep existing sessions in sidebar and immediately display new draft item
+  renderSidebar(state.lastSessions || []);
   refreshSessions();
 }
 
@@ -555,7 +561,7 @@ async function deleteSession(file, title) {
       return;
     }
     showToast("会话已删除");
-    if (state.currentSessionFile === file) {
+    if (sameSession(state.currentSessionFile, file)) {
       startNewSession();
     } else {
       await refreshSessions();
@@ -588,6 +594,12 @@ function initMobileToolbarFab() {
     } else {
       fab.classList.remove("visible");
     }
+    const distanceFromBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight;
+    if (distanceFromBottom <= 80) {
+      userScrolledUp = false;
+    } else if (distanceFromBottom > 150) {
+      userScrolledUp = true;
+    }
   };
 
   chat.addEventListener("scroll", onScroll);
@@ -618,6 +630,7 @@ async function syncSessionHistory(file, force = false) {
 
     const topName = data.sessionName || data.firstUser || "新对话";
     $("#topSessionName").textContent = topName;
+    updatePageTitle(topName);
 
     // Only overwrite chat if not actively backfilling
     if (!state.isBackfilling && (force || !state.streaming)) {
@@ -627,7 +640,8 @@ async function syncSessionHistory(file, force = false) {
       for (const m of msgs) {
         appendMessageNode(m.role, m);
       }
-      scrollBottom();
+      userScrolledUp = false;
+      scrollBottom(true);
       refreshSessions();
     }
   } catch (e) {
@@ -1413,10 +1427,25 @@ function summaryArgs(name, args) {
   } catch { return ""; }
 }
 
-function scrollBottom() {
+let userScrolledUp = false;
+
+function updatePageTitle(title) {
+  if (!title || title === "新对话") {
+    document.title = "pi-chat";
+  } else {
+    document.title = `${title} · pi-chat`;
+  }
+}
+
+function scrollBottom(force = false) {
   // Don't fight the user during a background-event replay (backfill).
   if (state.isBackfilling) return;
   const chat = $("#chat");
+  if (!chat) return;
+  // If streaming and user manually scrolled up to read history, don't hijack scroll unless forced!
+  if (!force && userScrolledUp && state.streaming) {
+    return;
+  }
   chat.scrollTop = chat.scrollHeight;
 }
 
@@ -2863,6 +2892,8 @@ function submitSteer() {
   appendMessageNode("user", { text, isSteer: true, ts: Date.now() });
   ta.value = "";
   autoResize();
+  userScrolledUp = false;
+  scrollBottom(true);
   updateComposerUI();
 
   if (hint) hint.textContent = "已插入指导指令！pi 将在当前轮次中实时接收并调整方向。";
@@ -2907,6 +2938,8 @@ function submitPrompt() {
   const now = Date.now();
   // Render the user's message locally for instant feedback.
   appendMessageNode("user", { text, images: state.attachedImages ? [...state.attachedImages] : [], ts: now });
+  userScrolledUp = false;
+  scrollBottom(true);
   
   ta.value = "";
   state.attachedImages = [];
@@ -2923,6 +2956,7 @@ function submitPrompt() {
   if (state.currentSessionFile == null && text) {
     const promptTitle = text.slice(0, 60).replace(/\s+/g, " ");
     $("#topSessionName").textContent = promptTitle;
+    updatePageTitle(promptTitle);
     sendWs({ type: "set_session_name", name: promptTitle });
 
     // Update draft session item in sidebar immediately
@@ -2954,8 +2988,18 @@ function submitPrompt() {
     state.streamingMsgDurationEl = null;
     if (state.streamingMsg) { state.streamingMsg.remove(); state.streamingMsg = null; }
     state.streamingItems = [];
+    // Restore user input and attachments so text is not lost
+    if (ta) {
+      ta.value = text;
+      autoResize();
+      ta.focus();
+    }
+    if (imagesToSend && imagesToSend.length > 0) {
+      state.attachedImages = imagesToSend;
+      renderImagePreviews();
+    }
     const hint = $(".composer-hint");
-    if (hint) hint.textContent = "发送失败：WebSocket 连接已断开。正在尝试重连…";
+    if (hint) hint.textContent = "发送失败：WebSocket 连接已断开，已为你恢复输入内容。正在尝试重连…";
     scheduleReconnect(0);
   }
 }
