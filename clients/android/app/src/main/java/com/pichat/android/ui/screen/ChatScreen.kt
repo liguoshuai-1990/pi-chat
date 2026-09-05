@@ -418,8 +418,8 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 // Scroll-to-top floating button (matches web FAB behavior)
                 AnimatedVisibility(
                     visible = showScrollToTop,
-                    enter = fadeIn(animationSpec = tween(200)) + slideInVertically(animationSpec = tween(200), initialOffsetY = { it }),
-                    exit = fadeOut(animationSpec = tween(200)) + slideOutVertically(animationSpec = tween(200), targetOffsetY = { it }),
+                    enter = fadeIn() + slideInVertically(),
+                    exit = fadeOut() + slideOutVertically(),
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(end = 16.dp, bottom = 16.dp)

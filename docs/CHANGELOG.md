@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - 全端版本号统一递增至 2.15.7（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
 
+## [2.16.2] - 2026-09-05
+
+### Fixed
+- **Android: 修复 scroll-to-top FAB 动画类型推断编译错误** — slideInVertically/slideOutVertically 使用默认动画参数，避免 tween 泛型推断失败导致 CI Android 构建失败。
+
 ## [2.16.1] - 2026-09-05
 
 ### Fixed
