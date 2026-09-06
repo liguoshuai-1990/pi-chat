@@ -658,7 +658,7 @@ class ChatRepository(
                             if (parsedModel != null) {
                                 val prev = _currentModel.value
                                 _currentModel.value = parsedModel
-                                val label = parsedModel.name.ifEmpty { parsedModel.id }
+                                val label = if (!parsedModel.name.isNullOrEmpty()) parsedModel.name else parsedModel.id
                                 _notice.value = "已切换模型: $label"
                                 if (prev != null && (prev.id != parsedModel.id || prev.provider != parsedModel.provider)) {
                                     val fullLabel = if (!parsedModel.provider.isNullOrEmpty()) "${parsedModel.provider} / $label" else label

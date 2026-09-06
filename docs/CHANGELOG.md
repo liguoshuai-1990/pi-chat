@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.9] - 2026-09-06
+
+### Fixed
+- **Android CI 构建编译失败修复**：
+  - 修复 `ChatRepository.kt` 中 `parsedModel.name.ifEmpty { ... }` 对可空 `String?` 调用导致的 Kotlin 编译器错误（`Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.String?'`），改为非空安全判断 `if (!parsedModel.name.isNullOrEmpty()) parsedModel.name else parsedModel.id`，彻底恢复全量 CI 流水线与 Android APK 打包。
+
 ## [2.18.8] - 2026-09-06
 
 ### Fixed
