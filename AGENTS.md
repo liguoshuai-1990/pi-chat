@@ -41,10 +41,10 @@
 
 ---
 
-### 铁律三：任务完成必须提交并推送到远端 (Always Test, Commit & Push to Remote)
-- **触发时机**：在完成代码修改、版本号递增并通过全部本地快速测试验证后。
+### 铁律三：任务完成必须提交并推送到远端 (Always Commit & Push to Remote)
+- **触发时机**：在完成代码修改、版本号递增后。
 - **强制操作**：
-  1. **本地极速验证 (Local Fast Test & Build)**：运行 `pnpm test` 与 `pnpm build`（通常 2~3 秒内完成），确保协议、服务端、Web 端单元测试 100% 通过且无 JS/TS 语法报错。
+  1. **跳过本地构建与测试，直接提交推送**：**严禁在本地运行 `pnpm test` / `pnpm build`**。本地环境经常与 CI 环境不一致（Node 版本、pnpm 版本、平台差异），本地通过不代表 CI 通过，本地失败也不代表代码有问题。所有构建与测试**全部委托给 GitHub Actions CI**，避免在本地环境调试上浪费时间。
   2. **端侧构建分工**：Android APK 打包（Gradle 编译）、HarmonyOS 产物及多版本 Node 矩阵等重型任务由 GitHub Actions CI 自动执行，**严禁在本地盲目执行 `./gradlew assembleDebug`**，避免因宿主机缺失 Android/Java 环境或依赖下载导致长时间卡死。
   3. **规范提交信息**：遵循 Conventional Commits 规范编写清晰的 commit message（如 `feat: ...`, `fix: ...`, `docs: ...`, `chore: ...`）。
   4. **推送到远端**：执行 `git push origin main`（或当前分支），确保远端仓库与本地完全同步。
@@ -52,13 +52,48 @@
 
 ---
 
-### 铁律四：交付后由 GitHub Actions 跑全量 CI (Delegate Heavy CI to GitHub Actions)
+### 铁律四：交付后由 GitHub Actions 跑全量 CI 并监控结果 (Delegate CI to GitHub Actions & Monitor)
 - **触发时机**：代码推送到远端仓库后。
 - **分工与执行规范**：
-  1. **全量流水线自动化**：代码推送到主干会自动触发 GitHub Actions CI（包含 Node 18/20/22 矩阵测试、HarmonyOS 归档、Android APK 自动编译以及 NPM 发布校验）。
-  2. **异步快速交付，拒绝同步死等**：本地极速测试与语法构建验证通过并推送后，任务即可视为就绪并向用户交付响应，**严禁使用 `gh run watch` 同步阻塞会话等待数分钟**。
-  3. **非阻塞状态确认**：若环境配置了 `gh` 凭证，可执行 `gh run list -L 1` 快速确认流水线已处于 queued/in_progress 状态；若流水线有失败告警，可按需拉取报错闭环修复。
+  1. **全量流水线自动化**：代码推送到主干会自动触发 GitHub Actions CI（包含 Node 20/22 矩阵测试、HarmonyOS 归档、Android APK 自动编译以及 NPM 发布校验）。
+  2. **异步快速交付，拒绝同步死等**：推送后任务即可视为就绪并向用户交付响应，**严禁使用 `gh run watch` 同步阻塞会话等待数分钟**。
+  3. **CI 状态监控与失败诊断**：推送后通过 GitHub API 轮询 CI 运行状态，发现失败 job 时**拉取 job 日志定位根因**，修复后再次推送闭环。具体方法见下方「CI 监控权限与操作指南」。
 - **原因与目的**：充分发挥 GitHub Actions 云端流水线的算力，彻底解放本地端改代码的交互卡顿，实现秒级验证与交付。
+
+#### CI 监控权限与操作指南
+
+> **本仓库为公开仓库，CI 监控需要配置 GitHub Token。**
+
+**权限需求：**
+
+| 操作 | 是否需要 Token | 权限要求 |
+|---|---|---|
+| 查询 CI 运行状态（list runs / jobs） | 推荐（无 token 限 60 次/小时） | 任意有效 token 即可（5000 次/小时） |
+| 下载 CI job 日志（定位失败根因） | **必需** | classic PAT 的 `repo` scope，或 fine-grained PAT 的 `Actions: Read` |
+| 触发 CI（push 代码） | 走 git 凭证 | 与 CI 查询权限无关 |
+
+**Token 配置方式（推荐 fine-grained PAT）：**
+
+1. 前往 GitHub → Settings → Developer settings → Fine-grained personal access tokens
+2. 创建 token，**仅授权 `liguoshuai-1990/pi-chat` 仓库**，权限选择 `Actions: Read`
+3. 将 token 存入环境变量（如 `GITHUB_TOKEN` 或 `GH_TOKEN`），**严禁写入代码或提交到仓库**
+4. Agent 通过 `curl -H "Authorization: token $GITHUB_TOKEN"` 调用 GitHub API
+
+**常用 CI 监控命令：**
+
+```bash
+# 查询最近一次 CI 运行状态
+curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/liguoshuai-1990/pi-chat/actions/runs?per_page=1"
+
+# 查询某次运行的所有 job 状态
+curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/liguoshuai-1990/pi-chat/actions/runs/<run_id>/jobs"
+
+# 下载失败 job 的日志（定位根因）
+curl -s -L -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/liguoshuai-1990/pi-chat/actions/jobs/<job_id>/logs"
+```
 
 ---
 
@@ -112,21 +147,17 @@
  └─ 在 docs/CHANGELOG.md 中记录更新项
          │
          ▼
-[Step 4: 本地快速构建与测试]
- ├─ pnpm test (极速单测: protocol, server, web)
- └─ pnpm build (语法编译检查)
-         │
-         ▼
-[Step 5: 提交并推送到远端]
+[Step 4: 提交并推送到远端]
  ├─ git add <files>
  ├─ git commit -m "<type>: <description>"
  ├─ git push origin main
  └─ git status (确认完全干净)
          │
          ▼
-[Step 6: GitHub Actions 异步接管全量 CI]
- ├─ GitHub 自动执行 Node 矩阵 / Android APK 编译 / 打包
- └─ 本地免阻塞等待，立即交付响应
+[Step 5: GitHub Actions CI 全量验证与监控]
+ ├─ GitHub 自动执行 Node 20/22 矩阵 / Android APK 编译 / 打包
+ ├─ 通过 GitHub API 轮询 CI 状态（非阻塞）
+ └─ 失败则拉取 job 日志定位根因，修复后再次推送闭环
 ```
 
 ---

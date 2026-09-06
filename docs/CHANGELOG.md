@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.17.6] - 2026-09-06
+
+### Changed
+- **AGENTS.md 工作流重构：跳过本地构建测试，全面委托 CI**：铁律三不再要求本地运行 `pnpm test` / `pnpm build`，直接提交推送；铁律四新增 CI 监控权限与操作指南（GitHub API 查状态 + 拉日志），包含 fine-grained PAT 配置方法。SOP 流程图同步精简。
+
 ## [2.17.5] - 2026-09-06
 
 ### Fixed
