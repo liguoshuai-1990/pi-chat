@@ -1,6 +1,7 @@
 package com.pichat.android.data.protocol
 
 import com.pichat.android.data.model.ImageAttachment
+import com.pichat.android.data.model.parseTimestampElement
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -110,8 +111,12 @@ data class GenericServerMessage(
     val isError: Boolean? = null,
     val sessionFile: String? = null,
     val sessionPath: String? = null,
+    val timestamp: JsonElement? = null,
     val model: JsonElement? = null
 ) {
+    val parsedTimestamp: Long?
+        get() = parseTimestampElement(timestamp)
+
     val messageText: String?
         get() = when (val m = message) {
             is JsonPrimitive -> m.content

@@ -170,6 +170,18 @@ fun ChatScreen(viewModel: ChatViewModel) {
         }
     }
 
+    // 实时时钟（流式传输中每 100ms 更新一次，驱动用时实时读秒）
+    val liveNow by produceState(initialValue = System.currentTimeMillis(), key1 = isStreaming) {
+        if (!isStreaming) {
+            value = System.currentTimeMillis()
+            return@produceState
+        }
+        while (true) {
+            value = System.currentTimeMillis()
+            kotlinx.coroutines.delay(100L)
+        }
+    }
+
     val isNearBottom by remember {
         derivedStateOf {
             val totalItems = listState.layoutInfo.totalItemsCount
@@ -181,15 +193,22 @@ fun ChatScreen(viewModel: ChatViewModel) {
         }
     }
 
-    // Auto-scroll to bottom: smooth animation on new message, instant snap during streaming if near bottom
+    // Auto-scroll to bottom anchor: smooth animation on new message, instant snap during streaming if near bottom
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+            listState.scrollToItem(messages.size)
         }
     }
-    LaunchedEffect(messages.lastOrNull()?.content?.length) {
+    val lastMessage = messages.lastOrNull()
+    val lastMessageUpdateSig = remember(lastMessage) {
+        lastMessage?.let {
+            val toolSum = it.toolCalls.sumOf { tc -> tc.output.length + tc.state.ordinal }
+            "${it.id}_${it.content.length}_${it.thinkingContent.length}_${it.isThinking}_${it.toolCalls.size}_${toolSum}_${it.status}"
+        }
+    }
+    LaunchedEffect(lastMessageUpdateSig) {
         if (messages.isNotEmpty() && isStreaming && isNearBottom) {
-            listState.scrollToItem(messages.size - 1)
+            listState.scrollToItem(messages.size)
         }
     }
 
@@ -366,11 +385,21 @@ fun ChatScreen(viewModel: ChatViewModel) {
                         viewModel.sendMessage(inputText, attachments)
                         inputText = ""
                         attachments = emptyList()
+                        coroutineScope.launch {
+                            if (messages.isNotEmpty()) {
+                                listState.animateScrollToItem(messages.size)
+                            }
+                        }
                     },
                     onSteer = {
                         if (inputText.isNotBlank()) {
                             viewModel.sendSteer(inputText)
                             inputText = ""
+                            coroutineScope.launch {
+                                if (messages.isNotEmpty()) {
+                                    listState.animateScrollToItem(messages.size)
+                                }
+                            }
                         }
                     },
                     onAbort = { viewModel.abort() },
@@ -448,6 +477,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             items(messages, key = { it.id }) { message ->
                                 MessageBubble(
                                     message = message,
+                                    liveNow = liveNow,
                                     onImageClick = { lightboxImage = it },
                                     onRetry = {
                                         if (message.role == MessageRole.USER) {
@@ -455,6 +485,9 @@ fun ChatScreen(viewModel: ChatViewModel) {
                                         }
                                     }
                                 )
+                            }
+                            item(key = "bottom_anchor") {
+                                Spacer(Modifier.height(1.dp))
                             }
                         }
                     }
@@ -1403,6 +1436,7 @@ private fun Composer(
 @Composable
 fun MessageBubble(
     message: ChatMessage,
+    liveNow: Long = 0L,
     onImageClick: (String) -> Unit,
     onRetry: () -> Unit
 ) {
@@ -1441,6 +1475,7 @@ fun MessageBubble(
     }
 
     val isUser = message.role == MessageRole.USER
+    val isSteer = message.isSteer
     val timeText = formatTimestamp(message.timestamp)
 
     if (isUser) {
@@ -1454,10 +1489,10 @@ fun MessageBubble(
                 modifier = Modifier.padding(end = 4.dp, bottom = 2.dp)
             ) {
                 Text(
-                    "user",
+                    if (isSteer) "user (指导指令)" else "user",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDim
+                    color = if (isSteer) Accent else TextDim
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(timeText, fontSize = 10.sp, color = TextDim)
@@ -1498,22 +1533,42 @@ fun MessageBubble(
                 modifier = Modifier
                     .widthIn(max = 300.dp)
                     .background(
-                        Brush.linearGradient(
-                            colors = listOf(Color(0xFF26473F), Color(0xFF2F2F2F))
-                        ),
+                        if (isSteer) {
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF134E3F), Color(0xFF1B352E))
+                            )
+                        } else {
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF26473F), Color(0xFF2F2F2F))
+                            )
+                        },
                         userBubbleShape
                     )
                     .border(
                         1.dp,
-                        if (isError) Danger.copy(alpha = 0.5f) else Accent.copy(alpha = 0.35f),
+                        if (isError) Danger.copy(alpha = 0.5f)
+                        else if (isSteer) Accent.copy(alpha = 0.85f)
+                        else Accent.copy(alpha = 0.35f),
                         userBubbleShape
                     )
                     .clickable {
-                        copyToClipboard(context, "我的提问", message.content)
+                        copyToClipboard(context, if (isSteer) "我的指导指令" else "我的提问", message.content)
                         Toast.makeText(context, "已复制消息内容", Toast.LENGTH_SHORT).show()
                     }
                     .padding(horizontal = 14.dp, vertical = 11.dp)
             ) {
+                if (isSteer) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Accent.copy(alpha = 0.2f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text("🧭 指导指令", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Accent)
+                    }
+                    Spacer(Modifier.height(5.dp))
+                }
                 Text(
                     text = message.content,
                     color = TextPrimary,
@@ -1616,10 +1671,18 @@ fun MessageBubble(
                 }
             }
 
-            if (message.turnDurationMs != null && message.turnDurationMs > 0) {
+            val liveDuration = remember(message.status, message.turnStartedAt, message.turnDurationMs, liveNow) {
+                if (message.status == MessageStatus.STREAMING && message.turnStartedAt != null) {
+                    Math.max(0L, liveNow - message.turnStartedAt)
+                } else {
+                    message.turnDurationMs
+                }
+            }
+
+            if (liveDuration != null && liveDuration > 0) {
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "⏱️ ${formatDuration(message.turnDurationMs)}",
+                    "⏱️ ${formatDuration(liveDuration)}",
                     fontSize = 10.sp,
                     color = Accent,
                     modifier = Modifier
@@ -1657,7 +1720,7 @@ fun MessageBubble(
         }
 
         Spacer(Modifier.height(2.dp))
-        AssistantContent(message)
+        AssistantContent(message, liveNow)
 
         // Assistant action row (Copy response, etc.)
         if (message.content.isNotEmpty() && message.status != MessageStatus.STREAMING) {
@@ -1693,13 +1756,16 @@ fun MessageBubble(
 }
 
 @Composable
-private fun AssistantContent(message: ChatMessage) {
+private fun AssistantContent(message: ChatMessage, liveNow: Long = 0L) {
+    val isStreaming = message.status == MessageStatus.STREAMING
     if (message.thinkingContent.isNotEmpty() || message.isThinking) {
         ThinkingBlock(
             content = message.thinkingContent,
             active = message.isThinking,
             timestamp = message.timestamp,
-            durationMs = message.thinkingDurationMs
+            startedAt = message.thinkingStartedAt,
+            durationMs = message.thinkingDurationMs,
+            liveNow = liveNow
         )
         Spacer(Modifier.height(8.dp))
     }
@@ -1707,14 +1773,18 @@ private fun AssistantContent(message: ChatMessage) {
     // Tool execution blocks
     if (message.toolCalls.isNotEmpty()) {
         message.toolCalls.forEach { tool ->
-            ToolCallBlock(tool)
+            ToolCallBlock(tool, liveNow = liveNow)
             Spacer(Modifier.height(8.dp))
         }
     }
 
     if (message.content.isNotEmpty()) {
-        FormattedMarkdownText(text = message.content)
-    } else if (message.status == MessageStatus.STREAMING && message.toolCalls.isEmpty() && !message.isThinking) {
+        FormattedMarkdownText(text = message.content, isStreaming = isStreaming)
+    } else if (isStreaming && message.toolCalls.isEmpty() && !message.isThinking) {
+        val started = message.turnStartedAt ?: message.timestamp
+        val elapsed = Math.max(0L, liveNow - started)
+        val durStr = formatDuration(elapsed)
+        val label = if (elapsed > 2500) "正在深度推理中… ($durStr)" else "正在思考中… ($durStr)"
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -1728,7 +1798,9 @@ private fun AssistantContent(message: ChatMessage) {
                 strokeWidth = 2.dp
             )
             Spacer(Modifier.width(10.dp))
-            Text("思考中…", fontSize = 13.sp, color = TextSecondary)
+            Text(label, fontSize = 13.sp, color = TextSecondary)
+            Spacer(Modifier.width(6.dp))
+            BlinkingCursor()
         }
     } else if (message.status == MessageStatus.ERROR && message.content.isEmpty()) {
         Row(
@@ -1745,10 +1817,22 @@ private fun AssistantContent(message: ChatMessage) {
 }
 
 @Composable
-private fun ThinkingBlock(content: String, active: Boolean, timestamp: Long, durationMs: Long? = null) {
+private fun ThinkingBlock(
+    content: String,
+    active: Boolean,
+    timestamp: Long,
+    startedAt: Long? = null,
+    durationMs: Long? = null,
+    liveNow: Long = 0L
+) {
     var userExpanded by remember { mutableStateOf<Boolean?>(null) }
     val expanded = userExpanded ?: active
-    val durationText = formatDuration(durationMs)
+    val durationText = if (active) {
+        val start = startedAt ?: timestamp
+        formatDuration(Math.max(0L, liveNow - start))
+    } else {
+        formatDuration(durationMs)
+    }
 
     Column(
         modifier = Modifier
@@ -1884,12 +1968,16 @@ private fun ToolIconView(name: String, isRunning: Boolean) {
 }
 
 @Composable
-private fun ToolCallBlock(tool: ToolCall) {
+private fun ToolCallBlock(tool: ToolCall, liveNow: Long = 0L) {
     var userExpanded by remember(tool.id) { mutableStateOf(false) }
     val expanded = userExpanded
     val isRunning = tool.state == ToolCallState.RUNNING
     val context = LocalContext.current
-    val durationText = formatDuration(tool.durationMs ?: if (tool.endedAt != null) tool.endedAt - tool.startedAt else null)
+    val durationText = if (isRunning) {
+        if (tool.startedAt > 0) formatDuration(Math.max(0L, liveNow - tool.startedAt)) else ""
+    } else {
+        formatDuration(tool.durationMs ?: if (tool.endedAt != null) tool.endedAt - tool.startedAt else null)
+    }
     val summaryText = remember(tool.name, tool.args) { parseToolSummary(tool.name, tool.args) }
     val cmdToCopy = remember(tool.name, tool.args, tool.output) { getToolCommandToCopy(tool.name, tool.args, tool.output) }
 
@@ -2114,12 +2202,34 @@ private fun buildAnnotatedMarkdownString(text: String): AnnotatedString {
 }
 
 @Composable
-private fun FormattedMarkdownText(text: String) {
+private fun BlinkingCursor(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "cursor_blink")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "cursor_alpha"
+    )
+    Text(
+        text = "▋",
+        color = Accent.copy(alpha = alpha),
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun FormattedMarkdownText(text: String, isStreaming: Boolean = false) {
     val context = LocalContext.current
     val parts = remember(text) { parseMarkdownSegments(text) }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (part in parts) {
+        for ((idx, part) in parts.withIndex()) {
+            val isLast = idx == parts.size - 1
             when (part) {
                 is MarkdownSegment.Heading -> {
                     val fontSize = when (part.level) {
@@ -2336,14 +2446,30 @@ private fun FormattedMarkdownText(text: String) {
                     }
                 }
                 is MarkdownSegment.Paragraph -> {
-                    Text(
-                        text = buildAnnotatedMarkdownString(part.text),
-                        fontSize = 14.sp,
-                        lineHeight = 22.sp,
-                        color = TextPrimary
-                    )
+                    if (isStreaming && isLast) {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                text = buildAnnotatedMarkdownString(part.text),
+                                fontSize = 14.sp,
+                                lineHeight = 22.sp,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            BlinkingCursor(modifier = Modifier.padding(start = 2.dp, bottom = 2.dp))
+                        }
+                    } else {
+                        Text(
+                            text = buildAnnotatedMarkdownString(part.text),
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                            color = TextPrimary
+                        )
+                    }
                 }
             }
+        }
+        if (isStreaming && (parts.isEmpty() || parts.lastOrNull() !is MarkdownSegment.Paragraph)) {
+            BlinkingCursor(modifier = Modifier.padding(top = 2.dp))
         }
     }
 }

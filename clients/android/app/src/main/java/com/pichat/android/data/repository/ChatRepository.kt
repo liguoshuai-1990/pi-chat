@@ -310,6 +310,15 @@ class ChatRepository(
     }
 
     fun sendSteer(text: String): Boolean {
+        val steerMsg = ChatMessage(
+            role = MessageRole.USER,
+            content = text,
+            isSteer = true,
+            status = MessageStatus.DONE,
+            timestamp = System.currentTimeMillis()
+        )
+        _messages.value = _messages.value + steerMsg
+
         val payload = buildJsonObject {
             put("type", "steer")
             put("message", text)
@@ -397,11 +406,16 @@ class ChatRepository(
                         lastUserTs = msgTs
                         val text = extractJsonText(m.content)
                         val images = extractJsonImages(m.content)
+                        val isSteer = (m.isSteer == true) ||
+                            (entry.isSteer == true) ||
+                            (entry.customType == "steer") ||
+                            (m.customType == "steer")
                         if (text.isNotEmpty() || images.isNotEmpty()) {
                             reconstructed.add(
                                 ChatMessage(
                                     role = MessageRole.USER,
                                     content = text,
+                                    isSteer = isSteer,
                                     images = images,
                                     status = MessageStatus.DONE,
                                     timestamp = msgTs
@@ -883,35 +897,39 @@ class ChatRepository(
                     _error.value = errMsg
                 }
             }
-            "remote_user_prompt" -> {
+            "remote_user_prompt", "remote_user_steer" -> {
                 val text = msg.messageText ?: ""
-                val isSteer = msg.isSteer == true
-                if (!isSteer && text.isNotEmpty()) {
-                    // Skip if the last user message has the same content AND
-                    // an assistant streaming bubble already exists (avoid duplicates)
+                val isSteer = msg.isSteer == true || msg.type == "remote_user_steer"
+                if (text.isNotEmpty()) {
                     val msgs = _messages.value
                     val lastUser = msgs.findLast { it.role == MessageRole.USER }
                     val hasStreamingAssistant = msgs.any {
                         it.role == MessageRole.ASSISTANT && it.status == MessageStatus.STREAMING
                     }
-                    // Skip only if the last user message has identical content
-                    // AND an assistant streaming bubble already exists (duplicate echo)
-                    val isDuplicate = lastUser?.content == text && hasStreamingAssistant
+                    // Skip if the last user message has identical content and close timestamp to avoid local echo duplicate
+                    val isDuplicate = lastUser?.content == text && (System.currentTimeMillis() - lastUser.timestamp < 3500)
                     if (!isDuplicate) {
                         val userMsg = ChatMessage(
                             role = MessageRole.USER,
                             content = text,
-                            status = MessageStatus.DONE
+                            isSteer = isSteer,
+                            status = MessageStatus.DONE,
+                            timestamp = msg.parsedTimestamp ?: System.currentTimeMillis()
                         )
-                        val assistantMsg = ChatMessage(
-                            role = MessageRole.ASSISTANT,
-                            content = "",
-                            status = MessageStatus.STREAMING,
-                            turnStartedAt = System.currentTimeMillis()
-                        )
-                        _messages.value = msgs + userMsg + assistantMsg
-                        _isStreaming.value = true
-                        startStreamingWatchdog()
+                        if (isSteer) {
+                            // Steer message is inserted into current streaming conversation without creating new assistant placeholder
+                            _messages.value = msgs + userMsg
+                        } else {
+                            val assistantMsg = ChatMessage(
+                                role = MessageRole.ASSISTANT,
+                                content = "",
+                                status = MessageStatus.STREAMING,
+                                turnStartedAt = System.currentTimeMillis()
+                            )
+                            _messages.value = msgs + userMsg + assistantMsg
+                            _isStreaming.value = true
+                            startStreamingWatchdog()
+                        }
                     }
                 }
             }

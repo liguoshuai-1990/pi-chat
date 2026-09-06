@@ -44,6 +44,7 @@ data class ChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
     val role: MessageRole,
     val content: String = "",
+    val isSteer: Boolean = false,
     val thinkingContent: String = "",
     val isThinking: Boolean = false,
     val thinkingStartedAt: Long? = null,

@@ -62,7 +62,9 @@ data class SessionEntryMessage(
     val toolName: String? = null,
     val stopReason: String? = null,
     val errorMessage: String? = null,
-    val isError: Boolean? = null
+    val isError: Boolean? = null,
+    val isSteer: Boolean? = null,
+    val customType: String? = null
 ) {
     val parsedTimestamp: Long?
         get() = parseTimestampElement(timestamp)
@@ -80,6 +82,8 @@ data class SessionEntry(
     val id: JsonElement? = null,
     val parentId: JsonElement? = null,
     val timestamp: JsonElement? = null,
+    val isSteer: Boolean? = null,
+    val customType: String? = null,
     val message: SessionEntryMessage? = null
 ) {
     val idString: String?

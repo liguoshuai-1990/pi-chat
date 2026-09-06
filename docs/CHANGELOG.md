@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.11] - 2026-09-06
+
+### Fixed
+- **Android App 自动滚动到底部问题修复**：
+  - 在 `LazyColumn` 底部引入 `bottom_anchor` 底部锚点，解决超长消息时 `scrollToItem` 仅将长内容顶部对齐视口、导致最新输出被推至屏幕下方无法看清的截断卡住问题。
+  - 自动滚动监听全面扩展至思考内容增量、工具调用输出及正文更新（`lastMessageUpdateSig`），修复思考与工具执行阶段不自动滚动的缺陷。
+- **Android App 打字机闪烁光标 (Blinking Cursor)**：
+  - 新增 `BlinkingCursor` 组件（与 Web 端一致的 `▋` 方块闪烁动画），在流式文本段落末尾、思考过程及初始推理占位符中持续跳动，提供明确的生成中视觉反馈。
+- **Android App 实时用时读秒恢复与动态显示**：
+  - 引入 `liveNow` 驱动的高精度实时时钟（100ms 刷新），在流式传输期间动态呈现 Assistant 消息头部总用时、思考块（`ThinkingBlock`）实时思考秒数、工具块（`ToolCallBlock`）实时执行秒数及初始占位推理秒数。
+- **Android App 指导指令 (Steer Prompt) 展示与交互修复**：
+  - 数据模型 `ChatMessage` 与会话历史数据结构增加 `isSteer` 支持。
+  - 修复 `sendSteer` 本地消息未入队以及 `remote_user_prompt` 中 `!isSteer` 误过滤导致指导指令不展示的问题。
+  - 为指导指令气泡添加 `🧭 指导指令` 专属徽章与高亮边框样式，与 Web 端设计完全一致。
+
 ## [2.18.10] - 2026-09-06
 
 ### Changed
