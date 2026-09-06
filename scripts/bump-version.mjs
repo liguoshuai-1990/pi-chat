@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * bump-version.mjs — 单命令递增全仓版本号（单一真源 → 8 处同步）
+ * bump-version.mjs — 单命令递增全仓版本号（单一真源 → 5 处同步）
  *
  * Usage:
- *   node scripts/bump-version.mjs 2.17.7          # 指定完整版本号
- *   node scripts/bump-version.mjs patch            # 2.17.6 → 2.17.7
- *   node scripts/bump-version.mjs minor            # 2.17.6 → 2.18.0
- *   node scripts/bump-version.mjs major            # 2.17.6 → 3.0.0
+ *   node scripts/bump-version.mjs 2.17.9          # 指定完整版本号
+ *   node scripts/bump-version.mjs patch            # 2.17.8 → 2.17.9
+ *   node scripts/bump-version.mjs minor            # 2.17.8 → 2.18.0
+ *   node scripts/bump-version.mjs major            # 2.17.8 → 3.0.0
  *
  * 更新的 5 处版本源（Android 与 HarmonyOS Index.ets 已动态化，无需手动维护）：
  *   1.  package.json (root)                        ← 唯一真源
@@ -74,27 +74,12 @@ function updatePackageJSON(path, version) {
   writeJSON(path, pkg);
 }
 
-function updateAndroidGradle(path, version) {
-  const [major, minor, patch] = parseVersion(version);
-  const code = major * 10000 + minor * 100 + patch;
-  let text = readText(path);
-  text = text.replace(/versionCode\s*=\s*\d+/, `versionCode = ${code}`);
-  text = text.replace(/versionName\s*=\s*"[^"]+"/, `versionName = "${version}"`);
-  writeText(path, text);
-}
-
 function updateHarmonyAppJson5(path, version) {
   const [major, minor, patch] = parseVersion(version);
   const code = major * 1000000 + minor * 10000 + patch * 100;
   let text = readText(path);
   text = text.replace(/"versionName"\s*:\s*"[^"]+"/, `"versionName": "${version}"`);
   text = text.replace(/"versionCode"\s*:\s*\d+/, `"versionCode": ${code}`);
-  writeText(path, text);
-}
-
-function updateHarmonyIndexEts(path, version) {
-  let text = readText(path);
-  text = text.replace(/Text\('v[^']+'\)/, `Text('v${version}')`);
   writeText(path, text);
 }
 

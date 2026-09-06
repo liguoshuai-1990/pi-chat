@@ -1,6 +1,6 @@
 {
   "name": "pi-chat",
-  "version": "2.17.8",
+  "version": "2.17.9",
   "private": true,
   "description": "pi-chat — Monorepo for multi-client Pi coding agent ecosystem (Web, Android, HarmonyOS, Server Gateway, Protocol)",
   "type": "module",
@@ -37,7 +37,7 @@
   "license": "MIT",
   "packageManager": "pnpm@10.30.1",
   "engines": {
-    "node": ">=18",
+    "node": ">=20",
     "pnpm": ">=8"
   }
 }

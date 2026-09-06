@@ -101,7 +101,7 @@
 
 ## 5. CI/CD 流水线与版本锁步机制
 
-1. **多环境自动化测试**：每次 Push/PR 在 Node 18/20/22 下运行全量测试。
+1. **多环境自动化测试**：每次 Push/PR 在 Node 20/22 下运行全量测试。
 2. **Android 产物打包 (`pi-chat-android-apk`)**：全自动编译生成 APK，保留 30 天供随时下载。
 3. **NPM 包打包 (`pi-chat-npm-packages`)**：将协议、网关与 Web 客户端自动打包为 `.tgz` 归档。
 4. **鸿蒙工程打包 (`pi-chat-harmony-bundle`)**：自动将鸿蒙原生源码归档为 `pi-chat-harmony-app.zip`。

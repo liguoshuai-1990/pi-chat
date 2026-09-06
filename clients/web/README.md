@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@liguoshuai/pi-web-chat.svg)](https://www.npmjs.com/package/@liguoshuai/pi-web-chat)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-brightgreen.svg)](https://nodejs.org/)
 
 一个 [pi](https://pi.dev) 编程代理的 Web 界面，风格参考 ChatGPT / Gemini ——
 左侧历史会话侧边栏 + 右侧对话区 + 底部输入框。底层通过 pi 的 **RPC 模式**
@@ -35,7 +35,7 @@
 ## 🚀 快速开始
 
 ### 1. 环境准备
-- **Node.js**: `>= 18.0.0`
+- **Node.js**: `>= 20.0.0`
 - **操作系统**: Linux / macOS / WSL (Windows)
 
 ---
