@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.17.3] - 2026-09-06
+
+### Fixed
+- **测试稳定性与防挂起修复 (Anti-Hang & Resource Leak Fix)**：
+  - `server/fixtures/pi-stub.mjs` 测试桩进程新增 `stdin end`、`SIGTERM` 与 `SIGINT` 信号监听并为长定时器添加 `.unref()`，彻底杜绝单测异常时子进程残留挂起 60 秒的缺陷。
+  - `server/test/server.test.js` 引入全局 `after()` 清理钩子，在测试套件结束时自动执行 `shutdownAllAgents()` 兜底终止所有未关闭的 agent 子进程和连接句柄。
+  - `packages/protocol`、`server`、`clients/web` 的单测命令均增加 `--test-timeout=8000` 超时保护，杜绝任何未决 Promise 或 Socket 导致的无限卡死。
+
+### Changed
+- **工作流与工程效能优化 (AGENTS.md)**：
+  - **测试轻量化与秒级交付**：本地仅执行秒级轻量单元测试（`pnpm test`）与语法构建检查（`pnpm build`），耗时通常在 2~3 秒内完成。
+  - **重型编译全量交付 GitHub Actions CI**：严禁在本地机器盲目运行 `./gradlew assembleDebug`，将 Android APK 编译打包、鸿蒙产物归档和 Node 18/20/22 矩阵测试全量交给 GitHub Actions CI 云端执行。
+  - **移除 CI 同步死等 (gh run watch)**：本地测试通过并 push 后即可交付，改由 GitHub CI 异步执行，彻底解除改代码任务长期卡在 test/CI 阶段的痛点。
+- 全端版本号统一递增至 2.17.3（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+
 ## [2.17.2] - 2026-09-06
 
 ### Fixed

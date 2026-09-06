@@ -42,22 +42,23 @@
 ---
 
 ### 铁律三：任务完成必须提交并推送到远端 (Always Test, Commit & Push to Remote)
-- **触发时机**：在完成代码修改、版本号递增并通过全部本地测试验证后。
+- **触发时机**：在完成代码修改、版本号递增并通过全部本地快速测试验证后。
 - **强制操作**：
-  1. **本地测试验证**：运行 `pnpm test` 与 `pnpm build`，确保所有单元测试 100% 通过且无编译报错。涉及 Android 端时需运行 `cd clients/android && ./gradlew assembleDebug`。
-  2. **规范提交信息**：遵循 Conventional Commits 规范编写清晰的 commit message（如 `feat: ...`, `fix: ...`, `docs: ...`, `chore: ...`）。
-  3. **推送到远端**：执行 `git push origin main`（或当前分支），确保远端仓库与本地完全同步。
-  4. 最终运行 `git status` 验证分支与 `origin/main` 一致，无残留未提交文件。
+  1. **本地极速验证 (Local Fast Test & Build)**：运行 `pnpm test` 与 `pnpm build`（通常 2~3 秒内完成），确保协议、服务端、Web 端单元测试 100% 通过且无 JS/TS 语法报错。
+  2. **端侧构建分工**：Android APK 打包（Gradle 编译）、HarmonyOS 产物及多版本 Node 矩阵等重型任务由 GitHub Actions CI 自动执行，**严禁在本地盲目执行 `./gradlew assembleDebug`**，避免因宿主机缺失 Android/Java 环境或依赖下载导致长时间卡死。
+  3. **规范提交信息**：遵循 Conventional Commits 规范编写清晰的 commit message（如 `feat: ...`, `fix: ...`, `docs: ...`, `chore: ...`）。
+  4. **推送到远端**：执行 `git push origin main`（或当前分支），确保远端仓库与本地完全同步。
+  5. 最终运行 `git status` 验证分支与 `origin/main` 一致，无残留未提交文件。
 
 ---
 
-### 铁律四：推送后必监控并保证 GitHub Actions CI 全绿 (Always Ensure & Verify CI Green)
-- **触发时机**：每次执行 `git push` 将代码推送到远端仓库后。
-- **强制操作**：
-  1. **CI 触发确认**：代码推送到主干或 Tag 会自动触发远端 GitHub Actions CI（包括 NPM 构建测试、Node 18/20/22 矩阵测试、HarmonyOS 打包、Android APK 编译打包及 NPM 发布等流水线）。
-  2. **流水线监控**：推送后必须使用 `gh run list` 或 `gh run watch` 跟踪最新一次触发的 CI 执行进度。
-  3. **故障闭环修复**：若 CI 出现任何 Job 失败（红叉），智能体必须**立即定位报错根因（通过 `gh api` 或 `gh run view --log-failed`）、修复问题、同步递增版本号并再次提交推送**，直至远端 CI 100% 全部通过（`completed: success`）。
-- **原因与目的**：严禁提交导致 CI 损毁的代码，确保主干分支始终处于随时可交付、可发布的健康状态。
+### 铁律四：交付后由 GitHub Actions 跑全量 CI (Delegate Heavy CI to GitHub Actions)
+- **触发时机**：代码推送到远端仓库后。
+- **分工与执行规范**：
+  1. **全量流水线自动化**：代码推送到主干会自动触发 GitHub Actions CI（包含 Node 18/20/22 矩阵测试、HarmonyOS 归档、Android APK 自动编译以及 NPM 发布校验）。
+  2. **异步快速交付，拒绝同步死等**：本地极速测试与语法构建验证通过并推送后，任务即可视为就绪并向用户交付响应，**严禁使用 `gh run watch` 同步阻塞会话等待数分钟**。
+  3. **非阻塞状态确认**：若环境配置了 `gh` 凭证，可执行 `gh run list -L 1` 快速确认流水线已处于 queued/in_progress 状态；若流水线有失败告警，可按需拉取报错闭环修复。
+- **原因与目的**：充分发挥 GitHub Actions 云端流水线的算力，彻底解放本地端改代码的交互卡顿，实现秒级验证与交付。
 
 ---
 
@@ -111,10 +112,9 @@
  └─ 在 docs/CHANGELOG.md 中记录更新项
          │
          ▼
-[Step 4: 构建与全量测试]
- ├─ pnpm test (测试 protocol, server, web)
- ├─ pnpm build (构建编译检查)
- └─ (若修改 Android) cd clients/android && ./gradlew assembleDebug
+[Step 4: 本地快速构建与测试]
+ ├─ pnpm test (极速单测: protocol, server, web)
+ └─ pnpm build (语法编译检查)
          │
          ▼
 [Step 5: 提交并推送到远端]
@@ -124,10 +124,9 @@
  └─ git status (确认完全干净)
          │
          ▼
-[Step 6: 远端 CI 监控与绿勾闭环]
- ├─ gh run list (查看最新触发的 Run ID)
- ├─ gh run watch <run_id> (等待流水线执行完成)
- └─ 确认状态为 completed: success (若失败则立即修复并闭环)
+[Step 6: GitHub Actions 异步接管全量 CI]
+ ├─ GitHub 自动执行 Node 矩阵 / Android APK 编译 / 打包
+ └─ 本地免阻塞等待，立即交付响应
 ```
 
 ---

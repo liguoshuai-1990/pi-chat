@@ -1,11 +1,11 @@
-import { test, describe } from "node:test";
+import { test, describe, after } from "node:test";
 import assert from "node:assert/strict";
 import WebSocket from "ws";
 import { isAllowedOrigin } from "../src/ws.js";
 import { verifyToken, verifyWsAuth, authMiddleware } from "../src/auth.js";
 import { config, normalizePath, home } from "../src/config.js";
 import { createServer } from "../src/server.js";
-import { PiAgent, activeAgents, allAgents, getOrCreateAgent } from "../src/agent.js";
+import { PiAgent, activeAgents, allAgents, getOrCreateAgent, shutdownAllAgents } from "../src/agent.js";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -449,5 +449,9 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
       activeAgents.delete(key);
       await serverInstance.close();
     }
+  });
+
+  after(() => {
+    shutdownAllAgents("server unit tests complete");
   });
 });

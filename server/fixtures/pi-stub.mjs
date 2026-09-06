@@ -4,4 +4,8 @@
 // with ENOENT and leaves the test process hanging. This stub simply stays
 // alive so `PiAgent.start()` sees a live subprocess; it emits no RPC output.
 process.stdin.resume();
-setInterval(() => {}, 60_000);
+process.stdin.on("end", () => process.exit(0));
+process.on("SIGTERM", () => process.exit(0));
+process.on("SIGINT", () => process.exit(0));
+const timer = setInterval(() => {}, 60_000);
+timer.unref();
