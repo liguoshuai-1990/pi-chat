@@ -34,7 +34,7 @@
         "sessionPath": { "type": "string" },
         "provider": { "type": "string" },
         "modelId": { "type": "string" },
-        "level": { "type": "string" },
+        "level": { "type": ["string", "number"] },
         "images": {
           "type": "array",
           "items": {

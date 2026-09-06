@@ -181,7 +181,7 @@ Web 服务启动后，在浏览器中访问：
 | `PORT` | `3000` | Web 服务监听端口 |
 | `PI_BIN` | 自动探测（`~/.npm-global/bin/pi`、`/usr/local/bin/pi` 或 `PATH`） | 显式指定 pi 可执行文件绝对路径 |
 | `PI_SESSIONS_DIR` | `~/.pi/agent/sessions` | pi 的 session 存储目录 |
-| `IDLE_TIMEOUT_MS` | `300000` (5分钟) | 真正空闲（无连接+非流式）后的进程回收超时（`0` 为禁用回收） |
+| `IDLE_TIMEOUT_MS` | `1800000` (30分钟) | 真正空闲（无连接+非流式）后的进程回收超时（`0` 为禁用回收） |
 | `MAX_AGENT_LIFETIME_MS` | `0` (无上限) | 单个 Agent 进程后台生存硬上限（`0` 为禁用） |
 | `EVENT_BUFFER_SIZE` | `5000` | 离线环形 Buffer 允许缓存的最大事件条数 |
 | `MAX_CONCURRENT_AGENTS` | `0` (无限制) | 进程池最大并发 Agent 进程数量 |

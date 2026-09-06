@@ -126,7 +126,7 @@ export const config = {
   sessionsDir: process.env.PI_SESSIONS_DIR || path.join(home(), ".pi", "agent", "sessions"),
   piBin: resolvePiBin(),
   version: PKG_VERSION,
-  idleTimeoutMs: parseEnvNum("IDLE_TIMEOUT_MS", 5 * 60 * 1000),
+  idleTimeoutMs: parseEnvNum("IDLE_TIMEOUT_MS", 30 * 60 * 1000),
   maxAgentLifetimeMs: parseEnvNum("MAX_AGENT_LIFETIME_MS", 0),
   eventBufferSize: parseEnvNum("EVENT_BUFFER_SIZE", 5000, { integer: true }),
   maxConcurrentAgents: parseEnvNum("MAX_CONCURRENT_AGENTS", 0, { integer: true }),

@@ -24,7 +24,7 @@
 | `AUTH_TOKEN` | `""` (留空不鉴权) | 统一访问 Token（Bearer Token / ?token=） |
 | `PI_BIN` | 自动检测 | pi 可执行文件绝对路径 |
 | `PI_SESSIONS_DIR`| `~/.pi/agent/sessions` | 会话 JSONL 存储目录 |
-| `IDLE_TIMEOUT_MS`| `300000` (5分钟) | 无客户端连接且空闲时自动回收进程的超时时间 (0 为不回收) |
+| `IDLE_TIMEOUT_MS`| `1800000` (30分钟) | 无客户端连接且空闲时自动回收进程的超时时间 (0 为不回收) |
 | `MAX_CONCURRENT_AGENTS` | `0` (无限制) | 允许并发运行的最大 Pi Agent 子进程数量 |
 | `ALLOWED_ORIGINS`| `""` | 允许的外部跨域 Origin（逗号分隔） |
 

@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.17.2] - 2026-09-06
+
+### Fixed
+- **Server: `IDLE_TIMEOUT_MS` 代码默认值与文档对齐** — `config.js` 中默认值由 `300000`（5 分钟）修正为 `1800000`（30 分钟），与 `.env.example`、service 模板及 CHANGELOG 声明一致，确保未配置 `.env` 时也保持 pi 子进程热机，避免冷启动首句延迟。
+- **HarmonyOS: 侧边栏版本号漂移修复** — `Index.ets` 侧边栏硬编码版本号由过时的 `v2.17.0` 修正为当前 `v2.17.2`。
+- **Protocol: JSON Schema `level` 类型对齐** — `schema.json` 中 `level` 字段类型由仅 `string` 扩展为 `string|number`，与 `validateClientMessage` 实际校验逻辑一致。
+
+### Changed
+- **文档同步**：修正 `server/README.md`、`clients/web/README.md`、`docs/ARCHITECTURE.md` 中过时的 `IDLE_TIMEOUT_MS` 默认值描述（5 分钟 → 30 分钟）；同步 `README.md`、Android/HarmonyOS README 中过时的 `v2.14.5` APK 引用至 `v2.17.2`。
+- **测试加固**：`clients/web/test/unit.test.js` 新增 HarmonyOS `Index.ets` 侧边栏版本号自动化断言，防止硬编码版本号再次漂移。
+- 全端版本号统一递增至 2.17.2（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+
 ## [2.17.1] - 2026-09-06
 
 ### Fixed

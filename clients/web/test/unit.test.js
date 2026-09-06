@@ -173,5 +173,11 @@ describe("pi-web-chat Unit Tests", () => {
 
     const expectedHarmonyCode = major * 1000000 + minor * 10000 + patch * 100;
     assert.equal(Number(harmonyVersionCodeMatch[1]), expectedHarmonyCode, "HarmonyOS versionCode must follow MAJOR*1000000 + MINOR*10000 + PATCH*100");
+
+    // HarmonyOS Index.ets sidebar version display check (防止侧边栏硬编码版本号漂移)
+    const harmonyIndexEts = readFileSync(path.resolve(__dirname, "../../../clients/harmony/entry/src/main/ets/pages/Index.ets"), "utf8");
+    const harmonyUiVersionMatch = harmonyIndexEts.match(/Text\('v([^']+)'\)/);
+    assert.ok(harmonyUiVersionMatch, "HarmonyOS sidebar version Text must exist in Index.ets");
+    assert.equal(harmonyUiVersionMatch[1], rootPkg.version, "HarmonyOS sidebar version must match root version");
   });
 });

@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.pichat.harmony",
     "vendor": "pichat",
-    "versionCode": 2170100,
-    "versionName": "2.17.1",
+    "versionCode": 2170200,
+    "versionName": "2.17.2",
     "icon": "$media:app_icon",
     "label": "$string:app_name"
   }
