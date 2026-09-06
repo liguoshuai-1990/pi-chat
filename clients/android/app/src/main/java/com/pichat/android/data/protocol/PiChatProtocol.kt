@@ -72,9 +72,15 @@ data class AssistantMessageEvent(
     val delta: String? = null,
     val content: JsonElement? = null,
     val toolCall: JsonElement? = null,
-    val id: String? = null,
+    val id: JsonElement? = null,
     val toolName: String? = null
-)
+) {
+    val idString: String?
+        get() = when (val i = id) {
+            is JsonPrimitive -> i.content
+            else -> null
+        }
+}
 
 @Serializable
 data class GenericServerMessage(
@@ -94,21 +100,39 @@ data class GenericServerMessage(
     val state: String? = null,
     val overflowed: Boolean? = null,
     val data: JsonElement? = null,
-    val error: String? = null,
+    val error: JsonElement? = null,
     val command: String? = null,
-    val toolCallId: String? = null,
+    val toolCallId: JsonElement? = null,
     val toolName: String? = null,
     val args: JsonElement? = null,
     val result: JsonElement? = null,
     val partialResult: JsonElement? = null,
-    val isError: Boolean? = null
+    val isError: Boolean? = null,
+    val sessionFile: String? = null,
+    val sessionPath: String? = null,
+    val model: JsonElement? = null
 ) {
     val messageText: String?
         get() = when (val m = message) {
             is JsonPrimitive -> m.content
             is JsonObject -> (m["errorMessage"] as? JsonPrimitive)?.content
                 ?: (m["text"] as? JsonPrimitive)?.content
+                ?: (m["message"] as? JsonPrimitive)?.content
             else -> null
+        }
+
+    val errorText: String?
+        get() = when (val e = error) {
+            is JsonPrimitive -> e.content
+            is JsonObject -> (e["message"] as? JsonPrimitive)?.content
+                ?: (e["errorMessage"] as? JsonPrimitive)?.content
+            else -> messageText
+        }
+
+    val toolCallIdString: String?
+        get() = when (val tc = toolCallId) {
+            is JsonPrimitive -> tc.content
+            else -> assistantMessageEvent?.idString
         }
 
     val messageObject: JsonObject?

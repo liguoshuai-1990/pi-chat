@@ -2,6 +2,7 @@ package com.pichat.android.data.network
 
 import com.pichat.android.data.model.ServerConfig
 import com.pichat.android.data.model.SessionDetailResponse
+import com.pichat.android.data.model.SessionEntry
 import com.pichat.android.data.model.SessionInfo
 import com.pichat.android.data.model.SessionsResponse
 import kotlinx.coroutines.Dispatchers
@@ -117,11 +118,46 @@ class ApiService(
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(Exception("HTTP ${response.code}"))
                 val body = response.body?.string() ?: ""
-                val sessionDetail = json.decodeFromString<SessionDetailResponse>(body)
-                Result.success(sessionDetail)
+                try {
+                    val sessionDetail = json.decodeFromString<SessionDetailResponse>(body)
+                    Result.success(sessionDetail)
+                } catch (e: Exception) {
+                    val fallback = parseSessionDetailLenient(body)
+                    if (fallback != null) {
+                        Result.success(fallback)
+                    } else {
+                        Result.failure(e)
+                    }
+                }
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private fun parseSessionDetailLenient(body: String): SessionDetailResponse? {
+        try {
+            val element = json.parseToJsonElement(body)
+            val obj = element.jsonObject
+            val sessionName = obj["sessionName"]?.jsonPrimitive?.contentOrNull
+            val firstUser = obj["firstUser"]?.jsonPrimitive?.contentOrNull
+            val entriesArr = obj["entries"]?.jsonArray ?: return null
+            val entries = mutableListOf<SessionEntry>()
+            for (item in entriesArr) {
+                try {
+                    val entry = json.decodeFromJsonElement<SessionEntry>(item)
+                    entries.add(entry)
+                } catch (_: Exception) {
+                    // Skip malformed entry to protect whole chat transcript
+                }
+            }
+            return SessionDetailResponse(
+                entries = entries,
+                sessionName = sessionName,
+                firstUser = firstUser
+            )
+        } catch (_: Exception) {
+            return null
         }
     }
 

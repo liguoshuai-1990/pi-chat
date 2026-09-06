@@ -40,7 +40,7 @@ class ChatRepository(
 ) {
     private val wsClient = WebSocketClient(serverUrl, token, scope)
     private val apiService = ApiService(serverUrl, token)
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -271,7 +271,8 @@ class ChatRepository(
                 list[list.size - 1] = last.copy(status = MessageStatus.ERROR)
             }
             _messages.value = list
-            _error.value = "Failed to send message: WebSocket not connected"
+            _error.value = "发送失败：网络未连接，正在尝试重新连接…"
+            connect(cwd = activeCwd, sessionPath = _currentSessionFile.value)
         }
     }
 
@@ -282,7 +283,8 @@ class ChatRepository(
         }
         val sent = wsClient.sendRaw(payload.toString())
         if (!sent) {
-            _error.value = "Failed to send steer: WebSocket not connected"
+            _error.value = "发送插话失败: 网络未连接"
+            connect(cwd = activeCwd, sessionPath = _currentSessionFile.value)
         }
         return sent
     }
@@ -291,26 +293,30 @@ class ChatRepository(
         val payload = buildJsonObject {
             put("type", "abort")
         }
-        if (wsClient.sendRaw(payload.toString())) {
-            _isStreaming.value = false
-            cancelStreamingWatchdog()
-        }
+        wsClient.sendRaw(payload.toString())
+        _isStreaming.value = false
+        cancelStreamingWatchdog()
     }
 
     fun switchSession(sessionPath: String) {
+        _currentSessionFile.value = sessionPath
         wsClient.updateSession(sessionPath)
+        _messages.value = emptyList()
+        _isStreaming.value = false
+        cancelStreamingWatchdog()
+
+        // 无论 WebSocket 状态如何，优先拉取历史记录，让用户能立刻看到对话！
+        loadSessionHistory(sessionPath)
+        loadSessions()
+
         val payload = buildJsonObject {
             put("type", "switch_session")
             put("sessionPath", sessionPath)
         }
         if (!wsClient.sendRaw(payload.toString())) {
-            _error.value = "Failed to switch session: WebSocket not connected"
-            return
+            // WebSocket 尚未建立连接或断开了，主动建立连接指向目标 session
+            connect(cwd = activeCwd, sessionPath = sessionPath)
         }
-        _currentSessionFile.value = sessionPath
-        _messages.value = emptyList()
-        loadSessionHistory(sessionPath)
-        loadSessions()
     }
 
     fun deleteSession(file: String) {
@@ -332,14 +338,17 @@ class ChatRepository(
         scope.launch {
             val result = apiService.getSession(sessionPath)
             result.onSuccess { detail ->
-                val toolResults = mutableMapOf<String, Pair<String, Long?>>()
+                // 1. 映射所有 toolResult: toolCallId -> Triple(output, timestamp, isError)
+                val toolResults = mutableMapOf<String, Triple<String, Long?, Boolean>>()
                 for (entry in detail.entries) {
                     if (entry.type != "message") continue
                     val m = entry.message ?: continue
-                    if (m.role == "toolResult" && m.toolCallId != null) {
+                    val callId = m.toolCallIdString
+                    if (m.role == "toolResult" && callId != null) {
                         val outText = extractResultText(m.content)
-                        val resTs = m.timestamp
-                        toolResults[m.toolCallId] = Pair(outText, resTs)
+                        val resTs = m.parsedTimestamp ?: entry.parsedTimestamp
+                        val isErr = m.isError == true
+                        toolResults[callId] = Triple(outText, resTs, isErr)
                     }
                 }
 
@@ -349,15 +358,18 @@ class ChatRepository(
                 for (entry in detail.entries) {
                     if (entry.type != "message") continue
                     val m = entry.message ?: continue
-                    val msgTs = m.timestamp ?: System.currentTimeMillis()
+                    val msgTs = m.parsedTimestamp ?: entry.parsedTimestamp ?: System.currentTimeMillis()
+
                     if (m.role == "user") {
                         lastUserTs = msgTs
                         val text = extractJsonText(m.content)
-                        if (text.isNotEmpty()) {
+                        val images = extractJsonImages(m.content)
+                        if (text.isNotEmpty() || images.isNotEmpty()) {
                             reconstructed.add(
                                 ChatMessage(
                                     role = MessageRole.USER,
                                     content = text,
+                                    images = images,
                                     status = MessageStatus.DONE,
                                     timestamp = msgTs
                                 )
@@ -385,14 +397,19 @@ class ChatRepository(
                                             textContent += t
                                         }
                                         "thinking" -> {
-                                            val th = item["thinking"]?.let { (it as? JsonPrimitive)?.content } ?: ""
+                                            val th = item["thinking"]?.let { (it as? JsonPrimitive)?.content }
+                                                ?: item["text"]?.let { (it as? JsonPrimitive)?.content }
+                                                ?: ""
                                             thinkingContent += th
                                         }
                                         "toolCall" -> {
                                             val tcId = item["id"]?.let { (it as? JsonPrimitive)?.content } ?: ""
                                             val tcName = item["name"]?.let { (it as? JsonPrimitive)?.content } ?: ""
                                             val tcArgs = jsonToString(item["arguments"])
-                                            val (tcOutput, tcResTs) = toolResults[tcId] ?: Pair("", null)
+                                            val tr = toolResults[tcId]
+                                            val tcOutput = tr?.first ?: ""
+                                            val tcResTs = tr?.second
+                                            val isToolError = tr?.third ?: false
                                             val tcDuration = if (tcResTs != null && tcResTs >= msgTs) tcResTs - msgTs else null
                                             toolCallsList.add(
                                                 ToolCall(
@@ -400,7 +417,7 @@ class ChatRepository(
                                                     name = tcName,
                                                     args = tcArgs,
                                                     output = tcOutput,
-                                                    state = ToolCallState.DONE,
+                                                    state = if (isToolError) ToolCallState.ERROR else ToolCallState.DONE,
                                                     startedAt = msgTs,
                                                     endedAt = tcResTs,
                                                     durationMs = tcDuration
@@ -416,14 +433,26 @@ class ChatRepository(
                             textContent = m.content.content
                         }
 
-                        if (textContent.isNotEmpty() || thinkingContent.isNotEmpty() || toolCallsList.isNotEmpty()) {
+                        // 错误状态兜底：模型出错中断时，内容通常为空，但带有 stopReason/errorMessage
+                        var status = MessageStatus.DONE
+                        if (m.stopReason == "error") {
+                            status = MessageStatus.ERROR
+                            if (textContent.isEmpty()) {
+                                val err = m.errorMessage ?: "生成失败（模型返回错误）"
+                                textContent = "⚠️ $err"
+                            }
+                        } else if (m.stopReason == "aborted" && textContent.isEmpty() && toolCallsList.isEmpty()) {
+                            textContent = "⚠️ [操作已中止]"
+                        }
+
+                        if (textContent.isNotEmpty() || thinkingContent.isNotEmpty() || toolCallsList.isNotEmpty() || status == MessageStatus.ERROR) {
                             reconstructed.add(
                                 ChatMessage(
                                     role = MessageRole.ASSISTANT,
                                     content = textContent,
                                     thinkingContent = thinkingContent,
                                     toolCalls = toolCallsList,
-                                    status = MessageStatus.DONE,
+                                    status = status,
                                     timestamp = msgTs,
                                     turnDurationMs = turnDuration
                                 )
@@ -432,8 +461,17 @@ class ChatRepository(
                     }
                 }
                 _messages.value = reconstructed
+
+                // 更新会话详情中的 model 配置（如果有）
+                detail.model?.let { sm ->
+                    if (!sm.id.isNullOrEmpty()) {
+                        val found = _availableModels.value.find { it.id == sm.id }
+                        _currentModel.value = found ?: ModelInfo(id = sm.id, name = sm.id, provider = sm.provider)
+                    }
+                }
             }.onFailure { e ->
-                _error.value = "Failed to load session history: ${e.message}"
+                android.util.Log.e("ChatRepository", "loadSessionHistory failed", e)
+                _error.value = "加载会话历史失败: ${e.message}"
             }
         }
     }
@@ -459,6 +497,24 @@ class ChatRepository(
             return sb.toString()
         }
         return ""
+    }
+
+    private fun extractJsonImages(elem: JsonElement?): List<ImageAttachment> {
+        if (elem !is JsonArray) return emptyList()
+        val images = mutableListOf<ImageAttachment>()
+        for (item in elem) {
+            if (item is JsonObject) {
+                val type = (item["type"] as? JsonPrimitive)?.content
+                val data = (item["data"] as? JsonPrimitive)?.content
+                val mimeType = (item["mimeType"] as? JsonPrimitive)?.content ?: "image/png"
+                if (type == "image" && !data.isNullOrEmpty()) {
+                    images.add(ImageAttachment(type = "image", data = data, mimeType = mimeType))
+                } else if (!data.isNullOrEmpty() && (mimeType.startsWith("image/") || type == null)) {
+                    images.add(ImageAttachment(type = "image", data = data, mimeType = mimeType))
+                }
+            }
+        }
+        return images
     }
 
     fun newSession() {
@@ -509,6 +565,21 @@ class ChatRepository(
         }
 
         when (msg.type) {
+            "backfill_start" -> {
+                // Background replay beginning
+            }
+            "backfill_end" -> {
+                val isStillStreaming = msg.streaming == true
+                _isStreaming.value = isStillStreaming
+                if (!isStillStreaming) {
+                    cancelStreamingWatchdog()
+                    markLastMessageDone()
+                }
+                if (msg.overflowed == true && _currentSessionFile.value != null) {
+                    loadSessionHistory(_currentSessionFile.value!!)
+                }
+                loadSessions()
+            }
             "response" -> {
                 when (msg.command) {
                     "get_state" -> {
@@ -531,6 +602,7 @@ class ChatRepository(
                                 ?: (dataObj["sessionPath"] as? JsonPrimitive)?.content
                             if (!sf.isNullOrEmpty()) {
                                 _currentSessionFile.value = sf
+                                wsClient.updateSession(sf)
                             }
                         }
                     }
@@ -554,12 +626,12 @@ class ChatRepository(
                                 _currentModel.value = parsedModel
                             }
                         } else {
-                            _error.value = "切换模型失败: ${msg.error ?: "未知错误"}"
+                            _error.value = "切换模型失败: ${msg.errorText ?: "未知错误"}"
                         }
                     }
                     "set_thinking_level" -> {
                         if (msg.success == false) {
-                            _error.value = "设置思考深度失败: ${msg.error ?: "未知错误"}"
+                            _error.value = "设置思考深度失败: ${msg.errorText ?: "未知错误"}"
                         }
                     }
                     "cycle_thinking_level" -> {
@@ -573,6 +645,7 @@ class ChatRepository(
                     "new_session" -> {
                         if (msg.success == true) {
                             _currentSessionFile.value = null
+                            wsClient.updateSession(null)
                             _messages.value = emptyList()
                             _isStreaming.value = false
                             cancelStreamingWatchdog()
@@ -581,14 +654,14 @@ class ChatRepository(
                             _currentModel.value?.let { setModel(it.provider ?: "", it.id) }
                             setThinkingLevel(_thinkingLevel.value)
                         } else {
-                            _error.value = "新建会话失败: ${msg.error ?: "未知错误"}"
+                            _error.value = "新建会话失败: ${msg.errorText ?: "未知错误"}"
                         }
                     }
                     "prompt" -> {
                         if (msg.success == false) {
                             _isStreaming.value = false
                             cancelStreamingWatchdog()
-                            val errMsg = msg.error ?: "生成失败（模型返回错误）"
+                            val errMsg = msg.errorText ?: "生成失败（模型返回错误）"
                             val list = _messages.value.toMutableList()
                             val idx = indexOfLastAssistantMessage()
                             if (idx != -1) {
@@ -607,14 +680,15 @@ class ChatRepository(
                         if (msg.success == true) {
                             fetchState()
                         } else {
-                            _error.value = "切换会话失败: ${msg.error ?: "未知错误"}"
+                            _error.value = "切换会话失败: ${msg.errorText ?: "未知错误"}"
                         }
                     }
                 }
             }
             "model_select" -> {
-                val dataObj = msg.data as? JsonObject
-                val modelObj = (dataObj?.get("model") as? JsonObject) ?: dataObj
+                val modelObj = (msg.model as? JsonObject)
+                    ?: ((msg.data as? JsonObject)?.get("model") as? JsonObject)
+                    ?: (msg.data as? JsonObject)
                 val m = parseModelInfo(modelObj)
                 if (m != null) {
                     _currentModel.value = m
@@ -699,7 +773,7 @@ class ChatRepository(
                     "toolcall_start", "toolcall_delta", "toolcall_end" -> {
                         finishThinking()
                         val tc = ev?.toolCall as? JsonObject
-                        val id = (tc?.get("id") as? JsonPrimitive)?.content ?: ev?.id ?: msg.toolCallId ?: ""
+                        val id = (tc?.get("id") as? JsonPrimitive)?.content ?: ev?.idString ?: msg.toolCallIdString ?: ""
                         val name = (tc?.get("name") as? JsonPrimitive)?.content ?: ev?.toolName ?: msg.toolName ?: ""
                         val argsElem = tc?.get("arguments") ?: msg.args
                         val args = jsonToString(argsElem)
@@ -714,20 +788,20 @@ class ChatRepository(
             }
             "tool_execution_start" -> {
                 finishThinking()
-                val id = msg.toolCallId ?: ""
+                val id = msg.toolCallIdString ?: ""
                 val name = msg.toolName ?: ""
                 if (id.isNotEmpty()) {
                     startToolCall(id, name, jsonToString(msg.args))
                 }
             }
             "tool_execution_update" -> {
-                val id = msg.toolCallId ?: ""
+                val id = msg.toolCallIdString ?: ""
                 if (id.isNotEmpty()) {
                     updateToolCallOutput(id, extractResultText(msg.partialResult))
                 }
             }
             "tool_execution_end" -> {
-                val id = msg.toolCallId ?: ""
+                val id = msg.toolCallIdString ?: ""
                 if (id.isNotEmpty()) {
                     finishToolCall(id, extractResultText(msg.result), msg.isError == true)
                 }
@@ -741,7 +815,7 @@ class ChatRepository(
                     fetchState()
                 }
                 if (msg.type == "error" || msg.type == "pi_exit") {
-                    val errMsg = msg.error ?: msg.messageText ?: if (msg.type == "pi_exit") "Agent 进程退出 (code=${msg.codeString ?: "unknown"})" else "Agent 错误"
+                    val errMsg = msg.errorText ?: if (msg.type == "pi_exit") "Agent 进程退出 (code=${msg.codeString ?: "unknown"})" else "Agent 错误"
                     val list = _messages.value.toMutableList()
                     val idx = indexOfLastAssistantMessage()
                     if (idx != -1) {
@@ -785,12 +859,19 @@ class ChatRepository(
     }
 
     private fun extractSessionFile(msg: GenericServerMessage): String? {
+        val direct = msg.sessionFile ?: msg.sessionPath
+        if (!direct.isNullOrEmpty()) {
+            _currentSessionFile.value = direct
+            wsClient.updateSession(direct)
+            return direct
+        }
         val data = msg.data as? JsonObject ?: return null
         for (key in listOf("sessionFile", "sessionPath")) {
             val v = data[key]
             if (v is JsonPrimitive && v.isString && v.content.isNotEmpty()) {
                 val f = v.content
                 _currentSessionFile.value = f
+                wsClient.updateSession(f)
                 return f
             }
         }

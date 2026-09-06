@@ -77,8 +77,35 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         collectorJobs.forEach { it.cancel() }
         collectorJobs = listOf(
             viewModelScope.launch { repo.messages.collect { _messages.value = it } },
-            viewModelScope.launch { repo.sessions.collect { _sessions.value = it } },
-            viewModelScope.launch { repo.currentSessionFile.collect { _currentSessionFile.value = it } },
+            viewModelScope.launch {
+                repo.sessions.collect { list ->
+                    _sessions.value = list
+                    val curFile = _currentSessionFile.value
+                    if (curFile != null) {
+                        val s = list.find { it.file == curFile }
+                        if (s != null) {
+                            val title = s.sessionName ?: s.firstUser ?: s.name
+                            if (!title.isNullOrEmpty()) {
+                                _currentSessionTitle.value = title
+                            }
+                        }
+                    }
+                }
+            },
+            viewModelScope.launch {
+                repo.currentSessionFile.collect { file ->
+                    _currentSessionFile.value = file
+                    if (file != null) {
+                        val s = _sessions.value.find { it.file == file }
+                        if (s != null) {
+                            val title = s.sessionName ?: s.firstUser ?: s.name
+                            if (!title.isNullOrEmpty()) {
+                                _currentSessionTitle.value = title
+                            }
+                        }
+                    }
+                }
+            },
             viewModelScope.launch { repo.isStreaming.collect { _isStreaming.value = it } },
             viewModelScope.launch { repo.connectionState.collect { _connectionState.value = it } },
             viewModelScope.launch { repo.currentModel.collect { _currentModel.value = it } },

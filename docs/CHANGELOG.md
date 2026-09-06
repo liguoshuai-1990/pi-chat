@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.5] - 2026-09-06
+
+### Fixed
+- **Android 会话历史反序列化失败与白屏崩溃修复**：
+  - `SessionEntryMessage` 与 `SessionEntry` 的 `timestamp`、`id`、`parentId` 等字段支持宽松反序列化，通过 `parseTimestampElement` 兼容 Long 数字、纯数字字符串以及 ISO 8601 字符串格式，彻底消除 `SerializationException` 崩溃。
+  - `ApiService.getSession()` 新增 `parseSessionDetailLenient()` 降级容错解析：当个别脏数据 entry 出现格式异常时，逐条解析并跳过异常项，确保历史对话 100% 正常展现。
+- **Android 历史对话图片附件与错误消息丢失修复**：
+  - `loadSessionHistory()` 新增对用户图片附件 `extractJsonImages()` 的解析，使历史记录中的图片气泡能够正常展示。
+  - 修复仅发送图片时用户消息被丢弃的问题；修复 `stopReason == "error"` 时错误信息与状态未展示给用户的问题。
+  - 工具调用历史状态修复：准确提取并展示工具执行耗时，并根据 `isError` 状态将异常工具调用标为 `ToolCallState.ERROR`。
+- **Android 切换会话与长连接状态对齐**：
+  - `switchSession()` 逻辑解耦：点击历史会话时优先拉取本地/服务端历史记录渲染界面，不再因 WebSocket 瞬时未连接而中断；若 WebSocket 未连接则主动恢复连接并绑定目标 session。
+  - `ChatViewModel` 与当前会话标题实时联动：当进入历史会话或会话列表更新时自动刷新标题栏。
+- **Android WebSocket 消息与后台回放处理**：
+  - `GenericServerMessage` 增强容错：`error` 与 `toolCallId` 支持 `JsonElement?`，根节点支持 `sessionFile` 与 `sessionPath` 自动提取。
+  - 新增 `backfill_start` 与 `backfill_end` 处理，支持重连后后台事件回放以及全量会话同步（overflow 兜底）。
+  - WebSocket 接收消息通道容量由 64 扩容至 256，避免高速打字推流或回放时消息积压丢包。
+
 ## [2.18.4] - 2026-09-06
 
 ### Fixed

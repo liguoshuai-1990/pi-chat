@@ -28,16 +28,19 @@ class WebSocketClient(
         .build()
 ) {
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
     @Volatile
     private var webSocket: WebSocket? = null
 
-    private val _incomingMessages = MutableSharedFlow<GenericServerMessage>(extraBufferCapacity = 64)
+    private val _incomingMessages = MutableSharedFlow<GenericServerMessage>(extraBufferCapacity = 256)
     val incomingMessages: SharedFlow<GenericServerMessage> = _incomingMessages.asSharedFlow()
 
     private val _connectionState = MutableSharedFlow<ConnectionState>(replay = 1)
     val connectionState: SharedFlow<ConnectionState> = _connectionState.asSharedFlow()
+
+    val isConnected: Boolean
+        get() = _connectionState.replayCache.lastOrNull() == ConnectionState.CONNECTED
 
     private var heartbeatJob: Job? = null
     private var reconnectJob: Job? = null
