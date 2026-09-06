@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.1] - 2026-09-06
+
+### Fixed
+- **配置与文档巡检修复**：
+  - 修正 `server/.env.example` 缺失 `LONG_RUNNING_TIMEOUT_MS` 变量，恢复与根目录 `.env.example` 的一致性（违反了自身注释声明的不变量）。
+  - 新增 `ALLOWED_CWD_DIRS` 安全配置项至两份 `.env.example`，此前该功能已在代码中实现但未文档化。
+  - 修正 Android `versionCode` 公式从 `MAJOR*10000+MINOR*100+PATCH` 改为 `MAJOR*1000000+MINOR*10000+PATCH*100`，与 HarmonyOS 保持一致（v2.18.0: 21800 → 2180000）。
+  - 同步 `README.md`、`clients/android/README.md`、`clients/harmony/README.md`、`docs/USER_JOURNEY.md` 中过时的 v2.17.9 版本引用至 v2.18.0。
+
 ## [2.18.0] - 2026-09-06
 
 ### Added

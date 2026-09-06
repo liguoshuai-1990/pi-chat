@@ -1,6 +1,6 @@
 # 🧭 Pi-Chat 用户旅途全景分析
 
-> **版本**: v2.17.9 | **分析日期**: 2026-09-04 | **视角**: 终端使用者 (Customer Journey Map)
+> **版本**: v2.18.0 | **分析日期**: 2026-09-04 | **视角**: 终端使用者 (Customer Journey Map)
 
 ---
 
@@ -130,7 +130,7 @@ Web 端
 Android 端
   │
   ├─ 方式 A: GitHub Actions/Releases 直接下载 APK
-  │   → pi-chat-v2.17.9-debug.apk
+  │   → pi-chat-v2.18.0-debug.apk
   │
   └─ 方式 B: 本地编译
       $ cd clients/android && ./gradlew assembleDebug
@@ -792,4 +792,4 @@ Pi-Chat 的用户旅途核心是一条 **"配置 → 对话 → 管理 → 协�
 
 *分析方法：并行启动 5 个代码探索子代理分别深度阅读各模块源码，结合人工审查协议类型定义 (`types.d.ts`)、服务端路由 (`routes.js`)、WebSocket 网关 (`ws.js`)、Web 客户端主逻辑 (`app.js`)、Android ViewModel (`ChatViewModel.kt`)、鸿蒙主页面 (`Index.ets`) 等核心文件，交叉验证后从用户视角梳理完成。*
 
-*初始版本基于 v2.17.9 代码库，修订版基于 5 个子代理的完整分析结果补充了三端功能差异细节、HarmonyOS 端缺失功能（Token UI/错误渲染/删除会话/模型选择）、Web 端特色功能（键盘快捷键/空状态引导/离开警告/Lightbox）等。*
+*初始版本基于 v2.18.0 代码库，修订版基于 5 个子代理的完整分析结果补充了三端功能差异细节、HarmonyOS 端缺失功能（Token UI/错误渲染/删除会话/模型选择）、Web 端特色功能（键盘快捷键/空状态引导/离开警告/Lightbox）等。*

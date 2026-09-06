@@ -21,7 +21,7 @@ android {
         applicationId = "com.pichat.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = versionParts[0] * 10000 + versionParts[1] * 100 + versionParts[2]
+        versionCode = versionParts[0] * 1000000 + versionParts[1] * 10000 + versionParts[2] * 100
         versionName = pkgVersion
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
