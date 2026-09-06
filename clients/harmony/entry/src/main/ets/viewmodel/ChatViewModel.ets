@@ -288,6 +288,14 @@ export class ChatViewModel {
     }
   }
 
+  private extractResultText(result: any): string {
+    if (!result) return '';
+    if (typeof result === 'string') return result;
+    if (result.content) return this.extractTextContent(result.content);
+    if (result.text) return this.extractTextContent(result.text);
+    return this.extractTextContent(result);
+  }
+
   private extractTextContent(content: any): string {
     if (typeof content === 'string') return content;
     if (Array.isArray(content)) {
@@ -352,6 +360,21 @@ export class ChatViewModel {
             this.errorMessage = errMsg;
             this.notifyUI();
           }
+        } else if (msg.command === 'set_model') {
+          if (msg.success === true) {
+            const modelData = (msg as any).data;
+            if (modelData) {
+              this.currentModel = {
+                provider: modelData.provider || '',
+                id: modelData.id || '',
+                name: modelData.name
+              };
+              this.notifyUI();
+            }
+          } else {
+            this.errorMessage = msg.error || 'Failed to set model';
+            this.notifyUI();
+          }
         } else if (msg.command === 'switch_session') {
           if (msg.success) {
             this.wsManager.send(JSON.stringify({ type: 'get_state' }));
@@ -388,8 +411,18 @@ export class ChatViewModel {
           this.notifyUI();
         }
         break;
+      case 'model_select':
+        if ((msg as any).model) {
+          const m = (msg as any).model;
+          this.currentModel = {
+            provider: m.provider || '',
+            id: m.id || '',
+            name: m.name
+          };
+          this.notifyUI();
+        }
+        break;
       case 'agent_start':
-      case 'message_start':
         this.isStreaming = true;
         this.startStreamingWatchdog();
         if (this.messages.length === 0 || this.messages[this.messages.length - 1].role !== MessageRole.ASSISTANT || this.messages[this.messages.length - 1].status !== MessageStatus.STREAMING) {
@@ -406,6 +439,28 @@ export class ChatViewModel {
           });
         }
         this.notifyUI();
+        break;
+      case 'message_start':
+        // pi also emits message_start for the echoed user message; only
+        // create an assistant streaming bubble for actual assistant messages.
+        if ((msg as any).message?.role === 'assistant') {
+          this.isStreaming = true;
+          this.startStreamingWatchdog();
+          if (this.messages.length === 0 || this.messages[this.messages.length - 1].role !== MessageRole.ASSISTANT || this.messages[this.messages.length - 1].status !== MessageStatus.STREAMING) {
+            this.messages.push({
+              id: `assistant_${Date.now()}`,
+              role: MessageRole.ASSISTANT,
+              content: '',
+              thinkingContent: '',
+              isThinking: false,
+              turnStartedAt: Date.now(),
+              images: [],
+              status: MessageStatus.STREAMING,
+              timestamp: Date.now()
+            });
+          }
+          this.notifyUI();
+        }
         break;
       case 'message_end':
         const m = (msg as any).message;
@@ -448,10 +503,40 @@ export class ChatViewModel {
         this.addToolCall((msg as any).toolCallId || '', (msg as any).toolName || 'tool', (msg as any).args || '');
         break;
       case 'tool_execution_update':
-        this.updateToolCall((msg as any).toolCallId || '', (msg as any).update || '');
+        this.updateToolCall((msg as any).toolCallId || '', this.extractResultText((msg as any).partialResult));
         break;
       case 'tool_execution_end':
-        this.finishToolCall((msg as any).toolCallId || '', (msg as any).result || '');
+        this.finishToolCall((msg as any).toolCallId || '', this.extractResultText((msg as any).result));
+        break;
+      case 'backfill_start':
+        // Server is replaying buffered events — reset streaming state to receive them
+        this.isStreaming = false;
+        this.cancelStreamingWatchdog();
+        break;
+      case 'backfill_end':
+        // Replay complete — sync streaming state from server
+        if ((msg as any).streaming) {
+          this.isStreaming = true;
+          this.startStreamingWatchdog();
+          if (this.messages.length === 0 || this.messages[this.messages.length - 1].role !== MessageRole.ASSISTANT || this.messages[this.messages.length - 1].status !== MessageStatus.STREAMING) {
+            this.messages.push({
+              id: `assistant_${Date.now()}`,
+              role: MessageRole.ASSISTANT,
+              content: '',
+              thinkingContent: '',
+              isThinking: false,
+              turnStartedAt: Date.now(),
+              images: [],
+              status: MessageStatus.STREAMING,
+              timestamp: Date.now()
+            });
+          }
+        } else {
+          this.isStreaming = false;
+          this.cancelStreamingWatchdog();
+          this.markAssistantDone();
+        }
+        this.notifyUI();
         break;
       case 'agent_end':
       case 'agent_settled':
@@ -479,45 +564,45 @@ export class ChatViewModel {
         break;
       case 'remote_user_prompt':
         if (msg.message && !msg.isSteer) {
-          // Dedup: skip if the last user message already has this content (locally sent).
-          // Check the last message that is a USER role message — this handles both
-          // the case where an assistant placeholder follows the user message and
-          // where the user message is truly last.
-          const lastUserIdx = this.messages.length - 1;
-          // Walk backwards to find the most recent USER message
+          // Dedup: skip if the most recent USER message already has this content (locally sent).
+          let foundUser = false;
+          let isDuplicate = false;
           for (let i = this.messages.length - 1; i >= 0; i--) {
             if (this.messages[i].role === MessageRole.USER) {
+              foundUser = true;
               if (this.messages[i].content === msg.message) {
-                // This prompt was already sent locally, skip duplicate
-                break;
+                isDuplicate = true;
               }
-              // Found a different user message — this is a remote prompt from another client
-              this.messages.push({
-                id: `user_sync_${Date.now()}`,
-                role: MessageRole.USER,
-                content: msg.message,
-                thinkingContent: '',
-                isThinking: false,
-                images: [],
-                status: MessageStatus.DONE,
-                timestamp: Date.now()
-              });
-              this.messages.push({
-                id: `assistant_${Date.now()}`,
-                role: MessageRole.ASSISTANT,
-                content: '',
-                thinkingContent: '',
-                isThinking: false,
-                turnStartedAt: Date.now(),
-                images: [],
-                status: MessageStatus.STREAMING,
-                timestamp: Date.now()
-              });
-              this.isStreaming = true;
-              this.startStreamingWatchdog();
-              this.notifyUI();
               break;
             }
+          }
+          // If no user message found, or the last user message has different content,
+          // this is a remote prompt from another client — add it.
+          if (!foundUser || !isDuplicate) {
+            this.messages.push({
+              id: `user_sync_${Date.now()}`,
+              role: MessageRole.USER,
+              content: msg.message,
+              thinkingContent: '',
+              isThinking: false,
+              images: [],
+              status: MessageStatus.DONE,
+              timestamp: Date.now()
+            });
+            this.messages.push({
+              id: `assistant_${Date.now()}`,
+              role: MessageRole.ASSISTANT,
+              content: '',
+              thinkingContent: '',
+              isThinking: false,
+              turnStartedAt: Date.now(),
+              images: [],
+              status: MessageStatus.STREAMING,
+              timestamp: Date.now()
+            });
+            this.isStreaming = true;
+            this.startStreamingWatchdog();
+            this.notifyUI();
           }
         }
         break;

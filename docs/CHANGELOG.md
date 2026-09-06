@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.4] - 2026-09-06
+
+### Fixed
+- **HarmonyOS `message_start` 为用户消息回显创建空白 assistant 气泡**：
+  - pi 对用户消息和 assistant 消息均发出 `message_start` 事件，HarmonyOS 端未检查 `message.role` 字段，导致每次用户发送消息后出现一个空白的 pi 回复气泡。现已仅在 `role === "assistant"` 时创建 streaming 气泡。
+- **Android `message_start` 同样创建空白 assistant 气泡**：
+  - 与 HarmonyOS 相同的问题，Android 端 `message_start` 未区分消息角色。现已拆分 `agent_start` 和 `message_start` 处理逻辑，`message_start` 仅对 assistant 消息创建 streaming 占位。
+- **HarmonyOS 工具执行更新显示空白**：
+  - `tool_execution_update` 事件使用了不存在的 `msg.update` 字段，应为 `msg.partialResult`。工具执行过程中的实时输出现在能正确显示。
+- **HarmonyOS 工具执行结果显示原始对象**：
+  - `tool_execution_end` 事件直接将 `msg.result` 对象作为字符串显示，未从中提取 `content` 文本。现已添加 `extractResultText()` 方法正确提取工具结果文本。
+- **HarmonyOS 远程用户消息在无历史时被丢弃**：
+  - `remote_user_prompt` 去重逻辑在消息列表中无任何 USER 消息时，循环不执行导致远程消息被静默丢弃。现已修复为：无历史用户消息时正确添加远程 prompt。
+- **Server `/api/config` 在 `ALLOWED_CWD_DIRS` 限制下未处理异常**：
+  - `normalizeCwd()` 在 cwd 超出允许目录时抛出异常，但 `/api/config` 端点未 try-catch，导致返回 500 而非 400。现已添加异常处理返回明确的错误信息。
+- **Web 端定时器间隔与注释不符**：
+  - `startStreamingTimer()` 实际间隔为 100ms 但注释标注 200ms，导致不必要的 CPU 开销。现已修正为 200ms（5 次/秒），与注释一致。
+
+### Added
+- **HarmonyOS `model_select` 事件处理**：
+  - 当 pi 内部切换模型时（如模型降级），HarmonyOS 端现在能正确接收 `model_select` 事件并更新当前模型显示。
+- **HarmonyOS `set_model` 响应处理**：
+  - HarmonyOS 端现在正确处理 `set_model` 命令的响应，更新当前模型或显示错误信息。
+- **HarmonyOS `backfill_start`/`backfill_end` 事件处理**：
+  - HarmonyOS 端现在支持断线重连后的缓冲事件回放，恢复 streaming 状态，避免重连后界面状态不一致。
+
 ## [2.18.3] - 2026-09-06
 
 ### Fixed

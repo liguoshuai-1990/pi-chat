@@ -387,7 +387,7 @@ function startStreamingTimer() {
         }
       }
     }
-  }, 100);
+  }, 200);
 }
 
 function stopStreamingTimer() {

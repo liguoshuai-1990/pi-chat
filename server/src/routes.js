@@ -72,7 +72,12 @@ async function getPiSettings(targetCwd) {
 
 // Endpoint to get server environment config
 router.get("/api/config", authMiddleware, async (req, res) => {
-  const reqCwd = normalizeCwd(req.query.cwd || "");
+  let reqCwd;
+  try {
+    reqCwd = normalizeCwd(req.query.cwd || "");
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
   const settings = await getPiSettings(reqCwd);
   res.json({
     home: home(),

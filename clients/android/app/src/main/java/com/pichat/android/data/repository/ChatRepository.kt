@@ -620,7 +620,7 @@ class ChatRepository(
                     _currentModel.value = m
                 }
             }
-            "agent_start", "message_start" -> {
+            "agent_start" -> {
                 _isStreaming.value = true
                 startStreamingWatchdog()
                 val list = _messages.value.toMutableList()
@@ -629,6 +629,22 @@ class ChatRepository(
                     _messages.value = list
                 }
                 loadSessions()
+            }
+            "message_start" -> {
+                // pi also emits message_start for the echoed user message; only
+                // create an assistant streaming bubble for actual assistant messages.
+                val msgObj = msg.messageObject
+                val role = (msgObj?.get("role") as? JsonPrimitive)?.content
+                if (role == "assistant") {
+                    _isStreaming.value = true
+                    startStreamingWatchdog()
+                    val list = _messages.value.toMutableList()
+                    if (list.isEmpty() || list.last().role != MessageRole.ASSISTANT || list.last().status != MessageStatus.STREAMING) {
+                        list.add(ChatMessage(role = MessageRole.ASSISTANT, content = "", status = MessageStatus.STREAMING, turnStartedAt = System.currentTimeMillis()))
+                        _messages.value = list
+                    }
+                    loadSessions()
+                }
             }
             "message_end" -> {
                 val msgObj = msg.messageObject
