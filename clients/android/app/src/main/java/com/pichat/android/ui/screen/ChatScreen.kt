@@ -110,11 +110,19 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val currentCwd by viewModel.currentCwd.collectAsState()
     val serverConfig by viewModel.serverConfig.collectAsState()
     val error by viewModel.error.collectAsState()
+    val notice by viewModel.notice.collectAsState()
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     var isRefreshing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(notice) {
+        notice?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.clearNotice()
+        }
+    }
 
     var inputText by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<ImageAttachment>>(emptyList()) }
@@ -235,6 +243,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(999.dp))
                                             .background(Accent.copy(alpha = 0.15f))
+                                            .border(0.5.dp, Accent.copy(alpha = 0.35f), RoundedCornerShape(999.dp))
                                             .padding(horizontal = 6.dp, vertical = 2.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -245,10 +254,32 @@ fun ChatScreen(viewModel: ChatViewModel) {
                                             strokeWidth = 1.5.dp
                                         )
                                         Text(
-                                            "生成中",
+                                            "运行中",
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = Accent
+                                        )
+                                    }
+                                } else if (messages.isNotEmpty()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(999.dp))
+                                            .background(BgHover)
+                                            .border(0.5.dp, Border, RoundedCornerShape(999.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = TextDim,
+                                            modifier = Modifier.size(10.dp)
+                                        )
+                                        Text(
+                                            "已完成",
+                                            fontSize = 10.sp,
+                                            color = TextDim
                                         )
                                     }
                                 }
@@ -313,6 +344,37 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             }
                         }
 
+                        // New session action
+                        IconButton(
+                            onClick = {
+                                viewModel.newSession()
+                                Toast.makeText(context, "已开启新对话", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.AddComment,
+                                contentDescription = "新建对话",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Compact context action
+                        IconButton(
+                            onClick = {
+                                viewModel.compactContext()
+                            },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Compress,
+                                contentDescription = "压缩当前上下文",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
                         // Export chat action
                         IconButton(
                             onClick = {
@@ -324,7 +386,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                                     Toast.makeText(context, "当前无对话记录可导出", Toast.LENGTH_SHORT).show()
                                 }
                             },
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
                                 Icons.Outlined.Download,
@@ -337,7 +399,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                         // Settings action
                         IconButton(
                             onClick = { showSettings = true },
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
                                 Icons.Default.Settings,
@@ -514,6 +576,9 @@ fun ChatScreen(viewModel: ChatViewModel) {
             defaultModelId = serverConfig?.defaultModel?.id,
             onDismiss = { showModelSelector = false },
             onSelect = { provider, modelId ->
+                val chosen = availableModels.find { it.id == modelId && (it.provider == null || it.provider == provider) }
+                val displayName = chosen?.name ?: modelId
+                Toast.makeText(context, "已切换模型: $displayName", Toast.LENGTH_SHORT).show()
                 viewModel.setModel(provider, modelId)
                 showModelSelector = false
             }
@@ -525,6 +590,8 @@ fun ChatScreen(viewModel: ChatViewModel) {
             currentLevel = thinkingLevel,
             onDismiss = { showThinkingSelector = false },
             onSelect = { level ->
+                val label = thinkingLevels.find { it.first == level }?.second ?: level
+                Toast.makeText(context, "思考深度已设为: $label", Toast.LENGTH_SHORT).show()
                 viewModel.setThinkingLevel(level)
                 showThinkingSelector = false
             }
@@ -839,6 +906,27 @@ private fun HistoryDrawer(
                                                     fontSize = 9.5.sp,
                                                     fontWeight = FontWeight.Medium,
                                                     color = Accent
+                                                )
+                                            }
+                                        } else if (session.messageCount > 0) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(999.dp))
+                                                    .background(BgHover)
+                                                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = TextDim,
+                                                    modifier = Modifier.size(8.dp)
+                                                )
+                                                Text(
+                                                    "已完成",
+                                                    fontSize = 9.sp,
+                                                    color = TextDim
                                                 )
                                             }
                                         }
@@ -1156,6 +1244,40 @@ private fun EmptyState(
 }
 
 @Composable
+private fun StopButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "stop_pulse")
+    val borderAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.85f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "border_alpha"
+    )
+
+    Box(
+        modifier = modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(Color(0xFF2E1919))
+            .border(1.dp, Color(0xFFEF4444).copy(alpha = borderAlpha), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(RoundedCornerShape(2.5.dp))
+                .background(Color.White)
+        )
+    }
+}
+
+@Composable
 private fun Composer(
     inputText: String,
     attachments: List<ImageAttachment>,
@@ -1303,21 +1425,7 @@ private fun Composer(
                                     Text("插入指令", fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(Danger)
-                                    .clickable(onClick = onAbort),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.Stop,
-                                    contentDescription = "中止",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
+                            StopButton(onClick = onAbort)
                         }
                     } else {
                         val canSend = inputText.isNotBlank() || attachments.isNotEmpty()
@@ -1361,6 +1469,39 @@ fun MessageBubble(
     onRetry: () -> Unit
 ) {
     val context = LocalContext.current
+
+    if (message.role == MessageRole.SYSTEM) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(BgHover)
+                    .border(0.5.dp, Border, RoundedCornerShape(999.dp))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Info,
+                    contentDescription = null,
+                    tint = TextDim,
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = message.content,
+                    fontSize = 11.sp,
+                    color = TextSecondary
+                )
+            }
+        }
+        return
+    }
+
     val isUser = message.role == MessageRole.USER
     val timeText = formatTimestamp(message.timestamp)
 
@@ -1498,6 +1639,45 @@ fun MessageBubble(
             )
             Spacer(Modifier.width(6.dp))
             Text(timeText, fontSize = 10.sp, color = TextDim)
+
+            // Status badge for Assistant message
+            if (message.status == MessageStatus.STREAMING) {
+                Spacer(Modifier.width(6.dp))
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Accent.copy(alpha = 0.15f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(8.dp),
+                        color = Accent,
+                        strokeWidth = 1.2.dp
+                    )
+                    Text("运行中", fontSize = 9.5.sp, color = Accent, fontWeight = FontWeight.Medium)
+                }
+            } else if (message.status == MessageStatus.DONE && (message.content.isNotEmpty() || message.toolCalls.isNotEmpty())) {
+                Spacer(Modifier.width(6.dp))
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(BgHover)
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = TextDim,
+                        modifier = Modifier.size(8.dp)
+                    )
+                    Text("已完成", fontSize = 9.5.sp, color = TextDim)
+                }
+            }
+
             if (message.turnDurationMs != null && message.turnDurationMs > 0) {
                 Spacer(Modifier.width(6.dp))
                 Text(

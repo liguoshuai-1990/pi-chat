@@ -75,6 +75,22 @@ class ChatRepository(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _notice = MutableStateFlow<String?>(null)
+    val notice: StateFlow<String?> = _notice.asStateFlow()
+
+    fun clearNotice() {
+        _notice.value = null
+    }
+
+    fun appendSystemNotice(text: String) {
+        val noticeMsg = ChatMessage(
+            role = MessageRole.SYSTEM,
+            content = text,
+            status = MessageStatus.DONE
+        )
+        _messages.value = _messages.value + noticeMsg
+    }
+
     @Volatile
     private var activeCwd: String = ""
 
@@ -168,10 +184,25 @@ class ChatRepository(
         }
         wsClient.sendRaw(payload.toString())
         val found = _availableModels.value.find { it.id == modelId && (it.provider == null || it.provider == provider) }
+        val modelName = found?.name ?: modelId
+        _notice.value = "已切换模型: $modelName"
         if (found != null) {
             _currentModel.value = found
         } else {
             _currentModel.value = ModelInfo(id = modelId, name = modelId, provider = provider)
+        }
+    }
+
+    fun compactContext() {
+        if (_isStreaming.value) {
+            _notice.value = "请等待当前任务结束后再压缩上下文"
+            return
+        }
+        val ok = wsClient.sendRaw("""{"type":"compact"}""")
+        if (ok) {
+            _notice.value = "正在压缩上下文…"
+        } else {
+            _error.value = "连接不可用，无法压缩上下文"
         }
     }
 
@@ -625,10 +656,28 @@ class ChatRepository(
                             val modelObj = msg.data as? JsonObject
                             val parsedModel = parseModelInfo(modelObj)
                             if (parsedModel != null) {
+                                val prev = _currentModel.value
                                 _currentModel.value = parsedModel
+                                val label = parsedModel.name.ifEmpty { parsedModel.id }
+                                _notice.value = "已切换模型: $label"
+                                if (prev != null && (prev.id != parsedModel.id || prev.provider != parsedModel.provider)) {
+                                    val fullLabel = if (!parsedModel.provider.isNullOrEmpty()) "${parsedModel.provider} / $label" else label
+                                    appendSystemNotice("已切换模型至 $fullLabel")
+                                }
                             }
                         } else {
                             _error.value = "切换模型失败: ${msg.errorText ?: "未知错误"}"
+                        }
+                    }
+                    "compact" -> {
+                        if (msg.success == true) {
+                            val dataObj = msg.data as? JsonObject
+                            val tokens = (dataObj?.get("estimatedTokensAfter") as? JsonPrimitive)?.content?.toLongOrNull()
+                            val tip = if (tokens != null) "上下文已压缩（预估剩余约 $tokens tokens）" else "上下文已压缩"
+                            _notice.value = tip
+                            appendSystemNotice(tip)
+                        } else {
+                            _error.value = "压缩上下文失败: ${msg.errorText ?: "未知错误"}"
                         }
                     }
                     "set_thinking_level" -> {

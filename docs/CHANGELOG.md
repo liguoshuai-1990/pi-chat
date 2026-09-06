@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.7] - 2026-09-06
+
+### Added
+- **Android 上下文压缩功能与顶层快捷图标**：
+  - 在 `ChatRepository` 与 `ChatViewModel` 中新增 `compactContext()`，发送 WebSocket `{"type":"compact"}` 协议指令并解析预估剩余 Token 结果。
+  - 在顶部操作栏（TopAppBar）中补齐“压缩上下文”（`Icons.Outlined.Compress`）与“新建会话”（`Icons.Outlined.AddComment`）快捷图标，彻底解决顶栏图标少及压缩功能缺失问题。
+- **Android 模型与思考深度切换反馈提示**：
+  - 选择模型时提供即时 Toast 提示，并在 WebSocket 返回成功时更新 notice 及在聊天记录流中追加居中系统通知（`appendSystemNotice`）。
+  - 支持 `MessageRole.SYSTEM` 消息在聊天列表中的居中圆角胶囊渲染。
+  - 切换思考深度提供即时 Toast 提示。
+- **Android 全链路任务运行中与已完成状态展示**：
+  - 顶部栏标题旁：流式生成中展示「● 运行中」，生成结束后展示「✓ 已完成」。
+  - 侧边栏抽屉会话列表：运行中会话展示绿色「● 运行中」徽标，已完成会话展示「✓ 已完成」徽标。
+  - 消息列表 Assistant 头部：生成中展示「● 运行中」指示器，完成时展示「✓ 已完成」徽标。
+
+### Changed
+- **Android 停止按钮质感全新重构**：
+  - 替换突兀刺眼的纯红高亮粗糙大方块，重构为现代高级科技质感的 `StopButton` 组件（32dp 圆形、微红暗黑背景、呼吸微光边框、纯白圆角小方块），视觉与现代顶级 AI 客户端对齐。
+
 ## [2.18.6] - 2026-09-06
 
 ### Fixed

@@ -69,6 +69,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _notice = MutableStateFlow<String?>(null)
+    val notice: StateFlow<String?> = _notice.asStateFlow()
+
     private var collectorJobs: List<Job> = emptyList()
 
     init {
@@ -117,7 +120,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch { repo.thinkingLevel.collect { _thinkingLevel.value = it } },
             viewModelScope.launch { repo.currentCwd.collect { _currentCwd.value = it } },
             viewModelScope.launch { repo.serverConfig.collect { _serverConfig.value = it } },
-            viewModelScope.launch { repo.error.collect { _error.value = it } }
+            viewModelScope.launch { repo.error.collect { _error.value = it } },
+            viewModelScope.launch { repo.notice.collect { _notice.value = it } }
         )
     }
 
@@ -182,8 +186,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         repository.fetchAvailableModels()
     }
 
+    fun compactContext() {
+        repository.compactContext()
+    }
+
     fun clearError() {
         _error.value = null
+    }
+
+    fun clearNotice() {
+        _notice.value = null
+        repository.clearNotice()
     }
 
     fun reconnect() {
@@ -259,6 +272,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     if (msg.content.isNotEmpty()) {
                         sb.append(msg.content).append("\n\n")
+                    }
+                }
+                com.pichat.android.data.model.MessageRole.SYSTEM -> {
+                    if (msg.content.isNotEmpty()) {
+                        sb.append("> ℹ️ *").append(msg.content).append("*\n\n")
                     }
                 }
                 else -> {}
