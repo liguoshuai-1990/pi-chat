@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.16.6] - 2026-09-06
+
+### Fixed
+- **服务端 index.js 重复错误处理器**：移除了 `unhandledRejection` 和 `uncaughtException` 的重复注册（此前会导致每条未捕获错误输出两行日志），同时移除了未使用的 `server` 变量。
+- **鸿蒙端版本号硬编码**：修复 `Index.ets` 中侧边栏版本号硬编码为 `v2.16.3` 的问题，更新为 `v2.16.6` 与当前发布版本一致。
+
+### Performance
+- **Web 端流式渲染 O(n²) 优化**：`refreshStreamingContent` 在每次文本增量时不再清空并重建整个 DOM，新增快速路径——当仅最后一个文本项内容变化时直接更新其 `innerHTML`，避免长消息（多工具调用 + 长文本）的 O(n²) 重建开销。
+- **Web 端计时器 DOM 扫描优化**：`startStreamingTimer` 将两次独立 `querySelectorAll` 合并为一次组合查询，轮询间隔从 100ms 提升至 200ms，DOM 扫描频率从 20 次/秒降至 5 次/秒。
+- **Web 端会话列表轮询优化**：后台会话列表刷新间隔从 10s 提升至 15s，并在移动端侧边栏收起时跳过刷新，减少不必要的 API 调用。
+
+
 ## [2.16.5] - 2026-09-05
 
 ### Added

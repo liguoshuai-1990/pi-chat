@@ -362,21 +362,16 @@ function startStreamingTimer() {
     if (state.turnStartedAt && state.streamingMsgDurationEl) {
       state.streamingMsgDurationEl.textContent = formatDuration(now - state.turnStartedAt);
     }
-    const liveThinking = document.querySelectorAll(".thinking-duration.live");
-    liveThinking.forEach((el) => {
+    // Single combined query instead of two separate querySelectorAll calls.
+    // Interval at 200ms (5 scans/sec) is still smooth for duration display.
+    const liveEls = document.querySelectorAll(".thinking-duration.live, .tool-duration.live");
+    liveEls.forEach((el) => {
       if (el._startedAt) {
         el.textContent = formatDuration(now - el._startedAt);
         el.style.display = "";
       }
     });
-    const liveTools = document.querySelectorAll(".tool-duration.live");
-    liveTools.forEach((el) => {
-      if (el._startedAt) {
-        el.textContent = formatDuration(now - el._startedAt);
-        el.style.display = "";
-      }
-    });
-  }, 100);
+  }, 200);
 }
 
 function stopStreamingTimer() {
@@ -826,6 +821,7 @@ function clearChat() {
   chatInner.innerHTML = "";
   state.streamingMsg = null;
   state.streamingItems = [];
+  lastRenderedItemCount = 0;
   state.thinkingOpen = true;
   state.thinkingUserToggled = false;
   state.activeToolCalls.clear();
@@ -1476,6 +1472,7 @@ function getStreamingFullText() {
 function ensureStreamingMsg(ts = Date.now()) {
   if (state.streamingMsg) return state.streamingMsg;
   showEmptyState(false);
+  lastRenderedItemCount = 0;
   state.turnStartedAt = ts || Date.now();
   startStreamingTimer();
   const timeStr = formatMessageTime(ts);
@@ -1533,26 +1530,47 @@ function refreshStreamingContentDebounced() {
   });
 }
 
+let lastRenderedItemCount = 0;
 function refreshStreamingContent() {
   const node = state.streamingMsg;
   if (!node) return;
   const content = node.querySelector(".content");
-  content.innerHTML = "";
+  const items = state.streamingItems;
 
-  if (state.streamingItems.length === 0) {
-    if (state.streaming) {
-      content.appendChild(el("div", { class: "thinking-placeholder" }, [
-        el("span", { class: "thinking-spinner" }),
-        el("span", { class: "thinking-label", text: "正在思考中…" })
-      ]));
+  if (items.length === 0) {
+    if (content.children.length === 0 || !content.querySelector(".thinking-placeholder")) {
+      content.innerHTML = "";
+      if (state.streaming) {
+        content.appendChild(el("div", { class: "thinking-placeholder" }, [
+          el("span", { class: "thinking-spinner" }),
+          el("span", { class: "thinking-label", text: "正在思考中…" })
+        ]));
+      }
     }
     scrollBottom();
     return;
   }
 
-  const lastIdx = state.streamingItems.length - 1;
-  for (let i = 0; i < state.streamingItems.length; i++) {
-    const item = state.streamingItems[i];
+  // Fast path: if item count unchanged and last item is text, only update its innerHTML.
+  // This avoids O(n²) rebuilding on every text delta for long messages with many tool calls.
+  if (items.length === lastRenderedItemCount && items.length > 0) {
+    const lastItem = items[items.length - 1];
+    if (lastItem.type === "text") {
+      const lastEl = content.lastElementChild;
+      if (lastEl && !lastEl.classList.contains("thinking-block") && !lastEl.classList.contains("tool-block")) {
+        const showCursor = state.streaming;
+        lastEl.innerHTML = renderMarkdown(lastItem.text) + (showCursor ? '<span class="typing-cursor"></span>' : "");
+        scrollBottom();
+        return;
+      }
+    }
+  }
+
+  // Full rebuild (new items added or structure changed)
+  content.innerHTML = "";
+  const lastIdx = items.length - 1;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
     const isLast = (i === lastIdx);
     if (item.type === "thinking") {
       const isActivelyThinking = state.streaming && isLast && item.isStreaming !== false;
@@ -1564,11 +1582,13 @@ function refreshStreamingContent() {
       content.appendChild(el("div", { html: renderMarkdown(item.text) + (showCursor ? '<span class="typing-cursor"></span>' : "") }));
     }
   }
+  lastRenderedItemCount = items.length;
   scrollBottom();
 }
 
 function finalizeStreamingMsg() {
   state.streaming = false;
+  lastRenderedItemCount = 0;
   stopStreamingTimer();
   if (state.streamingMsg) {
     for (const item of state.streamingItems) {
@@ -3454,12 +3474,16 @@ async function init() {
     }
   });
 
-  // Background session status polling
+  // Background session status polling — refresh every 15s when page is visible.
+  // Skip when sidebar is collapsed on mobile to avoid unnecessary API calls.
   setInterval(() => {
     if (document.visibilityState === "visible") {
-      refreshSessions();
+      const isSidebarVisible = window.innerWidth > 768 || $(".app").classList.contains("sidebar-open");
+      if (isSidebarVisible || state.streaming) {
+        refreshSessions();
+      }
     }
-  }, 10000);
+  }, 15000);
 
   // Global event delegation for code block copy buttons
   document.addEventListener("click", async (e) => {
