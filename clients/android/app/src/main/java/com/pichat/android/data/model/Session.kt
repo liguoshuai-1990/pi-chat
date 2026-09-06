@@ -4,8 +4,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class SessionInfo(
-    val file: String,
-    val name: String,
+    val file: String = "",
+    val name: String = "",
     val id: String? = null,
     val sessionName: String? = null,
     val timestamp: Long? = null,

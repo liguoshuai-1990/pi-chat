@@ -327,7 +327,7 @@ async function getSessionMetadata(file) {
     sessionInfo: {
       file,
       name: path.basename(file),
-      id: header.id,
+      id: header.id != null ? String(header.id) : null,
       sessionName: sessionName || null,
       timestamp: header.timestamp,
       firstUser: title || sessionName || (header.name ? header.name.trim() : null),

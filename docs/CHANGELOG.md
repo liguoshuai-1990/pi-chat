@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.3] - 2026-09-06
+
+### Fixed
+- **Android 会话列表 JSON 解析失败修复（v2.18.2 遗留问题）**：
+  - 修复服务端 `/api/sessions` 返回的 `id` 字段类型不一致问题：Pi 会话文件头部的 `id` 可能为数字类型，但 Android 客户端 `SessionInfo.id` 声明为 `String?`，导致 kotlinx.serialization 抛出 `Unexpected JSON token at offset N` 异常。服务端现已统一将 `id` 转换为字符串。
+  - Android `SessionInfo` 的 `file` 和 `name` 字段添加默认值（空字符串），避免因 `null` 值导致反序列化失败。
+  - Android JSON 解析器添加 `coerceInputValues = true` 配置，将 JSON 中的 `null` 值自动强制转换为 Kotlin 属性的默认值，提升解析容错能力。
+  - Android `ApiService.getSessions()` 新增容错降级解析机制：当严格解析失败时，逐条解析 `sessions` 数组中的会话对象并跳过无法解析的条目，避免单个异常会话导致整个会话列表加载失败。
+  - Android `loadSessions()` 错误处理优化：加载失败时保留已有会话列表而非清空，并添加错误日志输出。
+
 ## [2.18.2] - 2026-09-06
 
 ### Fixed

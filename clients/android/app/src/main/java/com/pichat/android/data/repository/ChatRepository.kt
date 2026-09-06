@@ -201,7 +201,9 @@ class ChatRepository(
             result.onSuccess { res ->
                 _sessions.value = res.sessions
             }.onFailure { e ->
-                _error.value = "Failed to load sessions: ${e.message}"
+                android.util.Log.e("ChatRepository", "loadSessions failed", e)
+                // Preserve existing sessions on error rather than blanking out the drawer
+                _error.value = "加载会话列表失败: ${e.message}"
             }
         }
     }
