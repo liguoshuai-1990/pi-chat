@@ -553,7 +553,7 @@ export class PiAgent {
       const killTimer = setTimeout(() => {
         try { p.kill("SIGKILL"); } catch {}
       }, 2000);
-      killTimer.unref();
+      // Note: keep timer ref'd so SIGKILL fires during process exit
       this.proc = null;
     }
     this.closeAllListeners();

@@ -81,6 +81,7 @@ const state = {
   attachedImages: [], // Array of { data: string (base64), mimeType: string, url: string }
   turnStartedAt: null,
   streamingMsgDurationEl: null,
+  streamingWatchdog: null, // 5-min timeout for stuck streaming
   lastSessions: [],
 };
 
@@ -1588,6 +1589,7 @@ function refreshStreamingContent() {
 
 function finalizeStreamingMsg() {
   state.streaming = false;
+  if (state.streamingWatchdog) { clearTimeout(state.streamingWatchdog); state.streamingWatchdog = null; }
   lastRenderedItemCount = 0;
   stopStreamingTimer();
   if (state.streamingMsg) {
@@ -3001,6 +3003,15 @@ function submitPrompt() {
   ensureStreamingMsg(now);
   refreshStreamingContent();
 
+  // Streaming watchdog: if no agent_end in 5 minutes, auto-finalize
+  if (state.streamingWatchdog) clearTimeout(state.streamingWatchdog);
+  state.streamingWatchdog = setTimeout(() => {
+    if (state.streaming) {
+      toast("生成超时（5 分钟无响应），已自动结束。", "warn");
+      finalizeStreamingMsg();
+    }
+  }, 5 * 60 * 1000);
+
   // Set session name from the first prompt of a brand-new session.
   if (state.currentSessionFile == null && text) {
     const promptTitle = text.slice(0, 60).replace(/\s+/g, " ");
@@ -3033,6 +3044,7 @@ function submitPrompt() {
     state.aborting = false;
     setComposerStreaming(false);
     stopStreamingTimer();
+    if (state.streamingWatchdog) { clearTimeout(state.streamingWatchdog); state.streamingWatchdog = null; }
     state.turnStartedAt = null;
     state.streamingMsgDurationEl = null;
     if (state.streamingMsg) { state.streamingMsg.remove(); state.streamingMsg = null; }

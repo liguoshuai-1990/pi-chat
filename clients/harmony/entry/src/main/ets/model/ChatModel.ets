@@ -18,6 +18,14 @@ export interface ImageAttachment {
   mimeType: string;
 }
 
+export interface ToolCall {
+  toolCallId: string;
+  toolName: string;
+  args?: string;
+  result?: string;
+  status: 'running' | 'done' | 'error';
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -32,6 +40,7 @@ export interface ChatMessage {
   images: ImageAttachment[];
   status: MessageStatus;
   timestamp: number;
+  toolCalls?: ToolCall[];
 }
 
 export interface SessionInfo {
@@ -49,4 +58,12 @@ export interface ServerConfig {
   serverCwd: string;
   version: string;
   authRequired: boolean;
+  defaultModel?: { provider: string; id: string; thinkingLevel?: string };
+}
+
+export interface ModelInfo {
+  provider: string;
+  id: string;
+  name?: string;
+  thinkingLevels?: string[];
 }

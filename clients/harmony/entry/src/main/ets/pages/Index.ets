@@ -1,5 +1,5 @@
 import { ChatViewModel } from '../viewmodel/ChatViewModel';
-import { ChatMessage, MessageRole } from '../model/ChatModel';
+import { ChatMessage, MessageRole, SessionInfo, MessageStatus } from '../model/ChatModel';
 import { PreferencesHelper } from '../network/PreferencesHelper';
 
 @Entry
@@ -12,6 +12,10 @@ struct Index {
   @State isDrawerOpen: boolean = false;
   @State isSettingsOpen: boolean = false;
   @State settingsUrl: string = '';
+  @State settingsToken: string = '';
+  @State settingsCwd: string = '';
+  @State sessionToDelete: SessionInfo | null = null;
+  @State showModelDialog: boolean = false;
   private scroller: Scroller = new Scroller();
 
   aboutToAppear() {
@@ -19,9 +23,14 @@ struct Index {
       this.refreshTrigger = Date.now();
       this.scrollToBottom();
     });
-    // Load persisted server URL or fallback to default
-    PreferencesHelper.getServerUrl(getContext(this) as any).then((url) => {
-      this.viewModel.init(url);
+    // Load persisted server URL, token, and cwd
+    const ctx = getContext(this) as any;
+    Promise.all([
+      PreferencesHelper.getServerUrl(ctx),
+      PreferencesHelper.getAuthToken(ctx),
+      PreferencesHelper.getCwd(ctx)
+    ]).then(([url, token, cwd]) => {
+      this.viewModel.init(url, token, cwd);
     }).catch(() => {
       this.viewModel.init('http://10.0.2.2:3000');
     });
@@ -97,6 +106,12 @@ struct Index {
                   this.viewModel.switchSession(session);
                   this.isDrawerOpen = false;
                 })
+                .bindMenu([
+                  {
+                    value: '删除会话',
+                    action: () => { this.sessionToDelete = session; }
+                  }
+                ])
             }
           })
         }
@@ -111,7 +126,7 @@ struct Index {
             .fontSize(11)
             .fontColor('#6B7280')
           Blank()
-          Text('v2.16.6')
+          Text('v2.17.0')
             .fontSize(11)
             .fontColor('#6B7280')
         }
@@ -171,8 +186,21 @@ struct Index {
             .margin({ left: 8 })
             .onClick(() => {
               this.settingsUrl = this.viewModel.serverUrl;
+              this.settingsToken = this.viewModel.token;
+              this.settingsCwd = this.viewModel.cwd;
               this.isSettingsOpen = true;
             })
+
+          if (this.viewModel.availableModels.length > 0 || this.viewModel.currentModel) {
+            Button('🤖')
+              .fontSize(16)
+              .fontColor('#A78BFA')
+              .backgroundColor(Color.Transparent)
+              .margin({ left: 4 })
+              .onClick(() => {
+                this.showModelDialog = true;
+              })
+          }
         }
         .width('100%')
         .height(56)
@@ -301,6 +329,38 @@ struct Index {
             this.settingsUrl = val;
           })
 
+        Text('Auth Token（可选）')
+          .fontSize(12)
+          .fontColor('#9CA3AF')
+          .margin({ top: 12 })
+        TextInput({ text: this.settingsToken, placeholder: '留空则不使用认证' })
+          .width('80%')
+          .height(44)
+          .fontSize(14)
+          .fontColor('#F3F4F6')
+          .backgroundColor('#1E1E24')
+          .borderRadius(8)
+          .padding({ left: 12, right: 12 })
+          .onChange((val) => {
+            this.settingsToken = val;
+          })
+
+        Text('工作目录（可选）')
+          .fontSize(12)
+          .fontColor('#9CA3AF')
+          .margin({ top: 12 })
+        TextInput({ text: this.settingsCwd, placeholder: '留空则使用默认目录' })
+          .width('80%')
+          .height(44)
+          .fontSize(14)
+          .fontColor('#F3F4F6')
+          .backgroundColor('#1E1E24')
+          .borderRadius(8)
+          .padding({ left: 12, right: 12 })
+          .onChange((val) => {
+            this.settingsCwd = val;
+          })
+
         Row() {
           Button('取消')
             .fontSize(14)
@@ -320,16 +380,127 @@ struct Index {
             .onClick(() => {
               if (this.settingsUrl.trim()) {
                 const targetUrl = this.settingsUrl.trim();
-                PreferencesHelper.setServerUrl(getContext(this) as any, targetUrl).then(() => {
-                  this.viewModel.init(targetUrl);
+                const targetToken = this.settingsToken.trim();
+                const targetCwd = this.settingsCwd.trim();
+                const ctx = getContext(this) as any;
+                Promise.all([
+                  PreferencesHelper.setServerUrl(ctx, targetUrl),
+                  PreferencesHelper.setAuthToken(ctx, targetToken),
+                  PreferencesHelper.setCwd(ctx, targetCwd)
+                ]).then(() => {
+                  this.viewModel.init(targetUrl, targetToken, targetCwd);
                 }).catch(() => {
-                  this.viewModel.init(targetUrl);
+                  this.viewModel.init(targetUrl, targetToken, targetCwd);
                 });
                 this.isSettingsOpen = false;
               }
             })
         }
         .margin({ top: 16 })
+      }
+      .width('90%')
+      .padding(24)
+      .borderRadius(16)
+      .backgroundColor('#1E1E24')
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+    }
+
+    // Delete session confirmation dialog
+    if (this.sessionToDelete) {
+      Column() {
+        Text('删除会话？')
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#F3F4F6')
+          .margin({ bottom: 8 })
+        Text(this.sessionToDelete.sessionName || this.sessionToDelete.firstUser || this.sessionToDelete.name)
+          .fontSize(14)
+          .fontColor('#9CA3AF')
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ bottom: 16 })
+        Row() {
+          Button('取消')
+            .fontSize(14)
+            .fontColor('#9CA3AF')
+            .backgroundColor('#1E1E24')
+            .borderRadius(8)
+            .margin({ right: 12 })
+            .onClick(() => { this.sessionToDelete = null; })
+          Button('删除')
+            .fontSize(14)
+            .fontColor('#FFFFFF')
+            .backgroundColor('#DC2626')
+            .borderRadius(8)
+            .onClick(() => {
+              if (this.sessionToDelete) {
+                const session = this.sessionToDelete;
+                this.sessionToDelete = null;
+                this.viewModel.deleteSession(session);
+              }
+            })
+        }
+      }
+      .width('80%')
+      .padding(24)
+      .borderRadius(16)
+      .backgroundColor('#1E1E24')
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+    }
+
+    // Model selector dialog
+    if (this.showModelDialog) {
+      Column() {
+        Text('选择模型')
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#F3F4F6')
+          .margin({ bottom: 16 })
+
+        if (this.viewModel.availableModels.length > 0) {
+          List({ space: 4 }) {
+            ForEach(this.viewModel.availableModels, (model) => {
+              ListItem() {
+                Row() {
+                  Text(`${model.provider}/${model.id}`)
+                    .fontSize(13)
+                    .fontColor(this.viewModel.currentModel?.id === model.id ? '#A78BFA' : '#D1D5DB')
+                    .layoutWeight(1)
+                  if (this.viewModel.currentModel?.id === model.id) {
+                    Text('✓')
+                      .fontSize(14)
+                      .fontColor('#A78BFA')
+                  }
+                }
+                .width('100%')
+                .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+                .borderRadius(8)
+                .backgroundColor('#1E1E24')
+                .onClick(() => {
+                  this.viewModel.setModel(model.provider, model.id);
+                  this.showModelDialog = false;
+                })
+              }
+            })
+          }
+          .width('90%')
+          .height(300)
+        } else {
+          Text('暂无可用模型信息')
+            .fontSize(14)
+            .fontColor('#9CA3AF')
+            .margin({ bottom: 16 })
+        }
+
+        Button('关闭')
+          .fontSize(14)
+          .fontColor('#9CA3AF')
+          .backgroundColor('#1E1E24')
+          .borderRadius(8)
+          .margin({ top: 12 })
+          .onClick(() => { this.showModelDialog = false; })
       }
       .width('90%')
       .padding(24)
@@ -402,13 +573,53 @@ struct Index {
         if (msg.content && msg.content.length > 0) {
           Text(msg.content)
             .fontSize(15)
-            .fontColor('#F3F4F6')
+            .fontColor(msg.status === MessageStatus.ERROR ? '#FCA5A5' : '#F3F4F6')
             .lineHeight(22)
+        }
+
+        // Tool calls display
+        if (msg.toolCalls && msg.toolCalls.length > 0) {
+          ForEach(msg.toolCalls, (tc) => {
+            Column() {
+              Row() {
+                Text(tc.status === 'running' ? '🔧 ' + tc.toolName + '…' : '✅ ' + tc.toolName)
+                  .fontSize(12)
+                  .fontColor(tc.status === 'running' ? '#FBBF24' : '#10B981')
+                  .fontWeight(FontWeight.Medium)
+              }
+              .width('100%')
+              .margin({ bottom: 4 })
+
+              if (tc.args && tc.args.length > 0) {
+                Text(tc.args)
+                  .fontSize(11)
+                  .fontColor('#9CA3AF')
+                  .maxLines(3)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .width('100%')
+              }
+
+              if (tc.result && tc.result.length > 0) {
+                Text(tc.result)
+                  .fontSize(11)
+                  .fontColor('#D1D5DB')
+                  .maxLines(5)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .width('100%')
+                  .margin({ top: 4 })
+              }
+            }
+            .width('100%')
+            .padding(8)
+            .margin({ top: 4 })
+            .borderRadius(6)
+            .backgroundColor('#16161D')
+          }, (tc) => tc.toolCallId)
         }
       }
       .padding(12)
       .borderRadius(14)
-      .backgroundColor(msg.role === MessageRole.USER ? '#2E2E3A' : '#1E1E24')
+      .backgroundColor(msg.status === MessageStatus.ERROR ? '#451A1A' : (msg.role === MessageRole.USER ? '#2E2E3A' : '#1E1E24'))
       .constraintSize({ maxWidth: '85%' })
 
       if (msg.role !== MessageRole.USER) {

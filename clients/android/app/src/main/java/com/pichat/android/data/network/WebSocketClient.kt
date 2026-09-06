@@ -30,6 +30,7 @@ class WebSocketClient(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    @Volatile
     private var webSocket: WebSocket? = null
 
     private val _incomingMessages = MutableSharedFlow<GenericServerMessage>(extraBufferCapacity = 64)
@@ -40,13 +41,18 @@ class WebSocketClient(
 
     private var heartbeatJob: Job? = null
     private var reconnectJob: Job? = null
+    @Volatile
     private var isManualClose = false
+    @Volatile
     private var reconnectAttempts = 0
 
     // Monotonically increasing generation ID to invalidate callbacks from stale sockets
+    @Volatile
     private var currentGeneration = 0L
 
+    @Volatile
     private var activeCwd: String = ""
+    @Volatile
     private var activeSessionPath: String? = null
 
     fun updateSession(sessionPath: String?) {

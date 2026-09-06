@@ -35,6 +35,17 @@ export default class EntryAbility extends UIAbility {
 
   onForeground() {
     hilog.info(0x0000, 'PiChat', '%{public}s', 'EntryAbility onForeground');
+    // Reconnect WebSocket when returning to foreground — the OS may have
+    // suspended the network stack or killed the connection while in background.
+    try {
+      const { WebSocketManager } = require('../network/WebSocketManager');
+      const wsManager = WebSocketManager.getInstance();
+      if (!wsManager.isConnected()) {
+        wsManager.reconnectIfDisconnected();
+      }
+    } catch (e) {
+      hilog.error(0x0000, 'PiChat', 'onForeground reconnect failed: %{public}s', String(e));
+    }
   }
 
   onBackground() {

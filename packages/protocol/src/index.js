@@ -172,9 +172,9 @@ export function createGetAvailableModelsMessage() {
 
 export function createExtensionUiResponseMessage(id, extra = {}) {
   return {
+    ...extra,
     type: ClientMessageType.EXTENSION_UI_RESPONSE,
     id: String(id || ""),
-    ...extra,
   };
 }
 
@@ -193,10 +193,10 @@ export function createRemoteUserSteerMessage(message) {
 
 export function createExtensionUiRequestMessage(id, method, options = {}) {
   return {
+    ...options,
     type: ServerMessageType.EXTENSION_UI_REQUEST,
     id: String(id || ""),
     method: String(method || ""),
-    ...options,
   };
 }
 
@@ -227,10 +227,10 @@ export function createErrorMessage(code, message, details = null) {
 
 export function createAgentStatusMessage(status, extra = {}) {
   return {
+    ...extra,
     type: ServerMessageType.AGENT_STATUS,
     status,
     timestamp: Date.now(),
-    ...extra,
   };
 }
 
@@ -327,8 +327,8 @@ export function validateClientMessage(msg) {
       return { valid: true };
 
     default:
-      // Allow forward compatibility for custom/raw RPC commands
-      return { valid: true, warning: `Unrecognized message type '${type}', forwarded as raw RPC command` };
+      // Reject unknown message types to prevent arbitrary command forwarding
+      return { valid: false, error: `Unknown message type '${type}'` };
   }
 }
 
@@ -337,7 +337,7 @@ export function validateClientMessage(msg) {
  * Examples: 450 -> "0.5s", 3200 -> "3.2s", 65000 -> "1m 5s"
  */
 export function formatDuration(ms) {
-  if (ms == null || isNaN(ms) || ms < 0) return "";
+  if (ms == null || isNaN(ms) || !isFinite(ms) || ms < 0) return "";
   const totalSecs = Math.round(ms / 1000);
   if (totalSecs < 60) {
     return `${(ms / 1000).toFixed(1)}s`;

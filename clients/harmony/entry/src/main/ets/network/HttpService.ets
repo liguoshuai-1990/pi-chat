@@ -61,6 +61,29 @@ export class HttpService {
     }
   }
 
+  public async deleteSession(file: string): Promise<boolean> {
+    const httpRequest = http.createHttp();
+    try {
+      const url = `${this.baseUrl}/api/session?file=${encodeURIComponent(file)}`;
+      const response = await httpRequest.request(url, {
+        method: http.RequestMethod.DELETE,
+        header: this.token ? { 'Authorization': `Bearer ${this.token}` } : {},
+        readTimeout: 10000,
+        connectTimeout: 10000,
+      });
+      if (response.responseCode === 200) {
+        return true;
+      }
+      console.error(`[HttpService] deleteSession failed: HTTP ${response.responseCode}`);
+      return false;
+    } catch (e) {
+      console.error(`[HttpService] deleteSession error: ${e}`);
+      return false;
+    } finally {
+      httpRequest.destroy();
+    }
+  }
+
   public async getConfig(): Promise<ServerConfig | null> {
     const httpRequest = http.createHttp();
     try {

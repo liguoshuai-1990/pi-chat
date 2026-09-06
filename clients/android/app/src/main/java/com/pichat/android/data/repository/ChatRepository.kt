@@ -75,9 +75,11 @@ class ChatRepository(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    @Volatile
     private var activeCwd: String = ""
 
     // Watchdog: if streaming stays true for too long without agent_end, reset it
+    @Volatile
     private var streamingWatchdogJob: Job? = null
     private val STREAMING_WATCHDOG_MS = 5L * 60 * 1000 // 5 minutes
 
@@ -95,7 +97,12 @@ class ChatRepository(
         }
         scope.launch {
             wsClient.incomingMessages.collect { msg ->
-                handleServerMessage(msg)
+                try {
+                    handleServerMessage(msg)
+                } catch (e: Exception) {
+                    android.util.Log.e("ChatRepository", "Message handling error", e)
+                    _error.value = "消息处理错误: ${e.message}"
+                }
             }
         }
     }

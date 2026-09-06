@@ -1,4 +1,4 @@
-import { ChatMessage, MessageRole, MessageStatus, SessionInfo } from '../model/ChatModel';
+import { ChatMessage, MessageRole, MessageStatus, SessionInfo, ToolCall, ModelInfo } from '../model/ChatModel';
 import { WebSocketManager } from '../network/WebSocketManager';
 import { HttpService } from '../network/HttpService';
 import { PiProtocol } from '../protocol/PiProtocol';
@@ -14,6 +14,10 @@ export class ChatViewModel {
   public serverUrl: string = 'http://10.0.2.2:3000'; // Default, overridable via init()
   public token: string = '';
   public errorMessage: string = '';
+  public availableModels: ModelInfo[] = [];
+  public currentModel: ModelInfo | null = null;
+  public thinkingLevel: string = 'medium';
+  public authRequired: boolean = false;
 
   private wsManager: WebSocketManager = WebSocketManager.getInstance();
   private httpService: HttpService = new HttpService(this.serverUrl, this.token);
@@ -165,6 +169,38 @@ export class ChatViewModel {
     this.currentSessionFile = session.file;
     this.notifyUI();
     this.loadSessionHistory(session.file);
+  }
+
+  public async deleteSession(session: SessionInfo) {
+    const success = await this.httpService.deleteSession(session.file);
+    if (success) {
+      // If deleting the current session, clear messages and start fresh
+      if (this.currentSessionFile === session.file) {
+        this.messages = [];
+        this.currentTitle = 'New Chat';
+        this.currentSessionFile = '';
+      }
+      await this.loadSessions();
+    } else {
+      this.errorMessage = 'Failed to delete session';
+    }
+    this.notifyUI();
+  }
+
+  public setModel(provider: string, modelId: string) {
+    this.wsManager.send(JSON.stringify({ type: 'set_model', provider, modelId }));
+    if (this.currentModel) {
+      this.currentModel = { ...this.currentModel, provider, id: modelId };
+    } else {
+      this.currentModel = { provider, id: modelId };
+    }
+    this.notifyUI();
+  }
+
+  public setThinkingLevel(level: string) {
+    this.thinkingLevel = level;
+    this.wsManager.send(JSON.stringify({ type: 'set_thinking_level', level }));
+    this.notifyUI();
   }
 
   /**
@@ -325,6 +361,33 @@ export class ChatViewModel {
           }
         }
         break;
+      case 'state':
+        const stateData = (msg as any).state || (msg as any).data;
+        if (stateData) {
+          if (stateData.model || stateData.modelId) {
+            this.currentModel = {
+              provider: stateData.provider || stateData.model?.provider || '',
+              id: stateData.modelId || stateData.model?.id || ''
+            };
+          }
+          if (stateData.thinkingLevel) {
+            this.thinkingLevel = stateData.thinkingLevel;
+          }
+          this.notifyUI();
+        }
+        break;
+      case 'available_models':
+        const models = (msg as any).models || (msg as any).data || [];
+        if (Array.isArray(models)) {
+          this.availableModels = models.map((m: any) => ({
+            provider: m.provider || '',
+            id: m.id || m.modelId || '',
+            name: m.name,
+            thinkingLevels: m.thinkingLevels
+          }));
+          this.notifyUI();
+        }
+        break;
       case 'agent_start':
       case 'message_start':
         this.isStreaming = true;
@@ -354,6 +417,8 @@ export class ChatViewModel {
             this.messages[lastIdx].status = MessageStatus.ERROR;
           }
           this.errorMessage = errMsg;
+          this.isStreaming = false;
+          this.cancelStreamingWatchdog();
           this.notifyUI();
         }
         break;
@@ -380,6 +445,13 @@ export class ChatViewModel {
         break;
       case 'tool_execution_start':
         this.finishThinking();
+        this.addToolCall((msg as any).toolCallId || '', (msg as any).toolName || 'tool', (msg as any).args || '');
+        break;
+      case 'tool_execution_update':
+        this.updateToolCall((msg as any).toolCallId || '', (msg as any).update || '');
+        break;
+      case 'tool_execution_end':
+        this.finishToolCall((msg as any).toolCallId || '', (msg as any).result || '');
         break;
       case 'agent_end':
       case 'agent_settled':
@@ -580,6 +652,55 @@ export class ChatViewModel {
     }
     this.messages = [...this.messages];
     this.notifyUI();
+  }
+
+  private addToolCall(toolCallId: string, toolName: string, args: string) {
+    let lastIdx = -1;
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (this.messages[i].role === MessageRole.ASSISTANT && this.messages[i].status === MessageStatus.STREAMING) {
+        lastIdx = i;
+        break;
+      }
+    }
+    if (lastIdx !== -1) {
+      if (!this.messages[lastIdx].toolCalls) {
+        this.messages[lastIdx].toolCalls = [];
+      }
+      this.messages[lastIdx].toolCalls!.push({
+        toolCallId, toolName, args, status: 'running'
+      });
+      this.messages = [...this.messages];
+      this.notifyUI();
+    }
+  }
+
+  private updateToolCall(toolCallId: string, update: string) {
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (this.messages[i].role === MessageRole.ASSISTANT && this.messages[i].toolCalls) {
+        const tc = this.messages[i].toolCalls!.find(t => t.toolCallId === toolCallId);
+        if (tc) {
+          tc.result = (tc.result || '') + update;
+          this.messages = [...this.messages];
+          this.notifyUI();
+          break;
+        }
+      }
+    }
+  }
+
+  private finishToolCall(toolCallId: string, result: string) {
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (this.messages[i].role === MessageRole.ASSISTANT && this.messages[i].toolCalls) {
+        const tc = this.messages[i].toolCalls!.find(t => t.toolCallId === toolCallId);
+        if (tc) {
+          tc.status = 'done';
+          if (result) tc.result = result;
+          this.messages = [...this.messages];
+          this.notifyUI();
+          break;
+        }
+      }
+    }
   }
 
   private notifyUI() {

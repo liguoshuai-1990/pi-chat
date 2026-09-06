@@ -57,7 +57,19 @@ export function normalizePath(p) {
 
 export function normalizeCwd(dir) {
   if (!dir) return process.cwd() || home();
-  return normalizePath(dir);
+  const resolved = normalizePath(dir);
+  // If ALLOWED_CWD_DIRS is set, verify the resolved path is within an allowed root
+  const allowed = (process.env.ALLOWED_CWD_DIRS || "").split(",").map(s => s.trim()).filter(Boolean);
+  if (allowed.length > 0) {
+    const isAllowed = allowed.some(root => {
+      const r = path.resolve(root);
+      return resolved === r || resolved.startsWith(r + path.sep);
+    });
+    if (!isAllowed) {
+      throw new Error(`cwd '${resolved}' is outside allowed directories (ALLOWED_CWD_DIRS=${process.env.ALLOWED_CWD_DIRS})`);
+    }
+  }
+  return resolved;
 }
 
 export function resolvePiBin() {
@@ -109,7 +121,7 @@ function parseEnvNum(name, defaultValue, { integer = false } = {}) {
 
 export const config = {
   port: Number(process.env.PORT) || 3000,
-  host: process.env.HOST || "0.0.0.0",
+  host: process.env.HOST || (process.env.AUTH_TOKEN || process.env.PI_AUTH_TOKEN ? "0.0.0.0" : "127.0.0.1"),
   authToken: process.env.AUTH_TOKEN || process.env.PI_AUTH_TOKEN || "",
   sessionsDir: process.env.PI_SESSIONS_DIR || path.join(home(), ".pi", "agent", "sessions"),
   piBin: resolvePiBin(),
@@ -120,6 +132,10 @@ export const config = {
   maxConcurrentAgents: parseEnvNum("MAX_CONCURRENT_AGENTS", 0, { integer: true }),
   idleDropHeap: process.env.IDLE_DROP_HEAP === "1" || process.env.IDLE_DROP_HEAP === "true",
   allowedOrigins: process.env.ALLOWED_ORIGINS || "",
+  // Comma-separated list of allowed cwd root dirs. If set, cwd requests outside
+  // these roots are rejected. If empty (default), all cwd values are allowed
+  // (backward-compatible — suitable for local dev / single-user VPS).
+  allowedCwdDirs: process.env.ALLOWED_CWD_DIRS || "",
   // Timeout for long-running commands (prompt, steer, client_send) in ms.
   // 0 = disabled (wait forever). Default: 10 minutes.
   // When the timeout fires, the pending entry is rejected, streaming state is

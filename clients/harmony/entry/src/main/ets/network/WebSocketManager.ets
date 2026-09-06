@@ -3,6 +3,7 @@ import { PiProtocol } from '../protocol/PiProtocol';
 
 export type MessageCallback = (msg: PiProtocol.ServerMessage) => void;
 export type StateCallback = (isConnected: boolean) => void;
+export type AuthFailureCallback = () => void;
 
 export class WebSocketManager {
   private static instance: WebSocketManager;
@@ -10,6 +11,7 @@ export class WebSocketManager {
   private isConnected: boolean = false;
   private messageListeners: MessageCallback[] = [];
   private stateListeners: StateCallback[] = [];
+  private authFailureListeners: AuthFailureCallback[] = [];
   private pingInterval: number = -1;
   private currentUrl: string = '';
   private reconnectTimer: number = -1;
@@ -25,6 +27,31 @@ export class WebSocketManager {
       WebSocketManager.instance = new WebSocketManager();
     }
     return WebSocketManager.instance;
+  }
+
+  public isConnected(): boolean {
+    return this.isConnected;
+  }
+
+  public reconnectIfDisconnected() {
+    if (!this.isConnected && !this.isManualClose && this.lastUrl) {
+      this.connect(this.lastUrl, this.lastToken, this.lastCwd, this.lastSession);
+    }
+  }
+
+  public addAuthFailureListener(cb: AuthFailureCallback) {
+    this.authFailureListeners.push(cb);
+  }
+
+  public removeAuthFailureListener(cb: AuthFailureCallback) {
+    const idx = this.authFailureListeners.indexOf(cb);
+    if (idx !== -1) this.authFailureListeners.splice(idx, 1);
+  }
+
+  private notifyAuthFailure() {
+    for (const listener of this.authFailureListeners) {
+      listener();
+    }
   }
 
   public connect(url: string, token?: string, cwd?: string, session?: string) {
@@ -90,7 +117,10 @@ export class WebSocketManager {
       this.isConnected = false;
       this.notifyState(false);
       this.stopHeartbeat();
-      if (!this.isManualClose && value?.code !== 4401) {
+      if (value?.code === 4401) {
+        // Auth failure — notify listeners instead of silently suppressing
+        this.notifyAuthFailure();
+      } else if (!this.isManualClose) {
         this.scheduleReconnect();
       }
     });
