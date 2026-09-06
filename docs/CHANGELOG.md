@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.17.1] - 2026-09-06
+
+### Fixed
+- **网关与 Web 端：修复首次思考转圈时刷新页面会话丢失的严重缺陷**：
+  - **会话地址原子锚定**：Web 前端在发送首条 prompt 时立即调用 `updateUrlSession(sessionFile)` 将 `session` 锚定至浏览器地址栏（并保留当前 `cwd` 等参数），避免因刷新导致 URL 丢失 session 状态。
+  - **内存活跃会话动态合并**：服务端 `/api/sessions` 列表接口新增合并 `activeAgents` 中当前工作目录下的活跃会话，即使首轮思考期间 pi 尚未向磁盘刷入 `.jsonl` 文件，左侧历史列表也能实时呈现“运行中”会话项。
+  - **未落盘会话历史容错合成**：`/api/session` 接口在磁盘文件尚不存在（ENOENT）时，检查对应活跃中的 `activeAgent`，直接返回包含首条提问的虚拟 transcript 结构，避免页面刷新后报 404 导致聊天区域清空。
+  - **首轮 Prompt 缓冲重放机制**：WebSocket 网关在接收到首条 prompt 时将其缓冲，客户端在首轮思考中途刷新重连后，`replayBufferedWs` 会先重放用户的初始提问，再流式重放正在进行的思考与回答，实现首轮思考刷新无缝衔接。
+
+### Changed
+- **Web 端：优化首次思考状态的实时视觉反馈**：
+  - 在 `thinking-placeholder` 中增加动态耗时显示（如 `正在思考中… (1.2s)`），并在超过 2.5 秒时自动过渡提示为 `正在深度推理中… (2.8s)`，彻底消除大模型首字推理等待期间的停滞感与死锁焦虑。
+- 全端版本号统一递增至 2.17.1（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+
 ## [2.16.6] - 2026-09-06
 
 ### Fixed

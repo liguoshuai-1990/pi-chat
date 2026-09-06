@@ -7,6 +7,7 @@ import { config, normalizePath, home } from "../src/config.js";
 import { createServer } from "../src/server.js";
 import { PiAgent, activeAgents, allAgents, getOrCreateAgent } from "../src/agent.js";
 import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 // CI runners don't have the real `pi` CLI installed, so `PiAgent.start()`'s
 // spawn("pi") fails with ENOENT and leaves the test process hanging. Stub it
@@ -402,6 +403,50 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
         assert.ok(cc.includes("no-cache"), `HTML should set no-cache, got: ${cc}`);
       }
     } finally {
+      await serverInstance.close();
+    }
+  });
+
+  test("/api/sessions and /api/session include active in-memory sessions not yet flushed to disk", async () => {
+    const serverInstance = createServer();
+    const { httpServer } = await serverInstance.listen(0, "127.0.0.1");
+    const port = httpServer.address().port;
+    const testCwd = normalizePath(process.cwd());
+    const mockSessionFile = path.join(config.sessionsDir, "unflushed_first_turn_test.jsonl");
+    const key = `${testCwd}:${normalizePath(mockSessionFile)}`;
+
+    // Create an active agent that represents an ongoing first turn
+    const mockAgent = {
+      alive: true,
+      cwd: testCwd,
+      sessionKey: key,
+      isStreaming: true,
+      startedAt: Date.now(),
+      lastUserPrompt: { text: "帮我写一个快速排序", images: [], isSteer: false, at: Date.now() },
+      sessionName: null,
+      stop() {},
+    };
+    activeAgents.set(key, mockAgent);
+
+    try {
+      // 1. /api/sessions should list this unflushed in-memory session
+      const sessionsRes = await fetch(`http://127.0.0.1:${port}/api/sessions?cwd=${encodeURIComponent(testCwd)}`);
+      assert.equal(sessionsRes.status, 200);
+      const sessionsData = await sessionsRes.json();
+      const found = sessionsData.sessions.find((s) => s.file === mockSessionFile);
+      assert.ok(found, "Unflushed active session should be listed in /api/sessions");
+      assert.equal(found.title, "帮我写一个快速排序");
+      assert.equal(found.isStreaming, true);
+
+      // 2. /api/session should return synthesized transcript without 404
+      const sessionRes = await fetch(`http://127.0.0.1:${port}/api/session?file=${encodeURIComponent(mockSessionFile)}`);
+      assert.equal(sessionRes.status, 200);
+      const sessionData = await sessionRes.json();
+      assert.equal(sessionData.firstUser, "帮我写一个快速排序");
+      assert.equal(sessionData.entries?.length, 1);
+      assert.equal(sessionData.entries[0]?.message?.content, "帮我写一个快速排序");
+    } finally {
+      activeAgents.delete(key);
       await serverInstance.close();
     }
   });

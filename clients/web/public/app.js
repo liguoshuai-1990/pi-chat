@@ -372,7 +372,28 @@ function startStreamingTimer() {
         el.style.display = "";
       }
     });
-  }, 200);
+    const liveTools = document.querySelectorAll(".tool-duration.live");
+    liveTools.forEach((el) => {
+      if (el._startedAt) {
+        el.textContent = formatDuration(now - el._startedAt);
+        el.style.display = "";
+      }
+    });
+    // Live update for the thinking placeholder spinner label before first delta arrives
+    const placeholder = document.querySelector(".thinking-placeholder");
+    if (placeholder && state.turnStartedAt) {
+      const elapsed = Math.max(0, now - state.turnStartedAt);
+      const labelEl = placeholder.querySelector(".thinking-label");
+      if (labelEl) {
+        const durStr = formatDuration(elapsed);
+        if (elapsed > 2500) {
+          labelEl.textContent = `正在深度推理中… (${durStr})`;
+        } else {
+          labelEl.textContent = `正在思考中… (${durStr})`;
+        }
+      }
+    }
+  }, 100);
 }
 
 function stopStreamingTimer() {
@@ -380,6 +401,20 @@ function stopStreamingTimer() {
     clearInterval(liveTimerInterval);
     liveTimerInterval = null;
   }
+}
+
+function updateUrlSession(sessionFile) {
+  if (!sessionFile) return;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    params.set("session", sessionFile);
+    if (state.cwd && !params.has("cwd")) {
+      params.set("cwd", state.cwd);
+    }
+    const query = params.toString();
+    const newUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    window.history.replaceState({ session: sessionFile }, "", newUrl);
+  } catch {}
 }
 
 function sameSession(a, b) {
@@ -527,7 +562,12 @@ function startNewSession() {
   state.activeToolCalls.clear();
   setComposerStreaming(false);
   try {
-    window.history.replaceState({}, "", window.location.pathname);
+    const params = new URLSearchParams(window.location.search);
+    params.delete("session");
+    params.delete("file");
+    const query = params.toString();
+    const newUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    window.history.replaceState({}, "", newUrl);
   } catch {}
   $("#topSessionName").textContent = "新对话";
   updatePageTitle(null);
@@ -655,10 +695,7 @@ async function loadSession(file) {
   state.streamingMsg = null;
   state.activeToolCalls.clear();
   setComposerStreaming(false);
-  try {
-    const newUrl = window.location.pathname + "?session=" + encodeURIComponent(file);
-    window.history.replaceState({ session: file }, "", newUrl);
-  } catch {}
+  updateUrlSession(file);
   // Mobile: close sidebar on selection
   if (window.innerWidth <= 768) {
     closeSidebar();
@@ -1863,15 +1900,13 @@ function sendWs(obj) {
 function handlePiMessage(obj) {
   // Automatically bind to the session file as soon as pi allocates it on disk
   const sessionFile = obj.data?.sessionFile || obj.sessionFile || obj.data?.sessionPath || obj.sessionPath;
-  if (sessionFile && !sameSession(sessionFile, state.currentSessionFile)) {
+  if (sessionFile) {
+    const isDifferent = !sameSession(sessionFile, state.currentSessionFile);
     state.currentSessionFile = sessionFile;
-    try {
-      const newUrl = window.location.pathname + "?session=" + encodeURIComponent(sessionFile);
-      window.history.replaceState({ session: sessionFile }, "", newUrl);
-    } catch {}
-    // Do not set baseName(sessionFile) as title — it's a session ID, not a user-friendly summary.
-    // The proper title will be set by syncSessionHistory (via firstUser) or by the user prompt.
-    refreshSessions();
+    if (state.streaming || isDifferent) {
+      updateUrlSession(sessionFile);
+      refreshSessions();
+    }
   }
 
   // Backfill markers emitted by the server when it replays buffered events
@@ -3012,8 +3047,14 @@ function submitPrompt() {
     }
   }, 5 * 60 * 1000);
 
+  // If sessionFile is already known, immediately anchor it to browser URL so page reloads don't lose the active conversation
+  if (state.currentSessionFile) {
+    updateUrlSession(state.currentSessionFile);
+  }
+
   // Set session name from the first prompt of a brand-new session.
-  if (state.currentSessionFile == null && text) {
+  const isFirstPrompt = ($("#chat-inner")?.querySelectorAll(".msg").length || 0) <= 2;
+  if (isFirstPrompt && text) {
     const promptTitle = text.slice(0, 60).replace(/\s+/g, " ");
     $("#topSessionName").textContent = promptTitle;
     updatePageTitle(promptTitle);

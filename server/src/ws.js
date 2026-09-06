@@ -220,7 +220,8 @@ export function setupWebSocketGateway(httpServer) {
             return;
           }
           activeAgent.broadcast({ type: "remote_user_prompt", message: promptText, images: promptImages }, ws);
-          activeAgent.lastUserPrompt = { text: promptText, isSteer: false, at: nowMs };
+          activeAgent.lastUserPrompt = { text: promptText, images: promptImages, isSteer: false, at: nowMs };
+          activeAgent.bufferEvent({ type: "remote_user_prompt", message: promptText, images: promptImages, timestamp: nowMs });
           activeAgent.send({ type: "prompt", message: promptText, images: promptImages, id: msg.id }).then((res) => {
             if (res && res.success === false) {
               activeAgent.setStreaming(false);

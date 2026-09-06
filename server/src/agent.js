@@ -411,12 +411,32 @@ export class PiAgent {
   }
 
   replayBufferedWs(ws) {
-    if (this.eventBuffer.length === 0 || ws.readyState !== 1) return;
-    const count = this.eventBuffer.length;
+    if (ws.readyState !== 1) return;
+    const hasBufferedUserPrompt = this.eventBuffer.some(
+      (ev) => ev && (ev.type === "remote_user_prompt" || ev.type === "user_prompt")
+    );
+    const needSyntheticUserPrompt = !hasBufferedUserPrompt && this.isStreaming && Boolean(this.lastUserPrompt);
+    const extraCount = needSyntheticUserPrompt ? 1 : 0;
+    const count = this.eventBuffer.length + extraCount;
+    if (count === 0) return;
+
     try { ws.send(JSON.stringify(createBackfillStartMessage(count))); } catch {}
+
+    if (needSyntheticUserPrompt && this.lastUserPrompt) {
+      try {
+        ws.send(JSON.stringify({
+          type: "remote_user_prompt",
+          message: this.lastUserPrompt.text,
+          images: this.lastUserPrompt.images || [],
+          isSteer: Boolean(this.lastUserPrompt.isSteer),
+          timestamp: this.lastUserPrompt.at || Date.now(),
+        }));
+      } catch {}
+    }
+
     const size = config.eventBufferSize || 5000;
     const start = this.hasBufferOverflowed ? this.bufferHead : 0;
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < this.eventBuffer.length; i++) {
       const idx = (start + i) % size;
       const ev = this.eventBuffer[idx];
       if (ev !== undefined) {

@@ -361,6 +361,31 @@ router.get("/api/sessions", authMiddleware, async (req, res) => {
       })
     );
     const sessions = results.filter(Boolean);
+
+    // Also include any active agents in this cwd that have not yet flushed to disk (e.g. during first turn thinking)
+    const knownFiles = new Set(sessions.map((s) => normalizePath(s.file)));
+    for (const [, agent] of activeAgents.entries()) {
+      if (agent.alive && agent.cwd === cwd && agent.sessionKey) {
+        const idx = agent.sessionKey.indexOf(":");
+        if (idx >= 0) {
+          const sessionPath = agent.sessionKey.slice(idx + 1);
+          const normPath = normalizePath(sessionPath);
+          if (!knownFiles.has(normPath)) {
+            sessions.push({
+              file: sessionPath,
+              id: path.basename(sessionPath, ".jsonl"),
+              title: agent.sessionName || agent.lastUserPrompt?.text?.slice(0, 80) || "新对话",
+              cwd: agent.cwd,
+              timestamp: agent.lastUserPrompt?.at || agent.startedAt || Date.now(),
+              messageCount: agent.lastUserPrompt ? 1 : 0,
+              isStreaming: Boolean(agent.isStreaming),
+            });
+            knownFiles.add(normPath);
+          }
+        }
+      }
+    }
+
     sessions.sort((a, b) => {
       const parseTs = (ts) => {
         if (typeof ts === "number" && Number.isFinite(ts)) return ts;
@@ -383,8 +408,43 @@ router.get("/api/sessions", authMiddleware, async (req, res) => {
 router.get("/api/session", authMiddleware, async (req, res) => {
   try {
     const file = req.query.file;
+
+    // Helper: locate an active in-memory agent for a session file that has not yet flushed to disk (e.g. refreshing during the first turn while thinking)
+    const findActiveAgent = (targetFile) => {
+      if (!targetFile || typeof targetFile !== "string") return null;
+      let norm;
+      try { norm = normalizePath(targetFile); } catch { return null; }
+      for (const [, a] of activeAgents.entries()) {
+        if (!a.alive || !a.sessionKey) continue;
+        const idx = a.sessionKey.indexOf(":");
+        if (idx >= 0 && normalizePath(a.sessionKey.slice(idx + 1)) === norm) return a;
+      }
+      return null;
+    };
+    const synthesizeActiveSession = (a) => {
+      const promptText = a.lastUserPrompt?.text || "";
+      return res.json({
+        header: { cwd: a.cwd, type: "session" },
+        sessionName: a.sessionName || promptText.slice(0, 80) || "新对话",
+        firstUser: promptText,
+        entries: promptText ? [
+          {
+            type: "message",
+            message: { role: "user", content: promptText, timestamp: a.lastUserPrompt.at }
+          }
+        ] : [],
+        model: null,
+        timing: null
+      });
+    };
+
     const validation = await validateSessionFile(file);
     if (validation.error) {
+      // If file is missing from disk but an active agent owns it, synthesize from memory.
+      const active = findActiveAgent(file);
+      if (active && validation.error === 404) {
+        return synthesizeActiveSession(active);
+      }
       return res.status(validation.error).json({ error: validation.message });
     }
 
@@ -395,6 +455,8 @@ router.get("/api/session", authMiddleware, async (req, res) => {
       content = await readFile(resolvedFile, "utf8");
     } catch (err) {
       if (err.code === "ENOENT") {
+        const active = findActiveAgent(resolvedFile);
+        if (active) return synthesizeActiveSession(active);
         return res.status(404).json({ header: null, entries: [], model: null, sessionName: null, error: "Session file not found" });
       }
       throw err;
