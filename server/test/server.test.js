@@ -435,7 +435,8 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
       const sessionsData = await sessionsRes.json();
       const found = sessionsData.sessions.find((s) => s.file === mockSessionFile);
       assert.ok(found, "Unflushed active session should be listed in /api/sessions");
-      assert.equal(found.title, "帮我写一个快速排序");
+      assert.equal(found.firstUser, "帮我写一个快速排序");
+      assert.ok(found.name, "Active session should have a name field");
       assert.equal(found.isStreaming, true);
 
       // 2. /api/session should return synthesized transcript without 404
