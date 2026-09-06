@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.13] - 2026-09-06
+
+### Fixed
+- **Android App 消息气泡流式状态作用域修复**：
+  - 修复 `MessageBubble` 中 `isStreaming` 局部变量作用域错位导致的 Kotlin 编译失败问题。
+- **Android Gradle 构建脚本签名回退优化**：
+  - 修复 `build.gradle.kts` 中 `java.util.Base64` 导包问题，优化 Release 构建无秘钥时的调试签名降级机制。
+  - 正式发布全功能稳定版 Release，涵盖打字机闪烁光标独立换行、实时用时读秒、自动滚动触底锚点、顶栏对齐手机 Web 以及 Release/Debug APK 双构件打包。
+
 ## [2.18.12] - 2026-09-06
 
 ### Fixed
