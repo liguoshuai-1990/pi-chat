@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Android JSON 解析器添加 `coerceInputValues = true` 配置，将 JSON 中的 `null` 值自动强制转换为 Kotlin 属性的默认值，提升解析容错能力。
   - Android `ApiService.getSessions()` 新增容错降级解析机制：当严格解析失败时，逐条解析 `sessions` 数组中的会话对象并跳过无法解析的条目，避免单个异常会话导致整个会话列表加载失败。
   - Android `loadSessions()` 错误处理优化：加载失败时保留已有会话列表而非清空，并添加错误日志输出。
+- **Web 端流式超时看门狗崩溃修复**：
+  - 修复 `submitPrompt()` 中 5 分钟流式超时回调调用了未定义的 `toast()` 函数（应为 `showToast()`），导致超时触发时抛出 `ReferenceError`，流式状态无法正确重置，用户界面永久卡在生成中状态。
+- **Web 端定时器冗余 DOM 查询清理**：
+  - 移除 `startStreamingTimer()` 中对 `.tool-duration.live` 的重复 `querySelectorAll` 调用，该查询已被上方合并查询覆盖。减少每 100ms 一次的冗余 DOM 扫描，降低 CPU 开销。
 
 ## [2.18.2] - 2026-09-06
 

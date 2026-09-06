@@ -372,13 +372,7 @@ function startStreamingTimer() {
         el.style.display = "";
       }
     });
-    const liveTools = document.querySelectorAll(".tool-duration.live");
-    liveTools.forEach((el) => {
-      if (el._startedAt) {
-        el.textContent = formatDuration(now - el._startedAt);
-        el.style.display = "";
-      }
-    });
+
     // Live update for the thinking placeholder spinner label before first delta arrives
     const placeholder = document.querySelector(".thinking-placeholder");
     if (placeholder && state.turnStartedAt) {
@@ -3144,7 +3138,7 @@ function submitPrompt() {
   if (state.streamingWatchdog) clearTimeout(state.streamingWatchdog);
   state.streamingWatchdog = setTimeout(() => {
     if (state.streaming) {
-      toast("生成超时（5 分钟无响应），已自动结束。", "warn");
+      showToast("生成超时（5 分钟无响应），已自动结束。");
       finalizeStreamingMsg();
     }
   }, 5 * 60 * 1000);
