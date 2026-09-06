@@ -213,6 +213,8 @@ class ChatRepository(
         streamingWatchdogJob = scope.launch {
             kotlinx.coroutines.delay(STREAMING_WATCHDOG_MS)
             if (_isStreaming.value) {
+                // Send abort to server so the agent process stops, not just the client UI
+                wsClient.sendRaw("""{"type":"abort"}""")
                 _isStreaming.value = false
                 markLastMessageDone()
                 _error.value = "Streaming timed out after ${STREAMING_WATCHDOG_MS / 1000}s"
@@ -836,8 +838,15 @@ class ChatRepository(
                 val text = msg.messageText ?: ""
                 val isSteer = msg.isSteer == true
                 if (!isSteer && text.isNotEmpty()) {
-                    val lastUser = _messages.value.findLast { it.role == MessageRole.USER }
-                    if (lastUser?.content != text) {
+                    // Skip if the last user message has the same content AND
+                    // an assistant streaming bubble already exists (avoid duplicates)
+                    val msgs = _messages.value
+                    val lastUser = msgs.findLast { it.role == MessageRole.USER }
+                    val hasStreamingAssistant = msgs.any {
+                        it.role == MessageRole.ASSISTANT && it.status == MessageStatus.STREAMING
+                    }
+                    if (lastUser?.content != text || !hasStreamingAssistant) {
+                        if (lastUser?.content == text && hasStreamingAssistant) return
                         val userMsg = ChatMessage(
                             role = MessageRole.USER,
                             content = text,
@@ -849,7 +858,7 @@ class ChatRepository(
                             status = MessageStatus.STREAMING,
                             turnStartedAt = System.currentTimeMillis()
                         )
-                        _messages.value = _messages.value + userMsg + assistantMsg
+                        _messages.value = msgs + userMsg + assistantMsg
                         _isStreaming.value = true
                         startStreamingWatchdog()
                     }
@@ -901,6 +910,20 @@ class ChatRepository(
         return _messages.value.indexOfLast { it.role == MessageRole.ASSISTANT }
     }
 
+    /**
+     * Applies [transform] to the last assistant message and commits the result.
+     * Returns false if no assistant message exists (no-op).
+     * Centralizes the toMutableList + index + copy + assign pattern.
+     */
+    private inline fun mutateLastAssistant(transform: (ChatMessage) -> ChatMessage): Boolean {
+        val list = _messages.value.toMutableList()
+        val idx = list.indexOfLast { it.role == MessageRole.ASSISTANT }
+        if (idx == -1) return false
+        list[idx] = transform(list[idx])
+        _messages.value = list
+        return true
+    }
+
     private fun startThinking() {
         val list = _messages.value.toMutableList()
         var idx = indexOfLastAssistantMessage()
@@ -930,34 +953,20 @@ class ChatRepository(
     }
 
     private fun finishThinking() {
-        val list = _messages.value.toMutableList()
-        val idx = indexOfLastAssistantMessage()
-        if (idx == -1) return
-        val last = list[idx]
-        if (last.isThinking) {
-            val now = System.currentTimeMillis()
-            val startTs = last.thinkingStartedAt ?: now
-            val duration = Math.max(0L, now - startTs)
-            list[idx] = last.copy(
-                isThinking = false,
-                thinkingEndedAt = now,
-                thinkingDurationMs = duration
-            )
-            _messages.value = list
+        mutateLastAssistant { last ->
+            if (last.isThinking) {
+                val now = System.currentTimeMillis()
+                val startTs = last.thinkingStartedAt ?: now
+                val duration = Math.max(0L, now - startTs)
+                last.copy(isThinking = false, thinkingEndedAt = now, thinkingDurationMs = duration)
+            } else last
         }
     }
 
     private fun setAssistantFinalText(text: String) {
-        val list = _messages.value.toMutableList()
-        val idx = indexOfLastAssistantMessage()
-        if (idx == -1) return
-        val last = list[idx]
-        list[idx] = last.copy(
-            content = text,
-            isThinking = false,
-            status = MessageStatus.STREAMING
-        )
-        _messages.value = list
+        mutateLastAssistant { last ->
+            last.copy(content = text, isThinking = false, status = MessageStatus.STREAMING)
+        }
     }
 
     private fun startToolCall(id: String, name: String, args: String) {
@@ -988,37 +997,33 @@ class ChatRepository(
     }
 
     private fun updateToolCallOutput(id: String, output: String) {
-        val list = _messages.value.toMutableList()
-        val idx = indexOfLastAssistantMessage()
-        if (idx == -1) return
-        val message = list[idx]
-        val toolCalls = message.toolCalls.toMutableList()
-        val tcIdx = toolCalls.indexOfFirst { it.id == id }
-        if (tcIdx == -1) return
-        toolCalls[tcIdx] = toolCalls[tcIdx].copy(output = output)
-        list[idx] = message.copy(toolCalls = toolCalls)
-        _messages.value = list
+        mutateLastAssistant { message ->
+            val toolCalls = message.toolCalls.toMutableList()
+            val tcIdx = toolCalls.indexOfFirst { it.id == id }
+            if (tcIdx != -1) {
+                toolCalls[tcIdx] = toolCalls[tcIdx].copy(output = output)
+                message.copy(toolCalls = toolCalls)
+            } else message
+        }
     }
 
     private fun finishToolCall(id: String, result: String, isError: Boolean) {
-        val list = _messages.value.toMutableList()
-        val idx = indexOfLastAssistantMessage()
-        if (idx == -1) return
-        val message = list[idx]
-        val toolCalls = message.toolCalls.toMutableList()
-        val tcIdx = toolCalls.indexOfFirst { it.id == id }
-        if (tcIdx == -1) return
-        val now = System.currentTimeMillis()
-        val tc = toolCalls[tcIdx]
-        val duration = if (tc.startedAt > 0) now - tc.startedAt else null
-        toolCalls[tcIdx] = tc.copy(
-            output = result,
-            state = if (isError) ToolCallState.ERROR else ToolCallState.DONE,
-            endedAt = now,
-            durationMs = duration
-        )
-        list[idx] = message.copy(toolCalls = toolCalls)
-        _messages.value = list
+        mutateLastAssistant { message ->
+            val toolCalls = message.toolCalls.toMutableList()
+            val tcIdx = toolCalls.indexOfFirst { it.id == id }
+            if (tcIdx != -1) {
+                val now = System.currentTimeMillis()
+                val tc = toolCalls[tcIdx]
+                val duration = if (tc.startedAt > 0) now - tc.startedAt else null
+                toolCalls[tcIdx] = tc.copy(
+                    output = result,
+                    state = if (isError) ToolCallState.ERROR else ToolCallState.DONE,
+                    endedAt = now,
+                    durationMs = duration
+                )
+                message.copy(toolCalls = toolCalls)
+            } else message
+        }
     }
 
     private fun updateLastAssistantMessage(delta: String, isThinking: Boolean) {
@@ -1067,11 +1072,8 @@ class ChatRepository(
     }
 
     private fun markLastMessageDone() {
-        val list = _messages.value.toMutableList()
-        val idx = indexOfLastAssistantMessage()
-        if (idx != -1) {
+        mutateLastAssistant { last ->
             val now = System.currentTimeMillis()
-            val last = list[idx]
             val thinkingDuration = if (last.isThinking && last.thinkingStartedAt != null) {
                 now - last.thinkingStartedAt
             } else {
@@ -1088,14 +1090,13 @@ class ChatRepository(
                     it.copy(state = ToolCallState.DONE, endedAt = now, durationMs = it.durationMs ?: dur)
                 } else it
             }
-            list[idx] = last.copy(
+            last.copy(
                 status = MessageStatus.DONE,
                 isThinking = false,
                 thinkingDurationMs = thinkingDuration,
                 turnDurationMs = turnDuration,
                 toolCalls = updatedToolCalls
             )
-            _messages.value = list
         }
     }
 }

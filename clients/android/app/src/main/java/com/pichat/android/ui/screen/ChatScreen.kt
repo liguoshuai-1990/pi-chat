@@ -414,46 +414,50 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     },
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    if (error != null) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF451A1A))
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = error!!,
-                                color = Color(0xFFFCA5A5),
-                                fontSize = 13.sp,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            IconButton(
-                                onClick = { viewModel.clearError() },
-                                modifier = Modifier.size(24.dp)
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Error bar — local val avoids NPE from cross-State smart cast
+                        val err = error
+                        if (err != null) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF451A1A))
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Close, contentDescription = "关闭错误", tint = Color(0xFF9CA3AF), modifier = Modifier.size(16.dp))
+                                Text(
+                                    text = err,
+                                    color = Color(0xFFFCA5A5),
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                IconButton(
+                                    onClick = { viewModel.clearError() },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "关闭错误", tint = Color(0xFF9CA3AF), modifier = Modifier.size(16.dp))
+                                }
                             }
                         }
-                    }
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(messages, key = { it.id }) { message ->
-                            MessageBubble(
-                                message = message,
-                                onImageClick = { lightboxImage = it },
-                                onRetry = {
-                                    if (message.role == MessageRole.USER) {
-                                        viewModel.sendMessage(message.content, message.images)
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize().weight(1f),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(messages, key = { it.id }) { message ->
+                                MessageBubble(
+                                    message = message,
+                                    onImageClick = { lightboxImage = it },
+                                    onRetry = {
+                                        if (message.role == MessageRole.USER) {
+                                            viewModel.sendMessage(message.content, message.images)
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
@@ -1410,6 +1414,7 @@ fun MessageBubble(
                 bottomStart = 18.dp,
                 bottomEnd = 5.dp
             )
+            val isError = message.status == MessageStatus.ERROR
             Column(
                 modifier = Modifier
                     .widthIn(max = 300.dp)
@@ -1419,7 +1424,11 @@ fun MessageBubble(
                         ),
                         userBubbleShape
                     )
-                    .border(1.dp, Accent.copy(alpha = 0.35f), userBubbleShape)
+                    .border(
+                        1.dp,
+                        if (isError) Danger.copy(alpha = 0.5f) else Accent.copy(alpha = 0.35f),
+                        userBubbleShape
+                    )
                     .clickable {
                         copyToClipboard(context, "我的提问", message.content)
                         Toast.makeText(context, "已复制消息内容", Toast.LENGTH_SHORT).show()
@@ -1432,6 +1441,27 @@ fun MessageBubble(
                     fontSize = 14.sp,
                     lineHeight = 21.sp
                 )
+            }
+            // Retry button for failed user messages
+            if (isError) {
+                Row(
+                    modifier = Modifier
+                        .padding(top = 4.dp, end = 4.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(BgHover)
+                        .clickable { onRetry() }
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "重试",
+                        tint = Accent,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text("重试", fontSize = 12.sp, color = Accent, fontWeight = FontWeight.Medium)
+                }
             }
         }
         return
@@ -2751,7 +2781,6 @@ private fun formatCwdDisplay(cwd: String?, home: String?): String {
 private fun formatDuration(ms: Long?): String {
     if (ms == null || ms < 0) return ""
     return when {
-        ms < 1000 -> "${String.format(java.util.Locale.US, "%.1f", ms / 1000.0)}s"
         ms < 60_000 -> "${String.format(java.util.Locale.US, "%.1f", ms / 1000.0)}s"
         else -> {
             val mins = ms / 60_000
@@ -2808,7 +2837,14 @@ private fun decodeBase64Bitmap(dataUrl: String): Bitmap? {
     return try {
         val base64 = if (dataUrl.contains(",")) dataUrl.substringAfter(",") else dataUrl
         val bytes = Base64.decode(base64, Base64.DEFAULT)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        // Downsample large images to prevent OOM
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
+        var sampleSize = 1
+        while (maxDim / sampleSize > 2048) sampleSize *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
     } catch (e: Exception) {
         null
     }

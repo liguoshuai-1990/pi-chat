@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.6] - 2026-09-06
+
+### Fixed
+- **Android 错误提示条 NPE 崩溃修复**：
+  -  中错误提示条使用 `error!!` 跨 State 读取，重组件期间 `clearError()` 可能将 error 置空导致 NPE 崩溃。改用局部变量 `val err = error` 安全访问。
+- **Android 错误提示条与消息列表重叠修复**：
+  - 错误提示条 Row 与 LazyColumn 作为 Box 兄弟元素平行排列，导致错误条覆盖第一条消息。现用 Column 包裹，错误条在顶部、消息列表在下方，互不遮挡。
+- **Android 流式看门狗超时未通知服务端修复**：
+  - `startStreamingWatchdog` 超时后仅重置客户端 `_isStreaming` 状态，未向服务端发送 `abort`，导致 Agent 进程仍在运行而客户端允许新输入，状态不一致。现超时前先发送 `abort` 消息到服务端。
+- **Android reconnect 竞态条件修复**：
+  - `ChatViewModel.repository` 为非线程安全 `var`，快速双击重连可能导致两次 reconnect 交叉执行、破坏 repository 引用。添加 `@Volatile` + `isReconnecting` 重入锁保护。
+- **Android 远程用户消息重复检测增强**：
+  - `remote_user_prompt` 处理时仅检查最后一条用户消息内容是否相同，未检查是否已有 streaming 中的 assistant 气泡，可能导致重复添加消息对。增强检测逻辑：同时检查内容与 streaming 状态。
+- **Android 大图片解码 OOM 修复**：
+  - `decodeBase64Bitmap` 对大图片无降采样，高分辨率图片可能导致 OOM 崩溃。添加 `inSampleSize` 降采样，超过 2048px 的图片自动缩小。
+
+### Changed
+- **Android 错误状态用户消息增加重试按钮**：
+  - 用户消息发送失败（status=ERROR）时，气泡下方显示重试按钮，点击可重新发送相同内容与附件。错误气泡边框变红以视觉提示。
+- **Android `formatDuration` 冗余代码简化**：
+  - 两个 `< 1000` 和 `< 60_000` 分支产生相同输出，合并为一个分支。
+- **Android `ChatRepository` 代码重构**：
+  - 提取 `mutateLastAssistant` 内联 helper 函数，统一 `finishThinking`、`setAssistantFinalText`、`updateToolCallOutput`、`finishToolCall`、`markLastMessageDone` 等方法中重复的 `toMutableList + indexOfLast + copy + assign` 模式，降低维护成本。
+
 ## [2.18.5] - 2026-09-06
 
 ### Fixed

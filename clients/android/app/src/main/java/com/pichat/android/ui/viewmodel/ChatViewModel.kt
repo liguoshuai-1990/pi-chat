@@ -21,10 +21,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val settings = SettingsStore(application)
 
+    @Volatile
     private var repository: ChatRepository = ChatRepository(
         settings.getServerUrl(),
         settings.getAuthToken()
     )
+
+    @Volatile
+    private var isReconnecting = false
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -183,21 +187,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun reconnect() {
-        repository.disconnect()
-        repository.close()
-        repository = ChatRepository(settings.getServerUrl(), settings.getAuthToken())
-        bindRepository(repository)
-        repository.connect(cwd = settings.getCwd())
+        if (isReconnecting) return
+        isReconnecting = true
+        try {
+            repository.disconnect()
+            repository.close()
+            repository = ChatRepository(settings.getServerUrl(), settings.getAuthToken())
+            bindRepository(repository)
+            repository.connect(cwd = settings.getCwd())
+        } finally {
+            isReconnecting = false
+        }
     }
 
     fun reconnect(newServerUrl: String, newToken: String?, newCwd: String = "") {
-        settings.save(newServerUrl, newToken, newCwd)
-        _serverUrl.value = settings.getServerUrl()
-        repository.disconnect()
-        repository.close()
-        repository = ChatRepository(settings.getServerUrl(), settings.getAuthToken())
-        bindRepository(repository)
-        repository.connect(newCwd)
+        if (isReconnecting) return
+        isReconnecting = true
+        try {
+            settings.save(newServerUrl, newToken, newCwd)
+            _serverUrl.value = settings.getServerUrl()
+            repository.disconnect()
+            repository.close()
+            repository = ChatRepository(settings.getServerUrl(), settings.getAuthToken())
+            bindRepository(repository)
+            repository.connect(newCwd)
+        } finally {
+            isReconnecting = false
+        }
     }
 
     fun exportChatMarkdown(): String {
