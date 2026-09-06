@@ -1823,7 +1823,6 @@ private fun AssistantContent(
         }
     } else if (isStreaming && message.thinkingContent.isEmpty()) {
         BlinkingCursor(modifier = Modifier.padding(top = 4.dp))
-    }
     } else if (message.status == MessageStatus.ERROR && message.content.isEmpty()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
