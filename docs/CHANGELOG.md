@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.2] - 2026-09-06
+
+### Added
+- **项目首页视觉与社区认可更新 (README)**：
+  - 在 GitHub 项目首页显要位置引入全新 Web 客户端界面预览实机截图（`docs/assets/screenshot-web.png`）。
+  - 在首页末尾正式添加致谢与社区链接认可：[LINUX DO](https://linux.do)。
+
 ## [2.19.1] - 2026-09-06
 
 ### Changed

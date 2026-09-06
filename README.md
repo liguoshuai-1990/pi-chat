@@ -4,9 +4,13 @@
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-Workspaces-orange.svg)](https://pnpm.io/)
 [![CI Status](https://github.com/liguoshuai-1990/pi-chat/actions/workflows/ci.yml/badge.svg)](https://github.com/liguoshuai-1990/pi-chat/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-2.18.0-emerald.svg)](https://github.com/liguoshuai-1990/pi-chat)
+[![Version](https://img.shields.io/badge/version-2.19.2-emerald.svg)](https://github.com/liguoshuai-1990/pi-chat)
 
 **Pi-Chat** 是一个面向 [Pi 编程智能体 (Pi Coding Agent)](https://github.com/badlogic/pi) 的全多端协同生态工程（Monorepo）。它将底层的 Pi Coding Agent 智能体能力解耦并无缝分发至 **Web 浏览器端**、**Android 手机原生端**、**华为鸿蒙 (HarmonyOS Next) 原生端**、**VPS 桥接网关服务端** 以及 **跨端标准化通信协议包**。
+
+<p align="center">
+  <img src="docs/assets/screenshot-web.png" alt="Pi-Chat Web 客户端界面预览" width="100%" />
+</p>
 
 ---
 
@@ -203,3 +207,11 @@ PORT=8080 AUTH_TOKEN=my_secret_token node server/src/index.js
 ## 📄 开源许可证
 
 本项目基于 **[MIT License](./LICENSE)** 许可证开源。
+
+---
+
+## 🤝 社区认可与支持 (Acknowledgements)
+
+本项目特此链接认可：
+- **[LINUX DO](https://linux.do)** —— 新的开源与前沿技术极客社区
+
