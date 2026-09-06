@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.10] - 2026-09-06
+
+### Changed
+- **Android App 顶栏与侧边栏布局同步手机 Web**：
+  - **侧边栏抽屉**：移除“新对话”旁边的“刷新”按钮，将“后端配置 (设置)”按钮移动到该位置；点击后自动收起抽屉并弹出后端配置弹窗。
+  - **顶层栏单行排布**：移除顶部标题文字与状态文字，顶栏所有按钮收敛为单行排列，更加紧凑美观。
+  - **对齐手机 Web 按钮排列**：从左至右依次为侧边栏菜单切换、CWD 目录胶囊、模型选择胶囊、思考深度胶囊（支持推理时展示）、导出对话按钮、压缩上下文按钮。
+  - **移除顶栏新建对话按钮**：遵循手机 Web 设计规范，统一通过侧边栏抽屉创建新对话。
+  - **压缩上下文图标同步 Web**：替换 Material 默认 Compress 图标为与 Web 端完全一致的 T 型夹具 SVG 图标（`CompactIcon` 与 `ic_compact.xml`）。
+
 ## [2.18.9] - 2026-09-06
 
 ### Fixed

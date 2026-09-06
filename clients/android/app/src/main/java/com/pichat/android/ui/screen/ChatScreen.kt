@@ -43,7 +43,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathNode
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -93,6 +96,31 @@ private val thinkingLevels = listOf(
     Triple("max", "Max", "最大推理深度")
 )
 
+private val CompactIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "Compact",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).addPath(
+        pathData = listOf(
+            PathNode.MoveTo(4f, 7f),
+            PathNode.LineTo(4f, 4f),
+            PathNode.LineTo(20f, 4f),
+            PathNode.LineTo(20f, 7f),
+            PathNode.MoveTo(9f, 20f),
+            PathNode.LineTo(15f, 20f),
+            PathNode.MoveTo(12f, 4f),
+            PathNode.LineTo(12f, 20f)
+        ),
+        stroke = SolidColor(Color.White),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round,
+        strokeLineJoin = StrokeJoin.Round
+    ).build()
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ChatScreen(viewModel: ChatViewModel) {
@@ -101,7 +129,6 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val sessions by viewModel.sessions.collectAsState()
     val isStreaming by viewModel.isStreaming.collectAsState()
     val connState by viewModel.connectionState.collectAsState()
-    val sessionTitle by viewModel.currentSessionTitle.collectAsState()
     val serverUrl by viewModel.serverUrl.collectAsState()
     val currentSessionFile by viewModel.currentSessionFile.collectAsState()
     val currentModel by viewModel.currentModel.collectAsState()
@@ -193,7 +220,10 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     viewModel.deleteSession(file)
                 },
                 onReconnect = { viewModel.reconnect() },
-                onRefreshSessions = { viewModel.refreshCurrentSession() }
+                onOpenSettings = {
+                    coroutineScope.launch { drawerState.close() }
+                    showSettings = true
+                }
             )
         }
     ) {
@@ -208,174 +238,78 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp)
-                            .padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .height(50.dp)
+                            .padding(horizontal = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         IconButton(
                             onClick = { coroutineScope.launch { drawerState.open() } },
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(36.dp)
                         ) {
-                            Icon(Icons.Default.Menu, contentDescription = "打开历史记录", tint = TextPrimary)
+                            Icon(Icons.Default.Menu, contentDescription = "打开历史记录", tint = TextPrimary, modifier = Modifier.size(20.dp))
                         }
 
-                        Column(
+                        // Middle pills row matching Web layout
+                        Row(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
-                            verticalArrangement = Arrangement.Center
+                                .padding(horizontal = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = sessionTitle.ifEmpty { "新对话" },
-                                    fontSize = 14.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false)
-                                )
-                                if (isStreaming) {
-                                    Row(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(999.dp))
-                                            .background(Accent.copy(alpha = 0.15f))
-                                            .border(0.5.dp, Accent.copy(alpha = 0.35f), RoundedCornerShape(999.dp))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(10.dp),
-                                            color = Accent,
-                                            strokeWidth = 1.5.dp
-                                        )
-                                        Text(
-                                            "运行中",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Accent
-                                        )
-                                    }
-                                } else if (messages.isNotEmpty()) {
-                                    Row(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(999.dp))
-                                            .background(BgHover)
-                                            .border(0.5.dp, Border, RoundedCornerShape(999.dp))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = TextDim,
-                                            modifier = Modifier.size(10.dp)
-                                        )
-                                        Text(
-                                            "已完成",
-                                            fontSize = 10.sp,
-                                            color = TextDim
-                                        )
-                                    }
-                                }
-                            }
-                            Spacer(Modifier.height(3.dp))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                // CWD Pill
-                                TopBarPill(
-                                    icon = {
-                                        Icon(
-                                            Icons.Outlined.Folder,
-                                            contentDescription = null,
-                                            tint = TextSecondary,
-                                            modifier = Modifier.size(10.dp)
-                                        )
-                                    },
-                                    label = formatCwdDisplay(currentCwd, serverConfig?.home),
-                                    onClick = { showCwdDialog = true },
-                                    modifier = Modifier.weight(1f, fill = false)
-                                )
+                            // CWD Pill
+                            TopBarPill(
+                                icon = {
+                                    Icon(
+                                        Icons.Outlined.Folder,
+                                        contentDescription = null,
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                },
+                                label = formatCwdDisplay(currentCwd, serverConfig?.home),
+                                onClick = { showCwdDialog = true },
+                                modifier = Modifier.widthIn(max = 84.dp)
+                            )
 
-                                // Model Pill
-                                val modelDisplayName = currentModel?.name ?: currentModel?.id ?: "选择模型"
-                                val isDefaultModel = currentModel?.isDefault == true || (serverConfig?.defaultModel?.id != null && currentModel?.id == serverConfig?.defaultModel?.id)
-                                TopBarPill(
-                                    icon = {
-                                        Icon(
-                                            Icons.Outlined.SmartToy,
-                                            contentDescription = null,
-                                            tint = Accent,
-                                            modifier = Modifier.size(10.dp)
-                                        )
-                                    },
-                                    label = modelDisplayName,
-                                    badge = if (isDefaultModel) "★" else null,
-                                    onClick = {
-                                        viewModel.refreshModels()
-                                        showModelSelector = true
-                                    },
-                                    modifier = Modifier.weight(1f, fill = false)
-                                )
+                            // Model Pill
+                            val modelDisplayName = currentModel?.name ?: currentModel?.id ?: "选择模型"
+                            val isDefaultModel = currentModel?.isDefault == true || (serverConfig?.defaultModel?.id != null && currentModel?.id == serverConfig?.defaultModel?.id)
+                            TopBarPill(
+                                icon = {
+                                    Icon(
+                                        Icons.Outlined.SmartToy,
+                                        contentDescription = null,
+                                        tint = Accent,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                },
+                                label = modelDisplayName,
+                                badge = if (isDefaultModel) "★" else null,
+                                onClick = {
+                                    viewModel.refreshModels()
+                                    showModelSelector = true
+                                },
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
 
-                                // Thinking Pill
+                            // Thinking Pill (matches Web: visible if model supports reasoning or level != off)
+                            val supportsThinking = currentModel?.reasoning == true ||
+                                (availableModels.find { it.id == currentModel?.id }?.reasoning == true) ||
+                                thinkingLevel != "off"
+                            if (supportsThinking) {
                                 TopBarPill(
                                     icon = {
-                                        Icon(
-                                            Icons.Outlined.Psychology,
-                                            contentDescription = null,
-                                            tint = Color(0xFFC4B5FD),
-                                            modifier = Modifier.size(10.dp)
-                                        )
+                                        Text("🧠", fontSize = 10.sp)
                                     },
                                     label = thinkingLevel.replaceFirstChar { it.uppercase() },
-                                    onClick = { showThinkingSelector = true },
-                                    modifier = Modifier.weight(1f, fill = false)
+                                    onClick = { showThinkingSelector = true }
                                 )
                             }
                         }
 
-                        // New session action
-                        IconButton(
-                            onClick = {
-                                viewModel.newSession()
-                                Toast.makeText(context, "已开启新对话", Toast.LENGTH_SHORT).show()
-                            },
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                Icons.Outlined.AddComment,
-                                contentDescription = "新建对话",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        // Compact context action
-                        IconButton(
-                            onClick = {
-                                viewModel.compactContext()
-                            },
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                Icons.Outlined.Compress,
-                                contentDescription = "压缩当前上下文",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        // Export chat action
+                        // Export chat action (position matches mobile Web: Export before Compact)
                         IconButton(
                             onClick = {
                                 val md = viewModel.exportChatMarkdown()
@@ -396,14 +330,16 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             )
                         }
 
-                        // Settings action
+                        // Compact context action (T-shaped icon matching Web)
                         IconButton(
-                            onClick = { showSettings = true },
+                            onClick = {
+                                viewModel.compactContext()
+                            },
                             modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
-                                Icons.Default.Settings,
-                                contentDescription = "后端配置",
+                                imageVector = CompactIcon,
+                                contentDescription = "压缩当前上下文",
                                 tint = TextSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -632,17 +568,17 @@ private fun TopBarPill(
         shape = RoundedCornerShape(6.dp),
         color = BgHover,
         border = BorderStroke(1.dp, Border),
-        modifier = modifier.height(22.dp)
+        modifier = modifier.height(26.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 5.dp),
+            modifier = Modifier.padding(horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             icon()
             Text(
                 label,
-                fontSize = 10.5.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Normal,
                 color = TextSecondary,
                 maxLines = 1,
@@ -672,10 +608,10 @@ private fun HistoryDrawer(
     isStreaming: Boolean,
     connState: ConnectionState,
     onNewSession: () -> Unit,
+    onOpenSettings: () -> Unit,
     onSelectSession: (SessionInfo) -> Unit,
     onDeleteSession: (String) -> Unit,
-    onReconnect: () -> Unit,
-    onRefreshSessions: () -> Unit
+    onReconnect: () -> Unit
 ) {
     val context = LocalContext.current
     var searchText by remember { mutableStateOf("") }
@@ -690,7 +626,7 @@ private fun HistoryDrawer(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
         ) {
-            // Top: + 新对话 button + refresh button
+            // Top: + 新对话 button + 设置 (Settings) button
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -727,7 +663,7 @@ private fun HistoryDrawer(
                     }
                 }
                 Surface(
-                    onClick = onRefreshSessions,
+                    onClick = onOpenSettings,
                     shape = RoundedCornerShape(10.dp),
                     color = Color.Transparent,
                     border = BorderStroke(1.dp, Border),
@@ -738,8 +674,8 @@ private fun HistoryDrawer(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "刷新会话列表",
+                            Icons.Default.Settings,
+                            contentDescription = "后端配置",
                             tint = TextPrimary,
                             modifier = Modifier.size(18.dp)
                         )
