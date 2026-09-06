@@ -681,11 +681,11 @@ class ChatRepository(
                     "toolcall_start", "toolcall_delta", "toolcall_end" -> {
                         finishThinking()
                         val tc = ev?.toolCall as? JsonObject
-                        val id = (tc?.get("id") as? JsonPrimitive)?.content ?: msg.toolCallId ?: ""
-                        val name = (tc?.get("name") as? JsonPrimitive)?.content ?: msg.toolName ?: ""
+                        val id = (tc?.get("id") as? JsonPrimitive)?.content ?: ev?.id ?: msg.toolCallId ?: ""
+                        val name = (tc?.get("name") as? JsonPrimitive)?.content ?: ev?.toolName ?: msg.toolName ?: ""
                         val argsElem = tc?.get("arguments") ?: msg.args
                         val args = jsonToString(argsElem)
-                        if (id.isNotEmpty()) {
+                        if (id.isNotEmpty() && name.isNotEmpty()) {
                             startToolCall(id, name, args)
                         }
                     }

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.17.4] - 2026-09-06
+
+### Fixed
+- **彻底根除执行过程中的“空任务”幽灵卡片 (Ghost Tool Call Fix)**：
+  - 修复 Web 客户端在流式参数片段 `toolcall_delta` 到来时误调 `ensureToolBlock` 产生 `id === "undefined"` 幽灵空卡片的重大缺陷；在 `ensureToolBlock` 中加入严苛防御性校验（无有效 ID 直接拒绝创建），杜绝界面出现名称为空、参数为空、无输出的僵尸占位任务。
+  - 修复 Android 原生客户端在 `toolcall_start` 阶段无法解析顶层 `ev.id` 与 `ev.toolName` 的缺陷，统一事件字段映射，消除模型生成参数阶段的卡片闪烁与空状态。
+
+### Changed
+- **工具调用卡片体验升级：提前展示执行指令 (Early Command Display)**：
+  - **指令即刻呈现**：在工具正式启动执行（`tool_execution_start`）或参数生成完毕（`toolcall_end`）瞬间，卡片内即刻格式化并提前渲染完整的【执行指令】代码块（如 `$ bash ...` 或参数明细），用户无需等待命令执行结束即可第一时间知晓正在运行的具体命令。
+  - **结构层次分明**：卡片内部展开区规范化拆分为【执行指令】与【输出结果 / 实时状态】两部分；执行中配以呼吸态动态提示，执行完展示最终输出或错误状态。
+  - **测试稳定性加固**：根目录 `pnpm test` 脚本加入 `--workspace-concurrency=1` 串行执行各包测试，彻底消除并行执行时测试端口竞争导致的偶发中断。
+- 全端版本号统一递增至 2.17.4（Monorepo Lockstep：Root / Protocol / Server / Web / Android / HarmonyOS）。
+
+
 ## [2.17.3] - 2026-09-06
 
 ### Fixed

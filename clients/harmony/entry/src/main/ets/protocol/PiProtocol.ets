@@ -10,6 +10,8 @@ export namespace PiProtocol {
     content?: string;
     contentIndex?: number;
     toolCall?: any;
+    id?: string;
+    toolName?: string;
   }
 
   export interface ServerMessage {

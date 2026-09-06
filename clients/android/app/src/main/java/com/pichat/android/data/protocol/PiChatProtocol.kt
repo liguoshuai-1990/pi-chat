@@ -71,7 +71,9 @@ data class AssistantMessageEvent(
     val type: String? = null,
     val delta: String? = null,
     val content: JsonElement? = null,
-    val toolCall: JsonElement? = null
+    val toolCall: JsonElement? = null,
+    val id: String? = null,
+    val toolName: String? = null
 )
 
 @Serializable

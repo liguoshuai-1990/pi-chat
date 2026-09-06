@@ -1,6 +1,6 @@
 {
   "name": "pi-chat",
-  "version": "2.17.3",
+  "version": "2.17.4",
   "private": true,
   "description": "pi-chat — Monorepo for multi-client Pi coding agent ecosystem (Web, Android, HarmonyOS, Server Gateway, Protocol)",
   "type": "module",
@@ -15,7 +15,7 @@
     "dev": "pnpm --filter @liguoshuai/pi-web-chat dev",
     "dev:web": "pnpm --filter @liguoshuai/pi-web-chat dev",
     "dev:server": "pnpm --filter @liguoshuai/pi-chat-server dev",
-    "test": "pnpm -r --filter @liguoshuai/pi-chat-protocol --filter @liguoshuai/pi-chat-server --filter @liguoshuai/pi-web-chat test",
+    "test": "pnpm -r --workspace-concurrency=1 --filter @liguoshuai/pi-chat-protocol --filter @liguoshuai/pi-chat-server --filter @liguoshuai/pi-web-chat test",
     "test:web": "pnpm --filter @liguoshuai/pi-web-chat test",
     "test:server": "pnpm --filter @liguoshuai/pi-chat-server test",
     "test:protocol": "pnpm --filter @liguoshuai/pi-chat-protocol test",

@@ -1370,6 +1370,79 @@ function updateToolBlockCopyBtn(tc, call) {
   tc.head._cmdToCopy = cmd;
 }
 
+function formatToolCommandText(name, args) {
+  if (!args) return "";
+  let obj = args;
+  if (typeof args === "string") {
+    try { obj = JSON.parse(args); } catch { return args; }
+  }
+  if (!obj || typeof obj !== "object") return String(args);
+  if (name === "bash" && obj.command) {
+    return `$ ${obj.command}`;
+  }
+  if (name === "read" && obj.path) {
+    let s = `read ${obj.path}`;
+    if (obj.offset != null) s += ` (offset: ${obj.offset})`;
+    if (obj.limit != null) s += ` (limit: ${obj.limit})`;
+    return s;
+  }
+  if (name === "write" && obj.path) {
+    let s = `write ${obj.path}`;
+    if (obj.content) {
+      const preview = obj.content.length > 500 ? obj.content.slice(0, 500) + "\n... (truncated)" : obj.content;
+      s += `\n\n--- 写入内容预览 ---\n${preview}`;
+    }
+    return s;
+  }
+  if (name === "edit" && obj.path) {
+    return `edit ${obj.path}`;
+  }
+  if (name === "ls" && obj.path) {
+    return `ls ${obj.path}`;
+  }
+  if (name === "grep") {
+    return `grep "${obj.pattern || ""}" ${obj.path || ""}`;
+  }
+  if (name === "find") {
+    return `find ${obj.path || "."} -name "${obj.pattern || ""}"`;
+  }
+  try {
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return String(args);
+  }
+}
+
+function renderToolBlockContent(bodyEl, call, resultText, isRunning, isError) {
+  if (!bodyEl) return;
+  bodyEl.innerHTML = "";
+  const cmdText = formatToolCommandText(call?.name, call?.arguments ?? call?.args);
+
+  // 1. 指令 / 参数区域 (有命令就立即提前显示，无需等待输出)
+  if (cmdText) {
+    const cmdSec = el("div", { class: "tool-section tool-cmd-section" }, [
+      el("div", { class: "tool-section-header" }, [
+        el("span", { class: "tool-section-title", text: "执行指令" }),
+      ]),
+      el("pre", { class: "tool-code-block", text: cmdText }),
+    ]);
+    bodyEl.appendChild(cmdSec);
+  }
+
+  // 2. 输出区域 (执行中显示实时状态/输出，执行完显示最终结果)
+  const outSec = el("div", { class: "tool-section tool-out-section" });
+  const outHeader = el("div", { class: "tool-section-header" }, [
+    el("span", { class: "tool-section-title", text: isRunning ? "实时状态" : "输出结果" }),
+    isRunning ? el("span", { class: "tool-running-pulse", text: "正在执行…" }) : null,
+  ]);
+  outSec.appendChild(outHeader);
+
+  const displayOut = resultText || (isRunning ? "(命令正在执行中，请稍候…)" : "(无输出)");
+  const outPre = el("pre", { class: "tool-output-block" + (isError ? " is-error" : ""), text: displayOut });
+  outSec.appendChild(outPre);
+  bodyEl.appendChild(outSec);
+}
+
 function makeToolBlockFromCall(call, ts = null) {
   const block = el("div", { class: "tool-block" });
   const hasResult = Boolean(call.result);
@@ -1433,9 +1506,9 @@ function makeToolBlockFromCall(call, ts = null) {
   ]);
   head._cmdToCopy = cmdToCopy;
 
-  const bodyText = hasResult ? (resultText || "(无输出)") : "执行中…";
-  const body = el("div", { class: "tool-body", html: escapeHtml(bodyText) });
+  const body = el("div", { class: "tool-body" });
   body.style.display = "none";
+  renderToolBlockContent(body, call, resultText, !hasResult, isError);
 
   head.addEventListener("click", () => {
     body.style.display = body.style.display === "none" ? "block" : "none";
@@ -1449,7 +1522,7 @@ function makeToolBlockFromCall(call, ts = null) {
   block._durationEl = durationEl;
 
   if (!hasResult && call.id) {
-    state.activeToolCalls.set(call.id, { block, body, head, durationEl, startedAt: call.startedAt || Date.now() });
+    state.activeToolCalls.set(call.id, { block, body, head, durationEl, startedAt: call.startedAt || Date.now(), name: call.name, args: call.arguments });
   }
 
   return block;
@@ -1467,13 +1540,14 @@ function summaryArgs(name, args) {
     if (name === "write" && obj.path) return obj.path;
     if (name === "edit" && obj.path) return obj.path;
     if (name === "ls" && obj.path) return obj.path;
-    if (name === "grep") return obj.pattern || "";
-    if (name === "find") return obj.pattern || obj.path || "";
+    if (name === "grep") return obj.pattern ? `${obj.pattern}${obj.path ? ` · ${obj.path}` : ""}` : (obj.path || "");
+    if (name === "find") return obj.pattern ? `${obj.pattern}${obj.path ? ` · ${obj.path}` : ""}` : (obj.path || "");
     if (typeof obj === "object" && obj !== null) {
       const keys = Object.keys(obj);
       if (keys.length === 1 && typeof obj[keys[0]] === "string") return obj[keys[0]];
+      return JSON.stringify(obj);
     }
-    return "";
+    return String(obj);
   } catch { return ""; }
 }
 
@@ -2161,27 +2235,36 @@ function handlePiMessage(obj) {
           activeThinking.durationMs = Math.max(0, activeThinking.endedAt - (activeThinking.startedAt || activeThinking.ts || Date.now()));
         }
         ensureStreamingMsg();
-        const call = ev.toolCall || { id: obj.toolCallId || ev.id, name: obj.toolName, arguments: obj.args };
-        // args may be incomplete until toolcall_end; we fill what we have now
-        // and patch the head display on toolcall_end.
-        ensureToolBlock(call.id, call.name, call.arguments, Date.now());
+        const callId = ev.toolCall?.id || ev.id || obj.toolCallId;
+        const callName = ev.toolCall?.name || ev.toolName || obj.toolName;
+        const callArgs = ev.toolCall?.arguments || obj.args;
+        if (callId) {
+          ensureToolBlock(callId, callName, callArgs, Date.now());
+        }
       } else if (ev.type === "toolcall_delta") {
-        // Streaming function-call argument JSON. We don't render it live
-        // (JSON fragments are not useful UX), but make sure the tool block
-        // exists so toolcall_end has somewhere to write into.
-        const id = obj.toolCallId || ev.id;
-        ensureToolBlock(id, obj.toolName || ev.toolCall?.name, obj.args, Date.now());
+        // Streaming function-call argument JSON. We do not create dummy tool blocks
+        // with undefined ID here to prevent empty tasks from appearing.
       } else if (ev.type === "toolcall_end") {
-        // Authoritative final toolCall object (with full arguments). Patch
-        // the block head so the displayed args are the final ones, not the
-        // partial ones we got at toolcall_start.
-        const call = ev.toolCall || { id: obj.toolCallId, name: obj.toolName, arguments: obj.args };
-        const id = call.id || obj.toolCallId;
-        const tc = state.activeToolCalls.get(id);
-        if (tc) {
-          const argsEl = tc.head.querySelector(".args");
-          if (argsEl) argsEl.textContent = summaryArgs(call.name, call.arguments);
-          updateToolBlockCopyBtn(tc, call);
+        // Authoritative final toolCall object (with full arguments).
+        // Update the block head so the displayed args and copy button are final,
+        // and pre-render the command in the block body immediately!
+        const call = ev.toolCall || { id: obj.toolCallId || ev.id, name: obj.toolName || ev.toolName, arguments: obj.args };
+        const id = call.id || obj.toolCallId || ev.id;
+        if (id) {
+          let tc = state.activeToolCalls.get(id);
+          if (!tc) {
+            tc = ensureToolBlock(id, call.name, call.arguments, Date.now());
+          }
+          if (tc) {
+            tc.name = call.name || tc.name;
+            tc.args = call.arguments || tc.args;
+            const nameEl = tc.head.querySelector(".name");
+            if (nameEl && tc.name) nameEl.textContent = tc.name;
+            const argsEl = tc.head.querySelector(".args");
+            if (argsEl) argsEl.textContent = summaryArgs(tc.name, tc.args);
+            updateToolBlockCopyBtn(tc, { name: tc.name, arguments: tc.args });
+            renderToolBlockContent(tc.body, { name: tc.name, arguments: tc.args }, "", true, false);
+          }
         }
       }
       break;
@@ -2197,18 +2280,26 @@ function handlePiMessage(obj) {
       const tc = ensureToolBlock(obj.toolCallId, obj.toolName, obj.args, Date.now());
       if (tc) {
         tc.startedAt = Date.now();
+        tc.name = obj.toolName || tc.name;
+        tc.args = obj.args || tc.args;
         if (tc.durationEl) {
           tc.durationEl.className = "tool-duration live";
           tc.durationEl._startedAt = tc.startedAt;
           tc.durationEl.textContent = "0.0s";
           tc.durationEl.style.display = "";
         }
+        const nameEl = tc.head.querySelector(".name");
+        if (nameEl && tc.name) nameEl.textContent = tc.name;
+        const argsEl = tc.head.querySelector(".args");
+        if (argsEl) argsEl.textContent = summaryArgs(tc.name, tc.args);
         const stateEl = tc.head.querySelector(".state");
         if (stateEl) {
           stateEl.className = "state running";
           stateEl.textContent = "执行中…";
         }
-        updateToolBlockCopyBtn(tc, { name: obj.toolName, arguments: obj.args });
+        updateToolBlockCopyBtn(tc, { name: tc.name, arguments: tc.args });
+        // Immediately render the command code block in body so user sees it right away!
+        renderToolBlockContent(tc.body, { name: tc.name, arguments: tc.args }, "", true, false);
       }
       break;
     }
@@ -2216,7 +2307,12 @@ function handlePiMessage(obj) {
       const tc = state.activeToolCalls.get(obj.toolCallId);
       if (tc) {
         const text = extractContentText(obj.partialResult?.content);
-        tc.body.innerHTML = escapeHtml(text) || "(执行中…)";
+        const outPre = tc.body.querySelector(".tool-output-block");
+        if (outPre) {
+          outPre.textContent = text || "(执行中…)";
+        } else {
+          renderToolBlockContent(tc.body, { name: tc.name, arguments: tc.args }, text, true, false);
+        }
       }
       break;
     }
@@ -2224,7 +2320,6 @@ function handlePiMessage(obj) {
       const tc = state.activeToolCalls.get(obj.toolCallId);
       if (tc) {
         const text = extractContentText(obj.result?.content);
-        tc.body.innerHTML = escapeHtml(text) || "(无输出)";
         tc.endedAt = Date.now();
         const dur = Math.max(0, tc.endedAt - (tc.startedAt || tc.endedAt));
         tc.durationMs = dur;
@@ -2239,9 +2334,8 @@ function handlePiMessage(obj) {
           stateEl.textContent = obj.isError ? "错误" : "完成";
           stateEl.className = "state" + (obj.isError ? " error" : "");
         }
+        renderToolBlockContent(tc.body, { name: tc.name, arguments: tc.args }, text, false, Boolean(obj.isError));
         // Remove from activeToolCalls so stale entries don't accumulate.
-        // Previously only cleared wholesale in finalizeStreamingMsg/clearChat/etc,
-        // which meant a missed tool_execution_end left tools stuck in "执行中…" forever.
         state.activeToolCalls.delete(obj.toolCallId);
       }
       break;
@@ -2314,9 +2408,17 @@ function handleExtensionUiRequest(req) {
 }
 
 function ensureToolBlock(toolCallId, name, args, ts = Date.now()) {
-  if (state.activeToolCalls.has(toolCallId)) return state.activeToolCalls.get(toolCallId);
+  if (!toolCallId) return null;
+  if (state.activeToolCalls.has(toolCallId)) {
+    const existing = state.activeToolCalls.get(toolCallId);
+    if (name && !existing.name) existing.name = name;
+    if (args && (!existing.args || existing.args === "{}")) existing.args = args;
+    return existing;
+  }
   const block = makeToolBlockFromCall({ id: toolCallId, name, arguments: args, startedAt: ts }, ts);
-  const entry = state.activeToolCalls.get(toolCallId) || { block, body: block._body, head: block._head, durationEl: block._durationEl, startedAt: ts };
+  const entry = state.activeToolCalls.get(toolCallId) || { block, body: block._body, head: block._head, durationEl: block._durationEl, startedAt: ts, name, args };
+  entry.name = name;
+  entry.args = args;
   state.activeToolCalls.set(toolCallId, entry);
   state.streamingItems.push({ type: "tool", id: toolCallId, tc: entry });
   refreshStreamingContentDebounced();
