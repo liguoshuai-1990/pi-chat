@@ -894,8 +894,10 @@ class ChatRepository(
                     val hasStreamingAssistant = msgs.any {
                         it.role == MessageRole.ASSISTANT && it.status == MessageStatus.STREAMING
                     }
-                    if (lastUser?.content != text || !hasStreamingAssistant) {
-                        if (lastUser?.content == text && hasStreamingAssistant) return
+                    // Skip only if the last user message has identical content
+                    // AND an assistant streaming bubble already exists (duplicate echo)
+                    val isDuplicate = lastUser?.content == text && hasStreamingAssistant
+                    if (!isDuplicate) {
                         val userMsg = ChatMessage(
                             role = MessageRole.USER,
                             content = text,
@@ -975,7 +977,7 @@ class ChatRepository(
 
     private fun startThinking() {
         val list = _messages.value.toMutableList()
-        var idx = indexOfLastAssistantMessage()
+        val idx = indexOfLastAssistantMessage()
         val now = System.currentTimeMillis()
         if (idx == -1) {
             list.add(
@@ -1077,7 +1079,7 @@ class ChatRepository(
 
     private fun updateLastAssistantMessage(delta: String, isThinking: Boolean) {
         val list = _messages.value.toMutableList()
-        var idx = indexOfLastAssistantMessage()
+        val idx = indexOfLastAssistantMessage()
         val now = System.currentTimeMillis()
         if (idx == -1) {
             list.add(

@@ -610,9 +610,10 @@ fun ChatScreen(viewModel: ChatViewModel) {
         )
     }
 
-    if (lightboxImage != null) {
+    val lightbox = lightboxImage
+    if (lightbox != null) {
         LightboxModal(
-            imageDataUrl = lightboxImage!!,
+            imageDataUrl = lightbox,
             onDismiss = { lightboxImage = null }
         )
     }
@@ -1024,8 +1025,9 @@ private fun HistoryDrawer(
     }
 
     // Delete confirmation dialog
-    if (sessionToDelete != null) {
-        val s = sessionToDelete!!
+    val toDelete = sessionToDelete
+    if (toDelete != null) {
+        val s = toDelete
         val title = s.sessionName ?: s.firstUser ?: s.name
         AlertDialog(
             onDismissRequest = { sessionToDelete = null },
@@ -3002,16 +3004,30 @@ private fun uriToImageAttachment(context: Context, uri: Uri): ImageAttachment? {
     return try {
         val resolver = context.contentResolver
         val mimeType = resolver.getType(uri) ?: "image/png"
-        val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+        val rawBytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-        val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+
+        // Downsample + compress large images to prevent OOM and oversized WebSocket payloads
+        val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
+        var sampleSize = 1
+        while (maxDim / sampleSize > 2048) sampleSize *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        val bitmap = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, opts) ?: return null
+
+        val baos = java.io.ByteArrayOutputStream()
+        val compressFormat = if (mimeType.contains("png")) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG
+        val quality = if (compressFormat == Bitmap.CompressFormat.JPEG) 85 else 100
+        bitmap.compress(compressFormat, quality, baos)
+        bitmap.recycle()
+        val encoded = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
         ImageAttachment(type = "image", data = "data:$mimeType;base64,$encoded", mimeType = mimeType)
     } catch (e: Exception) {
         null
     }
 }
+
 
 private fun decodeBase64Bitmap(dataUrl: String): Bitmap? {
     return try {

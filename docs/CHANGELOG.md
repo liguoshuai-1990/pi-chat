@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.8] - 2026-09-06
+
+### Fixed
+- **Android 图片附件压缩与内存优化**：
+  - `uriToImageAttachment` 之前直接将原始图片字节 Base64 编码发送，大图片（如相机照片）可导致 OOM 和 WebSocket 消息超限。现添加降采样（>2048px 自动缩小）+ JPEG/PNG 压缩（JPEG 85% 质量），大幅降低内存占用与传输体积。
+- **Android ChatScreen 残余 NPE 风险修复**：
+  - `lightboxImage!!` 和 `sessionToDelete!!` 同样存在跨 State 读取的 NPE 风险，改用局部变量安全访问。
+- **Android remote_user_prompt 去重逻辑简化**：
+  - 移除不可达的死代码分支，简化为单条件判断 `isDuplicate`，逻辑更清晰。
+
+### Changed
+- **Android ChatRepository 代码规范修正**：
+  - `startThinking` 和 `updateLastAssistantMessage` 中 `var idx` 从未重新赋值，改为 `val idx` 消除编译器警告。
+
 ## [2.18.7] - 2026-09-06
 
 ### Added
