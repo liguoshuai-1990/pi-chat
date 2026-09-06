@@ -1,6 +1,7 @@
 import { ChatViewModel } from '../viewmodel/ChatViewModel';
 import { ChatMessage, MessageRole, SessionInfo, MessageStatus } from '../model/ChatModel';
 import { PreferencesHelper } from '../network/PreferencesHelper';
+import { bundleManager } from '@kit.AbilityKit';
 
 @Entry
 @Component
@@ -16,9 +17,17 @@ struct Index {
   @State settingsCwd: string = '';
   @State sessionToDelete: SessionInfo | null = null;
   @State showModelDialog: boolean = false;
+  @State appVersion: string = '';
   private scroller: Scroller = new Scroller();
 
   aboutToAppear() {
+    // Read app version from bundle info (single source: AppScope/app.json5)
+    try {
+      const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+      this.appVersion = `v${info.versionName}`;
+    } catch (e) {
+      this.appVersion = 'v?';
+    }
     this.viewModel.bindUI(() => {
       this.refreshTrigger = Date.now();
       this.scrollToBottom();
@@ -126,7 +135,7 @@ struct Index {
             .fontSize(11)
             .fontColor('#6B7280')
           Blank()
-          Text('v2.17.6')
+          Text(this.appVersion)
             .fontSize(11)
             .fontColor('#6B7280')
         }

@@ -1,4 +1,10 @@
 import java.util.Properties
+import groovy.json.JsonSlurper
+
+// Single source of truth: read version from root package.json
+val rootPkg = JsonSlurper().parseText(file("../../../package.json").readText()) as Map<String, Any>
+val pkgVersion = rootPkg["version"] as String
+val versionParts = pkgVersion.split(".").map { it.toInt() }
 
 plugins {
     id("com.android.application")
@@ -15,8 +21,8 @@ android {
         applicationId = "com.pichat.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 21706
-        versionName = "2.17.6"
+        versionCode = versionParts[0] * 10000 + versionParts[1] * 100 + versionParts[2]
+        versionName = pkgVersion
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

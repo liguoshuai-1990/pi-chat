@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.17.7] - 2026-09-06
+
+### Changed
+- **版本号归一化：从 8 处硬编码降至 5 处**：
+  - 新增 `scripts/bump-version.mjs` 一键版本递增脚本，支持 `patch`/`minor`/`major` 或指定完整版本号，自动同步全仓 5 处版本源 + CHANGELOG。
+  - Android `build.gradle.kts` 改为构建时从 root `package.json` 读取版本号（`JsonSlurper`），消灭 `versionName` + `versionCode` 两个硬编码源。
+  - HarmonyOS `Index.ets` 改为运行时从 `bundleManager.getBundleInfoForSelfSync()` 读取版本号，消灭 `Text('v...')` 硬编码源。
+  - Web 测试 `unit.test.js` 适配动态版本读取，改为验证读取逻辑存在而非匹配硬编码值。
+  - AGENTS.md 版本同步清单与 SOP 流程图同步更新。
+
 ## [2.17.6] - 2026-09-06
 
 ### Changed

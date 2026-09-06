@@ -152,16 +152,13 @@ describe("pi-web-chat Unit Tests", () => {
     assert.equal(harmonyPkg.version, rootPkg.version, "Harmony package version must match root");
 
     // Android build.gradle.kts check
+    // Android reads version dynamically from root package.json via JsonSlurper,
+    // so we verify the reading logic is present instead of checking hardcoded values.
     const androidGradle = readFileSync(path.resolve(__dirname, "../../../clients/android/app/build.gradle.kts"), "utf8");
-    const androidVersionNameMatch = androidGradle.match(/versionName\s*=\s*"([^"]+)"/);
-    const androidVersionCodeMatch = androidGradle.match(/versionCode\s*=\s*(\d+)/);
-    assert.ok(androidVersionNameMatch, "Android versionName must exist in build.gradle.kts");
-    assert.ok(androidVersionCodeMatch, "Android versionCode must exist in build.gradle.kts");
-    assert.equal(androidVersionNameMatch[1], rootPkg.version, "Android versionName must match root version");
+    assert.ok(androidGradle.includes("package.json"), "Android build.gradle.kts must read version from root package.json");
+    assert.ok(androidGradle.includes("versionParts[0] * 10000"), "Android versionCode must use MAJOR*10000 formula");
 
     const [major, minor, patch] = rootPkg.version.split(".").map(Number);
-    const expectedAndroidCode = major * 10000 + minor * 100 + patch;
-    assert.equal(Number(androidVersionCodeMatch[1]), expectedAndroidCode, "Android versionCode must follow MAJOR*10000 + MINOR*100 + PATCH");
 
     // HarmonyOS AppScope/app.json5 check
     const harmonyAppJson5 = readFileSync(path.resolve(__dirname, "../../../clients/harmony/AppScope/app.json5"), "utf8");
@@ -174,10 +171,11 @@ describe("pi-web-chat Unit Tests", () => {
     const expectedHarmonyCode = major * 1000000 + minor * 10000 + patch * 100;
     assert.equal(Number(harmonyVersionCodeMatch[1]), expectedHarmonyCode, "HarmonyOS versionCode must follow MAJOR*1000000 + MINOR*10000 + PATCH*100");
 
-    // HarmonyOS Index.ets sidebar version display check (防止侧边栏硬编码版本号漂移)
+    // HarmonyOS Index.ets sidebar version display check
+    // Index.ets now reads version at runtime from bundleManager (single source: app.json5),
+    // so we verify the dynamic reading logic is present instead of checking hardcoded values.
     const harmonyIndexEts = readFileSync(path.resolve(__dirname, "../../../clients/harmony/entry/src/main/ets/pages/Index.ets"), "utf8");
-    const harmonyUiVersionMatch = harmonyIndexEts.match(/Text\('v([^']+)'\)/);
-    assert.ok(harmonyUiVersionMatch, "HarmonyOS sidebar version Text must exist in Index.ets");
-    assert.equal(harmonyUiVersionMatch[1], rootPkg.version, "HarmonyOS sidebar version must match root version");
+    assert.ok(harmonyIndexEts.includes("bundleManager"), "HarmonyOS Index.ets must read version from bundleManager");
+    assert.ok(harmonyIndexEts.includes("this.appVersion"), "HarmonyOS Index.ets must use appVersion state for version display");
   });
 });
