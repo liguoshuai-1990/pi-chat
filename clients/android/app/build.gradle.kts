@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.util.Base64
 import groovy.json.JsonSlurper
 
 // Single source of truth: read version from root package.json
@@ -47,7 +48,7 @@ android {
             val base64Key = System.getenv("PI_RELEASE_KEYSTORE_BASE64")
             val effectiveStoreFile = if (!base64Key.isNullOrEmpty()) {
                 val tmpFile = file("${System.getProperty("java.io.tmpdir")}/pi_release.keystore")
-                tmpFile.writeBytes(java.util.Base64.getDecoder().decode(base64Key.trim()))
+                tmpFile.writeBytes(Base64.getDecoder().decode(base64Key.trim()))
                 tmpFile
             } else if (!releaseStoreFile.isNullOrEmpty() && file(releaseStoreFile).exists()) {
                 file(releaseStoreFile)
