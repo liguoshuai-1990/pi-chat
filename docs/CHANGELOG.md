@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.17.8] - 2026-09-06
+
+### Fixed
+- **Web 移动端附件上传兼容性修复**：移除 `<input type="file">` 上混合的大量生僻扩展名过滤属性（`accept`），解决移动端浏览器（如 Android、鸿蒙系统及各类内置浏览器）在拉起系统选择器时因 MIME 解析失败导致提示“暂无可用打开方式”的问题；附件格式由前端 JS（`handleIncomingFiles`）统一进行解析、压缩和友好提示。
+
 ## [2.17.7] - 2026-09-06
 
 ### Changed
