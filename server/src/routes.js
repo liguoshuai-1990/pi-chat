@@ -371,10 +371,13 @@ router.get("/api/sessions", authMiddleware, async (req, res) => {
           const sessionPath = agent.sessionKey.slice(idx + 1);
           const normPath = normalizePath(sessionPath);
           if (!knownFiles.has(normPath)) {
+            const agentTitle = agent.sessionName || agent.lastUserPrompt?.text?.slice(0, 80) || "新对话";
             sessions.push({
               file: sessionPath,
+              name: path.basename(sessionPath),
               id: path.basename(sessionPath, ".jsonl"),
-              title: agent.sessionName || agent.lastUserPrompt?.text?.slice(0, 80) || "新对话",
+              sessionName: agent.sessionName || null,
+              firstUser: agentTitle,
               cwd: agent.cwd,
               timestamp: agent.lastUserPrompt?.at || agent.startedAt || Date.now(),
               messageCount: agent.lastUserPrompt ? 1 : 0,
@@ -386,17 +389,19 @@ router.get("/api/sessions", authMiddleware, async (req, res) => {
       }
     }
 
-    sessions.sort((a, b) => {
-      const parseTs = (ts) => {
-        if (typeof ts === "number" && Number.isFinite(ts)) return ts;
-        if (typeof ts === "string") {
-          const parsed = Date.parse(ts);
-          if (Number.isFinite(parsed)) return parsed;
-        }
-        return 0;
-      };
-      return parseTs(b.timestamp) - parseTs(a.timestamp);
-    });
+    const parseTs = (ts) => {
+      if (typeof ts === "number" && Number.isFinite(ts)) return ts;
+      if (typeof ts === "string") {
+        const parsed = Date.parse(ts);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return 0;
+    };
+    // Normalize timestamp to epoch milliseconds (number) for consistent cross-client parsing
+    for (const s of sessions) {
+      s.timestamp = parseTs(s.timestamp);
+    }
+    sessions.sort((a, b) => parseTs(b.timestamp) - parseTs(a.timestamp));
     res.json({ cwd, sessions });
   } catch (e) {
     console.error(e);

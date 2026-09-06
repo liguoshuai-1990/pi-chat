@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.2] - 2026-09-06
+
+### Fixed
+- **Android 会话列表加载失败修复**：
+  - 修复服务端 `/api/sessions` 返回的 `timestamp` 字段类型不一致问题：服务端发送数字（epoch 毫秒），但 Android 客户端 `SessionInfo.timestamp` 声明为 `String?`，导致 kotlinx.serialization 抛出 `Unexpected JSON token` 异常，会话列表无法加载。现已统一为 `Long?`。
+  - 修复服务端活跃 Agent（尚未刷盘的会话）返回 `title` 字段而非 `name`，导致 Android `SessionInfo` 缺少必填字段 `name` 的反序列化失败。已改为返回 `name`、`sessionName`、`firstUser`，与磁盘会话格式保持一致。
+  - 服务端 `/api/sessions` 响应中所有 `timestamp` 统一规范化为 epoch 毫秒数字，消除字符串/数字混用导致的跨端解析问题。
+
+### Added
+- **Android 会话列表刷新按钮**：
+  - 在侧边栏抽屉顶部"新对话"按钮旁新增刷新按钮，点击可重新拉取会话列表，解决此前无法在抽屉内手动刷新历史对话列表的问题。
+
 ## [2.18.1] - 2026-09-06
 
 ### Fixed

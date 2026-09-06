@@ -184,7 +184,8 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 onDeleteSession = { file ->
                     viewModel.deleteSession(file)
                 },
-                onReconnect = { viewModel.reconnect() }
+                onReconnect = { viewModel.reconnect() },
+                onRefreshSessions = { viewModel.refreshCurrentSession() }
             )
         }
     ) {
@@ -601,7 +602,8 @@ private fun HistoryDrawer(
     onNewSession: () -> Unit,
     onSelectSession: (SessionInfo) -> Unit,
     onDeleteSession: (String) -> Unit,
-    onReconnect: () -> Unit
+    onReconnect: () -> Unit,
+    onRefreshSessions: () -> Unit
 ) {
     val context = LocalContext.current
     var searchText by remember { mutableStateOf("") }
@@ -616,11 +618,13 @@ private fun HistoryDrawer(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
         ) {
-            // Top: + 新对话 button
-            Box(
+            // Top: + 新对话 button + refresh button
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
                     onClick = onNewSession,
@@ -628,7 +632,7 @@ private fun HistoryDrawer(
                     color = Color.Transparent,
                     border = BorderStroke(1.dp, Border),
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
                         .height(38.dp)
                 ) {
                     Row(
@@ -647,6 +651,25 @@ private fun HistoryDrawer(
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Medium,
                             color = TextPrimary
+                        )
+                    }
+                }
+                Surface(
+                    onClick = onRefreshSessions,
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color.Transparent,
+                    border = BorderStroke(1.dp, Border),
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "刷新会话列表",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -951,15 +974,10 @@ private fun HistoryDrawer(
     }
 }
 
-private fun formatSessionTimestamp(timestampStr: String?): String {
-    if (timestampStr.isNullOrBlank()) return ""
+private fun formatSessionTimestamp(timestampMs: Long?): String {
+    if (timestampMs == null || timestampMs == 0L) return ""
     return try {
-        val epochMs = timestampStr.toLongOrNull()
-        val instant = if (epochMs != null) {
-            java.time.Instant.ofEpochMilli(epochMs)
-        } else {
-            java.time.Instant.parse(timestampStr)
-        }
+        val instant = java.time.Instant.ofEpochMilli(timestampMs)
         val zonedDateTime = instant.atZone(java.time.ZoneId.systemDefault())
         val now = java.time.ZonedDateTime.now()
         val formatter = if (zonedDateTime.year == now.year) {

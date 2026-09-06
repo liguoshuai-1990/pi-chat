@@ -8,7 +8,7 @@ data class SessionInfo(
     val name: String,
     val id: String? = null,
     val sessionName: String? = null,
-    val timestamp: String? = null,
+    val timestamp: Long? = null,
     val firstUser: String? = null,
     val messageCount: Int = 0
 )
