@@ -1446,6 +1446,8 @@ fun MessageBubble(
     onRetry: () -> Unit
 ) {
     val context = LocalContext.current
+    val isStreaming = message.status == MessageStatus.STREAMING ||
+        (isSessionStreaming && isLastMessage && message.role == MessageRole.ASSISTANT && message.status != MessageStatus.ERROR)
 
     if (message.role == MessageRole.SYSTEM) {
         Box(
@@ -1637,9 +1639,6 @@ fun MessageBubble(
             )
             Spacer(Modifier.width(6.dp))
             Text(timeText, fontSize = 10.sp, color = TextDim)
-
-            val isStreaming = message.status == MessageStatus.STREAMING ||
-                (isSessionStreaming && isLastMessage && message.role == MessageRole.ASSISTANT && message.status != MessageStatus.ERROR)
 
             // Status badge for Assistant message
             if (isStreaming) {
