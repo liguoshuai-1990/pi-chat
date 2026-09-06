@@ -216,21 +216,48 @@ fun ChatScreen(viewModel: ChatViewModel) {
                                 .padding(horizontal = 4.dp, vertical = 2.dp),
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Text(
-                                text = sessionTitle.ifEmpty { "新对话" },
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = sessionTitle.ifEmpty { "新对话" },
+                                    fontSize = 14.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                if (isStreaming) {
+                                    Row(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(999.dp))
+                                            .background(Accent.copy(alpha = 0.15f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(10.dp),
+                                            color = Accent,
+                                            strokeWidth = 1.5.dp
+                                        )
+                                        Text(
+                                            "生成中",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Accent
+                                        )
+                                    }
+                                }
+                            }
                             Spacer(Modifier.height(3.dp))
                             Row(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
+                                    .fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 // CWD Pill
                                 TopBarPill(
@@ -239,11 +266,12 @@ fun ChatScreen(viewModel: ChatViewModel) {
                                             Icons.Outlined.Folder,
                                             contentDescription = null,
                                             tint = TextSecondary,
-                                            modifier = Modifier.size(11.dp)
+                                            modifier = Modifier.size(10.dp)
                                         )
                                     },
                                     label = formatCwdDisplay(currentCwd, serverConfig?.home),
-                                    onClick = { showCwdDialog = true }
+                                    onClick = { showCwdDialog = true },
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
 
                                 // Model Pill
@@ -255,15 +283,16 @@ fun ChatScreen(viewModel: ChatViewModel) {
                                             Icons.Outlined.SmartToy,
                                             contentDescription = null,
                                             tint = Accent,
-                                            modifier = Modifier.size(11.dp)
+                                            modifier = Modifier.size(10.dp)
                                         )
                                     },
                                     label = modelDisplayName,
-                                    badge = if (isDefaultModel) "★ 默认" else null,
+                                    badge = if (isDefaultModel) "★" else null,
                                     onClick = {
                                         viewModel.refreshModels()
                                         showModelSelector = true
-                                    }
+                                    },
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
 
                                 // Thinking Pill
@@ -273,11 +302,12 @@ fun ChatScreen(viewModel: ChatViewModel) {
                                             Icons.Outlined.Psychology,
                                             contentDescription = null,
                                             tint = Color(0xFFC4B5FD),
-                                            modifier = Modifier.size(11.dp)
+                                            modifier = Modifier.size(10.dp)
                                         )
                                     },
                                     label = thinkingLevel.replaceFirstChar { it.uppercase() },
-                                    onClick = { showThinkingSelector = true }
+                                    onClick = { showThinkingSelector = true },
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
                             }
                         }
@@ -296,7 +326,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
-                                Icons.Outlined.Share,
+                                Icons.Outlined.Download,
                                 contentDescription = "导出对话",
                                 tint = TextSecondary,
                                 modifier = Modifier.size(18.dp)
@@ -521,28 +551,30 @@ private fun TopBarPill(
     icon: @Composable () -> Unit,
     label: String,
     badge: String? = null,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(6.dp),
         color = BgHover,
         border = BorderStroke(1.dp, Border),
-        modifier = Modifier.height(22.dp)
+        modifier = modifier.height(22.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp),
+            modifier = Modifier.padding(horizontal = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             icon()
             Text(
                 label,
-                fontSize = 11.sp,
+                fontSize = 10.5.sp,
                 fontWeight = FontWeight.Normal,
                 color = TextSecondary,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
             )
             if (badge != null) {
                 Text(
@@ -2347,8 +2379,8 @@ private fun ModelSelectorDialog(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 360.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                        .heightIn(max = 260.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(filtered, key = { "${it.provider}_${it.id}" }) { m ->
                         val isSelected = m.id == currentModel?.id && (m.provider == null || m.provider == currentModel?.provider)

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.0] - 2026-09-06
+
+### Added
+- **Android 端使用体验优化**：
+  - 顶栏新增「生成中」流式状态指示器，对话进行时实时可见。
+  - 下拉刷新现在同时刷新会话列表，不再仅刷新当前会话消息。
+
+### Fixed
+- **Android 端 UI 修复**：
+  - 导出按钮图标从 Share 改为 Download，与 Web 端保持一致。
+  - 模型选择对话框高度过高问题，列表最大高度从 360dp 降至 260dp。
+  - 顶栏三个快捷按钮（目录/模型/思考）在小屏显示不全，移除横向滚动改为自适应权重布局，缩小字号与间距确保全部可见。
+
 ## [2.17.9] - 2026-09-06
 
 ### Fixed
