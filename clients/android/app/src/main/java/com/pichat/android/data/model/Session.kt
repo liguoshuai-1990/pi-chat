@@ -29,6 +29,7 @@ data class ServerConfig(
     val home: String,
     val serverCwd: String,
     val version: String,
+    val piVersion: String? = null,
     val authRequired: Boolean = false,
     val defaultModel: ModelSetting? = null
 )

@@ -83,12 +83,18 @@ class ChatRepository(
     }
 
     fun appendSystemNotice(text: String) {
+        val msgs = _messages.value.toMutableList()
+        if (msgs.isNotEmpty() && msgs.last().role == MessageRole.SYSTEM) {
+            msgs[msgs.size - 1] = msgs.last().copy(content = text, timestamp = System.currentTimeMillis())
+            _messages.value = msgs
+            return
+        }
         val noticeMsg = ChatMessage(
             role = MessageRole.SYSTEM,
             content = text,
             status = MessageStatus.DONE
         )
-        _messages.value = _messages.value + noticeMsg
+        _messages.value = msgs + noticeMsg
     }
 
     @Volatile
@@ -257,6 +263,10 @@ class ChatRepository(
                                 _messages.value = msgs
                             }
                         }
+                    } else if (currentSess != null && !currentSess.isStreaming && _isStreaming.value) {
+                        _isStreaming.value = false
+                        cancelStreamingWatchdog()
+                        markLastMessageDone()
                     }
                 }
             }.onFailure { e ->
@@ -338,6 +348,7 @@ class ChatRepository(
     }
 
     fun sendSteer(text: String): Boolean {
+        markLastMessageDone()
         val steerMsg = ChatMessage(
             role = MessageRole.USER,
             content = text,
@@ -717,6 +728,10 @@ class ChatRepository(
                                         _messages.value = list
                                     }
                                 }
+                            } else if (_isStreaming.value) {
+                                _isStreaming.value = false
+                                cancelStreamingWatchdog()
+                                markLastMessageDone()
                             }
                         }
                     }

@@ -68,6 +68,7 @@ import com.pichat.android.data.model.ImageAttachment
 import com.pichat.android.data.model.MessageRole
 import com.pichat.android.data.model.MessageStatus
 import com.pichat.android.data.model.ModelInfo
+import com.pichat.android.data.model.ServerConfig
 import com.pichat.android.data.model.SessionInfo
 import com.pichat.android.data.model.ToolCall
 import com.pichat.android.data.model.ToolCallState
@@ -227,6 +228,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 currentSessionFile = currentSessionFile,
                 isStreaming = isStreaming,
                 connState = connState,
+                serverConfig = serverConfig,
                 onNewSession = {
                     viewModel.newSession()
                     coroutineScope.launch { drawerState.close() }
@@ -533,6 +535,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
     if (showSettings) {
         SettingsDialog(
             serverUrl = serverUrl,
+            serverConfig = serverConfig,
             onDismiss = { showSettings = false },
             onSave = { url, token ->
                 viewModel.reconnect(url, token, currentCwd)
@@ -542,7 +545,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
     }
 
     if (showModelSelector) {
-        ModelSelectorDialog(
+        ModelSelectorDropdown(
             models = availableModels,
             currentModel = currentModel,
             defaultModelId = serverConfig?.defaultModel?.id,
@@ -558,7 +561,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
     }
 
     if (showThinkingSelector) {
-        ThinkingLevelDialog(
+        ThinkingLevelDropdown(
             currentLevel = thinkingLevel,
             onDismiss = { showThinkingSelector = false },
             onSelect = { level ->
@@ -643,6 +646,7 @@ private fun HistoryDrawer(
     currentSessionFile: String?,
     isStreaming: Boolean,
     connState: ConnectionState,
+    serverConfig: ServerConfig? = null,
     onNewSession: () -> Unit,
     onOpenSettings: () -> Unit,
     onSelectSession: (SessionInfo) -> Unit,
@@ -986,8 +990,10 @@ private fun HistoryDrawer(
                         )
                     }
 
+                    val piVer = serverConfig?.piVersion
+                    val appVer = "Android v${com.pichat.android.BuildConfig.VERSION_NAME}"
                     Text(
-                        text = "Android v${com.pichat.android.BuildConfig.VERSION_NAME}",
+                        text = if (!piVer.isNullOrBlank()) "$appVer · pi v$piVer" else appVer,
                         fontSize = 11.sp,
                         color = TextDim
                     )
@@ -1795,25 +1801,29 @@ private fun AssistantContent(
         val elapsed = Math.max(0L, liveNow - started)
         val durStr = formatDuration(elapsed)
         val label = if (elapsed > 2500) "正在深度推理中… ($durStr)" else "正在思考中… ($durStr)"
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
             modifier = Modifier
                 .clip(RoundedCornerShape(10.dp))
                 .background(ThinkingBg)
+                .border(BorderStroke(1.dp, Border), RoundedCornerShape(10.dp))
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(14.dp),
-                color = Accent,
-                strokeWidth = 2.dp
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(label, fontSize = 13.sp, color = TextSecondary)
-            Spacer(Modifier.width(6.dp))
-            BlinkingCursor()
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    color = Accent,
+                    strokeWidth = 2.dp
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(label, fontSize = 13.sp, color = TextSecondary)
+            }
+            BlinkingCursor(modifier = Modifier.padding(top = 4.dp, start = 2.dp))
         }
-    } else if (isStreaming) {
+    } else if (isStreaming && message.thinkingContent.isEmpty()) {
         BlinkingCursor(modifier = Modifier.padding(top = 4.dp))
+    }
     } else if (message.status == MessageStatus.ERROR && message.content.isEmpty()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1900,14 +1910,20 @@ private fun ThinkingBlock(
             )
         }
         AnimatedVisibility(visible = expanded) {
-            Text(
-                content.ifEmpty { "正在生成思考过程…" },
-                fontSize = 12.sp,
-                lineHeight = 18.sp,
-                fontFamily = FontFamily.Monospace,
-                color = TextSecondary,
+            Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-            )
+            ) {
+                Text(
+                    content.ifEmpty { "正在生成思考过程…" },
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = if (content.isEmpty()) TextDim else TextSecondary
+                )
+                if (active) {
+                    BlinkingCursor(modifier = Modifier.padding(top = 4.dp))
+                }
+            }
         }
     }
 }
@@ -2615,7 +2631,7 @@ private fun parseMarkdownSegments(raw: String): List<MarkdownSegment> {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ModelSelectorDialog(
+private fun ModelSelectorDropdown(
     models: List<ModelInfo>,
     currentModel: ModelInfo?,
     defaultModelId: String?,
@@ -2631,181 +2647,245 @@ private fun ModelSelectorDialog(
         }
     }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = SidebarBg,
-        title = {
-            Column {
-                Text("选择模型", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = search,
-                    onValueChange = { search = it },
-                    placeholder = { Text("搜索模型…", color = TextDim, fontSize = 12.sp) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = BgInput,
-                        unfocusedContainerColor = BgInput,
-                        focusedBorderColor = Accent,
-                        unfocusedBorderColor = Border,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    )
-                )
-            }
-        },
-        text = {
-            if (filtered.isEmpty()) {
-                Box(
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = SidebarBg,
+                border = BorderStroke(1.dp, Border),
+                shadowElevation = 16.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 54.dp)
+                    .clickable(enabled = false) {}
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(bottom = 6.dp)
                 ) {
-                    Text("未发现可用模型", fontSize = 13.sp, color = TextDim)
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 260.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(filtered, key = { "${it.provider}_${it.id}" }) { m ->
-                        val isSelected = m.id == currentModel?.id && (m.provider == null || m.provider == currentModel?.provider)
-                        val isDefault = m.id == defaultModelId
-                        Surface(
-                            onClick = { onSelect(m.provider ?: "", m.id) },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) BgHover else BgInput,
-                            border = BorderStroke(1.dp, if (isSelected) Accent else Border),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            m.name ?: m.id,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = TextPrimary
-                                        )
-                                        if (isDefault) {
-                                            Spacer(Modifier.width(6.dp))
-                                            Text(
-                                                "★ 默认",
-                                                fontSize = 10.sp,
-                                                color = Color(0xFFF59E0B),
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(Color(0xFFF59E0B).copy(alpha = 0.15f))
-                                                    .padding(horizontal = 4.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(Modifier.height(4.dp))
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        if (!m.provider.isNullOrEmpty()) {
-                                            Text(
-                                                m.provider,
-                                                fontSize = 10.sp,
-                                                color = TextDim,
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(BgHover)
-                                                    .padding(horizontal = 4.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                        if (m.reasoning) {
-                                            Text("🧠 推理", fontSize = 10.sp, color = TextSecondary)
-                                        }
-                                        if (m.supportsImages) {
-                                            Text("👁️ 视觉", fontSize = 10.sp, color = TextSecondary)
-                                        }
-                                        Text("🛠️ 工具", fontSize = 10.sp, color = TextSecondary)
+                    // Top Search Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = search,
+                            onValueChange = { search = it },
+                            placeholder = { Text("搜索模型 (如 claude, deepseek, 4o)…", color = TextDim, fontSize = 12.sp) },
+                            singleLine = true,
+                            leadingIcon = {
+                                Icon(Icons.Default.Search, contentDescription = null, tint = TextDim, modifier = Modifier.size(16.dp))
+                            },
+                            trailingIcon = {
+                                if (search.isNotEmpty()) {
+                                    IconButton(onClick = { search = "" }, modifier = Modifier.size(24.dp)) {
+                                        Icon(Icons.Default.Close, contentDescription = "清空", tint = TextDim, modifier = Modifier.size(14.dp))
                                     }
                                 }
-                                if (isSelected) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = "已选择",
-                                        tint = Accent,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = BgInput,
+                                unfocusedContainerColor = BgInput,
+                                focusedBorderColor = Accent,
+                                unfocusedBorderColor = Border,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            )
+                        )
+                    }
+                    HorizontalDivider(color = Border)
+
+                    if (filtered.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("未找到匹配的模型", fontSize = 13.sp, color = TextDim)
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 380.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(filtered, key = { "${it.provider}_${it.id}" }) { m ->
+                                val isSelected = m.id == currentModel?.id && (m.provider == null || m.provider == currentModel?.provider)
+                                val isDefault = m.id == defaultModelId
+                                Surface(
+                                    onClick = { onSelect(m.provider ?: "", m.id) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) BgHover else BgInput,
+                                    border = BorderStroke(1.dp, if (isSelected) Accent else Border),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    m.name ?: m.id,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = TextPrimary
+                                                )
+                                                if (isDefault) {
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text(
+                                                        "★ 默认",
+                                                        fontSize = 9.sp,
+                                                        color = Color(0xFFF59E0B),
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(3.dp))
+                                                            .background(Color(0xFFF59E0B).copy(alpha = 0.15f))
+                                                            .padding(horizontal = 4.dp, vertical = 0.5.dp)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(Modifier.height(2.dp))
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                if (!m.provider.isNullOrEmpty()) {
+                                                    Text(
+                                                        m.provider,
+                                                        fontSize = 9.5.sp,
+                                                        color = TextDim,
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(3.dp))
+                                                            .background(BgHover)
+                                                            .padding(horizontal = 4.dp, vertical = 0.5.dp)
+                                                    )
+                                                }
+                                                if (m.reasoning) {
+                                                    Text("🧠 推理", fontSize = 9.5.sp, color = TextSecondary)
+                                                }
+                                                if (m.supportsImages) {
+                                                    Text("👁️ 视觉", fontSize = 9.5.sp, color = TextSecondary)
+                                                }
+                                                Text("🛠️ 工具", fontSize = 9.5.sp, color = TextSecondary)
+                                            }
+                                        }
+                                        if (isSelected) {
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = "已选择",
+                                                tint = Accent,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭", color = TextSecondary)
-            }
         }
-    )
+    }
 }
 
 @Composable
-private fun ThinkingLevelDialog(
+private fun ThinkingLevelDropdown(
     currentLevel: String,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
 ) {
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = SidebarBg,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🧠", fontSize = 18.sp)
-                Spacer(Modifier.width(8.dp))
-                Text("深度思考 / 推理级别", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                thinkingLevels.forEach { (levelKey, levelLabel, desc) ->
-                    val active = levelKey.equals(currentLevel, ignoreCase = true)
-                    Surface(
-                        onClick = { onSelect(levelKey) },
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (active) BgHover else BgInput,
-                        border = BorderStroke(1.dp, if (active) Accent else Border),
-                        modifier = Modifier.fillMaxWidth()
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = SidebarBg,
+                border = BorderStroke(1.dp, Border),
+                shadowElevation = 16.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 54.dp)
+                    .clickable(enabled = false) {}
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(levelLabel, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                                Text(desc, fontSize = 11.sp, color = TextDim)
-                            }
-                            if (active) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = Accent, modifier = Modifier.size(18.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🧠", fontSize = 16.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Text("深度思考 / 推理级别", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "关闭", tint = TextDim, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                    HorizontalDivider(color = Border, modifier = Modifier.padding(vertical = 4.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        thinkingLevels.forEach { (levelKey, levelLabel, desc) ->
+                            val active = levelKey.equals(currentLevel, ignoreCase = true)
+                            Surface(
+                                onClick = { onSelect(levelKey) },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (active) BgHover else BgInput,
+                                border = BorderStroke(1.dp, if (active) Accent else Border),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(levelLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                                        Text(desc, fontSize = 10.5.sp, color = TextDim)
+                                    }
+                                    if (active) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = Accent, modifier = Modifier.size(16.dp))
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消", color = TextSecondary)
-            }
         }
-    )
+    }
 }
 
 @Composable
@@ -2816,41 +2896,92 @@ private fun CwdDialog(
     onConfirm: (String) -> Unit
 ) {
     var pathInput by remember { mutableStateOf(currentCwd) }
-    val quickDirs = listOf("~", "~/.pi", "/tmp")
+    val quickDirs = remember(homeDir) {
+        val list = mutableListOf("~")
+        if (!homeDir.isNullOrBlank() && homeDir != "~") {
+            list.add("~/.pi")
+        }
+        list.add("/tmp")
+        list
+    }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = SidebarBg,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Folder, contentDescription = null, tint = Accent, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("切换工作目录", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            }
-        },
-        text = {
-            Column {
-                Text("选择或输入 pi 代理运行的目标工作目录：", fontSize = 12.sp, color = TextSecondary)
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = pathInput,
-                    onValueChange = { pathInput = it },
-                    placeholder = { Text("/path/to/project", fontSize = 13.sp) },
-                    singleLine = true,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = SidebarBg,
+            border = BorderStroke(1.dp, Border),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp)
+            ) {
+                // Header
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = BgInput,
-                        unfocusedContainerColor = BgInput,
-                        focusedBorderColor = Accent,
-                        unfocusedBorderColor = Border,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    )
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Folder, contentDescription = null, tint = Accent, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("切换工作目录", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "关闭", tint = TextDim, modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+                Text("选择或输入 pi 代理运行的目标工作目录：", fontSize = 12.5.sp, color = TextSecondary)
                 Spacer(Modifier.height(12.dp))
-                Text("快捷选择：", fontSize = 11.sp, color = TextDim)
+
+                // Input + Confirm Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = pathInput,
+                        onValueChange = { pathInput = it },
+                        placeholder = { Text("/path/to/project", fontSize = 13.sp, color = TextDim) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = BgInput,
+                            unfocusedContainerColor = BgInput,
+                            focusedBorderColor = Accent,
+                            unfocusedBorderColor = Border,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        )
+                    )
+                    Button(
+                        onClick = { onConfirm(pathInput.trim()) },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Text("确定切换", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+                Text("快捷选择：", fontSize = 11.5.sp, color = TextDim)
                 Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     quickDirs.forEach { dir ->
                         Surface(
                             onClick = { pathInput = dir },
@@ -2860,34 +2991,22 @@ private fun CwdDialog(
                         ) {
                             Text(
                                 dir,
-                                fontSize = 11.sp,
+                                fontSize = 11.5.sp,
                                 color = TextSecondary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             )
                         }
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(pathInput.trim()) },
-                colors = ButtonDefaults.buttonColors(containerColor = Accent)
-            ) {
-                Text("确定切换")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消", color = TextSecondary)
-            }
         }
-    )
+    }
 }
 
 @Composable
 private fun SettingsDialog(
     serverUrl: String,
+    serverConfig: ServerConfig? = null,
     onDismiss: () -> Unit,
     onSave: (String, String?) -> Unit
 ) {
@@ -2950,8 +3069,9 @@ private fun SettingsDialog(
                     )
                 )
                 Spacer(Modifier.height(12.dp))
+                val piVer = serverConfig?.piVersion
                 Text(
-                    "客户端版本：pi-chat · Android v${com.pichat.android.BuildConfig.VERSION_NAME}",
+                    text = if (!piVer.isNullOrBlank()) "客户端版本：pi-chat · Android v${com.pichat.android.BuildConfig.VERSION_NAME} (pi v$piVer)" else "客户端版本：pi-chat · Android v${com.pichat.android.BuildConfig.VERSION_NAME}",
                     fontSize = 11.sp,
                     color = TextDim
                 )

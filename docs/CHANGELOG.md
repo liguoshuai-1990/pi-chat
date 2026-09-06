@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.0] - 2026-09-06
+
+### Added
+- **跨端展示 pi 核心版本号 (pi.dev / pi cli version)**：
+  - VPS 网关服务在 `/api/config` 中动态解析并输出 `piVersion`（检测 `pi --version`）。
+  - Web 端在侧边栏底部展示应用版本与 pi 版本（如 `v2.19.0 · pi v0.85.1`）。
+  - Android 端在侧边栏抽屉底部及“后端配置”对话框中展示 `Android v2.19.0 · pi v0.85.1`。
+  - HarmonyOS 端在侧边栏抽屉底部同步展示 `v2.19.0 · pi v0.85.1`。
+
+### Changed
+- **Android App 顶栏弹窗与下拉菜单全面重构（风格与 Web 一致）**：
+  - **工作目录**：重构为现代卡片式模态弹窗（`CwdDialog`），支持标题栏、关闭按钮、输入框与“确定切换”操作组合以及快捷目录胶囊标签。
+  - **模型选择与深度思考**：从居中对话框重构为顶栏锚定下拉菜单（`ModelSelectorDropdown` 与 `ThinkingLevelDropdown`），内置模型搜索、厂商标签、推理/视觉/默认徽章以及思考深度选项，风格与 Web 保持高度一致。
+
+### Fixed
+- **模型切换提示去重与就地覆盖**：
+  - 在 Web 和 Android App 中，若两次切换模型之间没有产生新的对话，多次切换模型时自动就地覆盖上一条提示位置，避免多条提示堆叠将上方对话内容顶起；在有新对话产生后，则在最新对话下方展示一次切换提示。
+- **Android App 断开重连后已完成会话误显“运行中”问题修复**：
+  - 修复 `loadSessions`、`loadSessionHistory` 和 `get_state` 在服务端代理处于空闲状态时未正确重置本地 `_isStreaming` 状态的问题，彻底解决断开重连或刷新后已完成会话概率性仍显示为“运行中”的缺陷。
+- **推理思考初始光标换行展示**：
+  - 将初始“正在思考中… / 正在深度推理中…”占位符及思考块内的打字机光标从第一句行末位置调整为下一行独立展示，优化排版视觉体验。
+- **Web 端插入指令 (Steer Prompt) 定位修复**：
+  - 修复 Web 端中途发送插入指令时当前 Assistant 消息未分段导致后续流式内容仍在指令上方渲染、导致指令看起来被“固定在最后”的问题。
+  - 修复历史记录重构时缺失 `isSteer` 标记的问题，确保刷新或重载后插入指令徽章正确呈现。
+
 ## [2.18.13] - 2026-09-06
 
 ### Fixed

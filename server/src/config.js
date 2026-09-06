@@ -1,6 +1,7 @@
 import os from "os";
 import path from "path";
 import { existsSync, readFileSync } from "fs";
+import { execFileSync } from "child_process";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -104,6 +105,25 @@ try {
   const pkg = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf8"));
   if (pkg.version) PKG_VERSION = pkg.version;
 } catch {}
+
+let PI_VERSION = null;
+export function getPiVersion() {
+  if (PI_VERSION !== null) return PI_VERSION;
+  try {
+    const piBin = resolvePiBin();
+    const out = execFileSync(piBin, ["--version"], {
+      encoding: "utf8",
+      timeout: 3000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    if (out) {
+      PI_VERSION = out;
+      return PI_VERSION;
+    }
+  } catch {}
+  PI_VERSION = "";
+  return PI_VERSION;
+}
 
 /**
  * Parse a numeric environment variable with a fallback default.

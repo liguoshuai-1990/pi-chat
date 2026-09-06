@@ -2,7 +2,7 @@ import { Router } from "express";
 import { readFile, readdir, stat, writeFile, mkdir, realpath as fsRealpath, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
-import { config, home, normalizeCwd, normalizePath } from "./config.js";
+import { config, home, normalizeCwd, normalizePath, getPiVersion } from "./config.js";
 import { authMiddleware } from "./auth.js";
 import { allAgents, activeAgents, getOrCreateAgent } from "./agent.js";
 import { handleSseStream } from "./sse.js";
@@ -83,6 +83,7 @@ router.get("/api/config", authMiddleware, async (req, res) => {
     home: home(),
     serverCwd: process.cwd(),
     version: config.version,
+    piVersion: getPiVersion() || null,
     authRequired: Boolean(config.authToken),
     defaultModel: {
       provider: settings.defaultProvider,

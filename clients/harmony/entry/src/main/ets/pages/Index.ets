@@ -29,6 +29,13 @@ struct Index {
       this.appVersion = 'v?';
     }
     this.viewModel.bindUI(() => {
+      const piVer = this.viewModel.serverConfig?.piVersion;
+      try {
+        const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+        this.appVersion = piVer ? `v${info.versionName} · pi v${piVer}` : `v${info.versionName}`;
+      } catch (e) {
+        this.appVersion = piVer ? `v? · pi v${piVer}` : 'v?';
+      }
       this.refreshTrigger = Date.now();
       this.scrollToBottom();
     });

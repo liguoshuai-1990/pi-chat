@@ -168,8 +168,17 @@ async function loadServerConfig() {
     }
     if (data.version) {
       state.version = data.version;
-      const verEl = $("#appVersion");
-      if (verEl) verEl.textContent = `v${data.version}`;
+    }
+    if (data.piVersion) {
+      state.piVersion = data.piVersion;
+    }
+    const verEl = $("#appVersion");
+    if (verEl) {
+      const parts = [];
+      if (state.version) parts.push(`v${state.version}`);
+      if (state.piVersion) parts.push(`pi v${state.piVersion}`);
+      verEl.textContent = parts.join(" · ");
+      verEl.title = `pi-web-chat v${state.version || ""} · pi v${state.piVersion || ""}`;
     }
     if (data.defaultModel) {
       state.defaultModel = data.defaultModel;
@@ -757,6 +766,7 @@ function reconstructFromEntries(entries, timing = null) {
       lastUserTs = msgTs;
       turnIndex++;
       thinkingIdx = 0;          // reset thinking index for the new turn
+      const isSteer = Boolean(m.isSteer || e.isSteer || e.customType === "steer" || m.customType === "steer");
       // Extract optional images from user message content array
       let images = [];
       if (Array.isArray(m.content)) {
@@ -768,7 +778,7 @@ function reconstructFromEntries(entries, timing = null) {
             url: c.data ? `data:${c.mimeType || "image/png"};base64,${c.data}` : (c.url || "")
           }));
       }
-      out.push({ role: "user", text: extractContentText(m.content), images, ts: msgTs });
+      out.push({ role: "user", text: extractContentText(m.content), images, ts: msgTs, isSteer });
     } else if (m.role === "assistant") {
       let turnDurationMs = null;
       // Try timing data first, then fall back to timestamp heuristic.
@@ -836,10 +846,19 @@ function extractContentText(content) {
     .join("\n\n");
 }
 
-function appendSystemNotice(text) {
+function appendSystemNotice(text, replaceIfLast = true) {
   if (!text) return;
   const chatInner = $("#chat-inner");
   if (!chatInner) return;
+  const lastChild = chatInner.lastElementChild;
+  if (replaceIfLast && lastChild && lastChild.classList.contains("system-notice-divider")) {
+    const textEl = lastChild.querySelector(".system-notice-text");
+    if (textEl) {
+      textEl.textContent = text;
+      scrollBottom();
+      return;
+    }
+  }
   const node = el("div", { class: "system-notice-divider" }, [
     el("span", { class: "system-notice-text", text })
   ]);
@@ -3069,6 +3088,13 @@ function submitSteer() {
     if (hint) hint.textContent = "发送失败：WebSocket 连接已断开。正在尝试重连…";
     scheduleReconnect(0);
     return;
+  }
+
+  // If there was an active streaming assistant block before steering, finalize it
+  // so that subsequent assistant chunks render in a new block below this steer message!
+  if (state.streamingMsg) {
+    finalizeStreamingMsg();
+    state.streaming = true; // resume streaming flag for subsequent response
   }
 
   appendMessageNode("user", { text, isSteer: true, ts: Date.now() });

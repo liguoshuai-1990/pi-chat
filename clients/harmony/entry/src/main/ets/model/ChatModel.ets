@@ -57,6 +57,7 @@ export interface ServerConfig {
   home: string;
   serverCwd: string;
   version: string;
+  piVersion?: string;
   authRequired: boolean;
   defaultModel?: { provider: string; id: string; thinkingLevel?: string };
 }

@@ -18,6 +18,7 @@ export class ChatViewModel {
   public currentModel: ModelInfo | null = null;
   public thinkingLevel: string = 'medium';
   public authRequired: boolean = false;
+  public serverConfig: ServerConfig | null = null;
 
   private wsManager: WebSocketManager = WebSocketManager.getInstance();
   private httpService: HttpService = new HttpService(this.serverUrl, this.token);
@@ -66,6 +67,12 @@ export class ChatViewModel {
 
     this.connect();
     this.loadSessions();
+    this.httpService.getConfig().then(cfg => {
+      if (cfg) {
+        this.serverConfig = cfg;
+        this.notifyUI();
+      }
+    }).catch(() => {});
   }
 
   public connect() {
