@@ -24,17 +24,17 @@ struct Index {
     // Read app version from bundle info (single source: AppScope/app.json5)
     try {
       const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
-      this.appVersion = `v${info.versionName}`;
+      this.appVersion = `pi-chat v${info.versionName}`;
     } catch (e) {
-      this.appVersion = 'v?';
+      this.appVersion = 'pi-chat v?';
     }
     this.viewModel.bindUI(() => {
       const piVer = this.viewModel.serverConfig?.piVersion;
       try {
         const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
-        this.appVersion = piVer ? `v${info.versionName} · pi v${piVer}` : `v${info.versionName}`;
+        this.appVersion = piVer ? `pi v${piVer} · pi-chat v${info.versionName}` : `pi-chat v${info.versionName}`;
       } catch (e) {
-        this.appVersion = piVer ? `v? · pi v${piVer}` : 'v?';
+        this.appVersion = piVer ? `pi v${piVer} · pi-chat v?` : 'pi-chat v?';
       }
       this.refreshTrigger = Date.now();
       this.scrollToBottom();
@@ -138,10 +138,6 @@ struct Index {
         Divider().color('#282830')
 
         Row() {
-          Text('pi-chat · HarmonyOS')
-            .fontSize(11)
-            .fontColor('#6B7280')
-          Blank()
           Text(this.appVersion)
             .fontSize(11)
             .fontColor('#6B7280')

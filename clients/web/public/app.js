@@ -172,13 +172,13 @@ async function loadServerConfig() {
     if (data.piVersion) {
       state.piVersion = data.piVersion;
     }
+    const piVerEl = $("#piVersion");
+    if (piVerEl) {
+      piVerEl.textContent = state.piVersion ? ` v${state.piVersion}` : "";
+    }
     const verEl = $("#appVersion");
     if (verEl) {
-      const parts = [];
-      if (state.version) parts.push(`v${state.version}`);
-      if (state.piVersion) parts.push(`pi v${state.piVersion}`);
-      verEl.textContent = parts.join(" · ");
-      verEl.title = `pi-web-chat v${state.version || ""} · pi v${state.piVersion || ""}`;
+      verEl.textContent = state.version ? ` v${state.version}` : "";
     }
     if (data.defaultModel) {
       state.defaultModel = data.defaultModel;
@@ -1670,6 +1670,9 @@ function refreshStreamingContent() {
           el("span", { class: "thinking-spinner" }),
           el("span", { class: "thinking-label", text: "正在思考中…" })
         ]));
+        content.appendChild(el("div", { class: "streaming-cursor-row" }, [
+          el("span", { class: "typing-cursor" })
+        ]));
       }
     }
     scrollBottom();
@@ -1682,7 +1685,7 @@ function refreshStreamingContent() {
     const lastItem = items[items.length - 1];
     if (lastItem.type === "text") {
       const lastEl = content.lastElementChild;
-      if (lastEl && !lastEl.classList.contains("thinking-block") && !lastEl.classList.contains("tool-block")) {
+      if (lastEl && !lastEl.classList.contains("thinking-block") && !lastEl.classList.contains("tool-block") && !lastEl.classList.contains("streaming-cursor-row")) {
         const showCursor = state.streaming;
         lastEl.innerHTML = renderMarkdown(lastItem.text) + (showCursor ? '<span class="typing-cursor"></span>' : "");
         scrollBottom();
@@ -1694,6 +1697,7 @@ function refreshStreamingContent() {
   // Full rebuild (new items added or structure changed)
   content.innerHTML = "";
   const lastIdx = items.length - 1;
+  let hasText = false;
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const isLast = (i === lastIdx);
@@ -1703,9 +1707,15 @@ function refreshStreamingContent() {
     } else if (item.type === "tool") {
       if (item.tc?.block) content.appendChild(item.tc.block);
     } else if (item.type === "text") {
+      hasText = true;
       const showCursor = state.streaming && isLast;
       content.appendChild(el("div", { html: renderMarkdown(item.text) + (showCursor ? '<span class="typing-cursor"></span>' : "") }));
     }
+  }
+  if (state.streaming && !hasText) {
+    content.appendChild(el("div", { class: "streaming-cursor-row" }, [
+      el("span", { class: "typing-cursor" })
+    ]));
   }
   lastRenderedItemCount = items.length;
   scrollBottom();

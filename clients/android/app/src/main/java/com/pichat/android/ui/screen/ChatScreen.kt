@@ -961,12 +961,14 @@ private fun HistoryDrawer(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val piVer = serverConfig?.piVersion
+                    val appVer = com.pichat.android.BuildConfig.VERSION_NAME
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "pi.dev",
+                            text = if (!piVer.isNullOrBlank()) "pi v$piVer" else "pi",
                             fontSize = 11.sp,
                             color = TextSecondary,
                             modifier = Modifier.clickable {
@@ -978,25 +980,17 @@ private fun HistoryDrawer(
                         )
                         Text("·", fontSize = 11.sp, color = TextDim)
                         Text(
-                            text = "pi-web-chat",
+                            text = "pi-chat v$appVer",
                             fontSize = 11.sp,
                             color = TextSecondary,
                             modifier = Modifier.clickable {
                                 try {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/liguoshuai-1990/pi-web-chat"))
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/liguoshuai-1990/pi-chat"))
                                     context.startActivity(intent)
                                 } catch (_: Exception) {}
                             }
                         )
                     }
-
-                    val piVer = serverConfig?.piVersion
-                    val appVer = "Android v${com.pichat.android.BuildConfig.VERSION_NAME}"
-                    Text(
-                        text = if (!piVer.isNullOrBlank()) "$appVer · pi v$piVer" else appVer,
-                        fontSize = 11.sp,
-                        color = TextDim
-                    )
                 }
             }
         }
@@ -1796,33 +1790,30 @@ private fun AssistantContent(
 
     if (message.content.isNotEmpty()) {
         FormattedMarkdownText(text = message.content, isStreaming = isStreaming)
-    } else if (isStreaming && message.toolCalls.isEmpty() && !message.isThinking) {
+    } else if (isStreaming && message.toolCalls.isEmpty() && !message.isThinking && message.thinkingContent.isEmpty()) {
         val started = message.turnStartedAt ?: message.timestamp
         val elapsed = Math.max(0L, liveNow - started)
         val durStr = formatDuration(elapsed)
         val label = if (elapsed > 2500) "正在深度推理中… ($durStr)" else "正在思考中… ($durStr)"
-        Column(
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .clip(RoundedCornerShape(10.dp))
                 .background(ThinkingBg)
                 .border(BorderStroke(1.dp, Border), RoundedCornerShape(10.dp))
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(14.dp),
-                    color = Accent,
-                    strokeWidth = 2.dp
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(label, fontSize = 13.sp, color = TextSecondary)
-            }
-            BlinkingCursor(modifier = Modifier.padding(top = 4.dp, start = 2.dp))
+            CircularProgressIndicator(
+                modifier = Modifier.size(14.dp),
+                color = Accent,
+                strokeWidth = 2.dp
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(label, fontSize = 13.sp, color = TextSecondary)
         }
-    } else if (isStreaming && message.thinkingContent.isEmpty()) {
-        BlinkingCursor(modifier = Modifier.padding(top = 4.dp))
+        BlinkingCursor(modifier = Modifier.padding(top = 6.dp))
+    } else if (isStreaming && message.content.isEmpty() && message.toolCalls.isEmpty()) {
+        BlinkingCursor(modifier = Modifier.padding(top = 6.dp))
     } else if (message.status == MessageStatus.ERROR && message.content.isEmpty()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1919,9 +1910,6 @@ private fun ThinkingBlock(
                     fontFamily = FontFamily.Monospace,
                     color = if (content.isEmpty()) TextDim else TextSecondary
                 )
-                if (active) {
-                    BlinkingCursor(modifier = Modifier.padding(top = 4.dp))
-                }
             }
         }
     }
@@ -2235,8 +2223,14 @@ private fun BlinkingCursor(modifier: Modifier = Modifier) {
         initialValue = 1f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 500, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
+            animation = keyframes {
+                durationMillis = 1000
+                1f at 0
+                1f at 499
+                0f at 500
+                0f at 999
+            },
+            repeatMode = RepeatMode.Restart
         ),
         label = "cursor_alpha"
     )
@@ -2244,7 +2238,7 @@ private fun BlinkingCursor(modifier: Modifier = Modifier) {
         text = "▋",
         color = Accent.copy(alpha = alpha),
         fontSize = 13.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.Normal,
         modifier = modifier
     )
 }
@@ -3069,8 +3063,9 @@ private fun SettingsDialog(
                 )
                 Spacer(Modifier.height(12.dp))
                 val piVer = serverConfig?.piVersion
+                val appVer = com.pichat.android.BuildConfig.VERSION_NAME
                 Text(
-                    text = if (!piVer.isNullOrBlank()) "客户端版本：pi-chat · Android v${com.pichat.android.BuildConfig.VERSION_NAME} (pi v$piVer)" else "客户端版本：pi-chat · Android v${com.pichat.android.BuildConfig.VERSION_NAME}",
+                    text = if (!piVer.isNullOrBlank()) "客户端版本：pi v$piVer · pi-chat v$appVer" else "客户端版本：pi-chat v$appVer",
                     fontSize = 11.sp,
                     color = TextDim
                 )

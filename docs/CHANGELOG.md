@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.19.1] - 2026-09-06
 
+### Changed
+- **跨端底部版本展示排版优化 (Web & Android App & HarmonyOS)**：
+  - 侧边栏/抽屉底部统一优化为单行展示：`pi v<piVersion> · pi-chat v<appVersion>`。
+  - 保留核心双链接：`pi` 直跳 `https://pi.dev`，`pi-chat` 直跳开源主仓库，版本号紧随对应名称展示。
+  - 移除冗余重复的 `pi`、`Android` 等多余字眼与多行割裂布局，实现手机 App 与 Web 端完全一致的统一体验。
+
 ### Fixed
+- **流式打字机闪烁光标排版与跨端体验统一 (Web & Android App)**：
+  - 光标位置统一置于思考过程与推理卡片框外部下方（`在框框的下面`），思考过程折叠块与占位符内部不再展示光标。
+  - 优化 Android App 闪烁光标字重为正常（`FontWeight.Normal`）并对齐 1s 步进闪烁频率，避免光标过粗，实现手机 App 与 Web 端打字机视觉效果高度一致。
 - **Android App Compose 语法修复**：
   - 修复 `ChatScreen.kt` 中 `AssistantContent` 函数因多余闭合大括号导致 Kotlin 编译器解析失败的编译错误，恢复 GitHub Actions CI Android 构建全绿。
 

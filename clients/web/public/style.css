@@ -342,7 +342,6 @@ body {
   margin-top: 6px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
 }
 .sidebar-bottom-links {
@@ -928,6 +927,13 @@ body {
   to { opacity: 1; transform: scale(1.25); }
 }
 
+.streaming-cursor-row {
+  margin-top: 6px;
+  line-height: 1;
+}
+.streaming-cursor-row .typing-cursor::after {
+  margin-left: 0;
+}
 .typing-cursor::after {
   content: "▋"; display: inline-block; margin-left: 2px;
   animation: blink 1s steps(2) infinite; color: var(--accent);
