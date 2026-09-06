@@ -1,13 +1,15 @@
 {
   "name": "pi-chat",
-  "version": "2.18.11",
+  "version": "2.18.12",
   "private": true,
   "description": "pi-chat — Monorepo for multi-client Pi coding agent ecosystem (Web, Android, HarmonyOS, Server Gateway, Protocol)",
   "type": "module",
   "scripts": {
     "build": "pnpm -r --filter @liguoshuai/pi-chat-protocol --filter @liguoshuai/pi-chat-server --filter @liguoshuai/pi-web-chat build",
     "check": "pnpm build && pnpm test",
-    "build:android": "cd clients/android && ./gradlew assembleDebug",
+    "build:android": "cd clients/android && ./gradlew assembleRelease",
+    "build:android:debug": "cd clients/android && ./gradlew assembleDebug",
+    "build:android:all": "cd clients/android && ./gradlew assembleRelease assembleDebug",
     "build:all": "pnpm check && pnpm build:android",
     "start": "pnpm --filter @liguoshuai/pi-web-chat start",
     "start:web": "pnpm --filter @liguoshuai/pi-web-chat start",

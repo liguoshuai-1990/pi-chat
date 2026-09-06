@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.12] - 2026-09-06
+
+### Fixed
+- **Android App 打字机光标独立换行展示**：
+  - 将 `BlinkingCursor` 从段落末尾行内挤压布局改为独占新行展示，与 Web 端块级排版完全一致，避免长段落末尾光标排版割裂或挤压文本内容。
+- **Android App 下拉刷新/重连后光标状态持久保持**：
+  - 修复 `PullToRefreshBox` 下拉刷新与会话切换时历史记录反序列化将所有消息硬编码为 `DONE` 导致光标与运行状态消失的缺陷。
+  - 在 `ChatRepository.loadSessionHistory`、`loadSessions` 以及 `get_state` 响应中深度同步服务端流式状态（`isStreaming`），并在刷新后确保最新的 Assistant 消息维持 `STREAMING` 状态。
+  - `MessageBubble` 与 `AssistantContent` 支持会话级全局流式状态与最新消息智能联动判定，无论下拉刷新还是重连，生成中的闪烁光标与运行中状态持续可见。
+
+### Changed
+- **CI 安卓构建支持 Release APK (非 Debug) 与发布产物完善**：
+  - GitHub Actions CI `android-build` 更新为同时编译 Release 与 Debug APK（`./gradlew assembleRelease assembleDebug`）。
+  - Release APK 启用 R8 代码混淆优化、资源缩减（`isMinifyEnabled = true`, `isShrinkResources = true`）及正式包名（去除 `.debug` 后缀）。
+  - 支持通过 GitHub Secrets（`PI_RELEASE_KEYSTORE_BASE64`、`PI_RELEASE_STORE_PASSWORD` 等）自动进行正式签名，未配置时安全回退至标准签名以确保 APK 即装即用。
+
 ## [2.18.11] - 2026-09-06
 
 ### Fixed

@@ -14,7 +14,8 @@ data class SessionInfo(
     val sessionName: String? = null,
     val timestamp: Long? = null,
     val firstUser: String? = null,
-    val messageCount: Int = 0
+    val messageCount: Int = 0,
+    val isStreaming: Boolean = false
 )
 
 @Serializable

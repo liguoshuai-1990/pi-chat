@@ -158,6 +158,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             repository.loadSessionHistory(sessionFile)
         }
         repository.loadSessions()
+        repository.fetchState()
     }
 
     fun deleteSession(file: String) {

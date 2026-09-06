@@ -231,6 +231,34 @@ class ChatRepository(
             val result = apiService.getSessions(cwd)
             result.onSuccess { res ->
                 _sessions.value = res.sessions
+                val currentFile = _currentSessionFile.value
+                if (currentFile != null) {
+                    val currentSess = res.sessions.find {
+                        it.file == currentFile || it.file.trimStart('.', '/', '~') == currentFile.trimStart('.', '/', '~')
+                    }
+                    if (currentSess?.isStreaming == true && !_isStreaming.value) {
+                        _isStreaming.value = true
+                        startStreamingWatchdog()
+                        val msgs = _messages.value.toMutableList()
+                        if (msgs.isNotEmpty()) {
+                            val last = msgs.last()
+                            if (last.role == MessageRole.ASSISTANT && last.status != MessageStatus.ERROR) {
+                                msgs[msgs.size - 1] = last.copy(status = MessageStatus.STREAMING)
+                                _messages.value = msgs
+                            } else if (last.role == MessageRole.USER) {
+                                msgs.add(
+                                    ChatMessage(
+                                        role = MessageRole.ASSISTANT,
+                                        content = "",
+                                        status = MessageStatus.STREAMING,
+                                        turnStartedAt = System.currentTimeMillis()
+                                    )
+                                )
+                                _messages.value = msgs
+                            }
+                        }
+                    }
+                }
             }.onFailure { e ->
                 android.util.Log.e("ChatRepository", "loadSessions failed", e)
                 // Preserve existing sessions on error rather than blanking out the drawer
@@ -507,6 +535,21 @@ class ChatRepository(
                         }
                     }
                 }
+                if (_isStreaming.value && reconstructed.isNotEmpty()) {
+                    val last = reconstructed.last()
+                    if (last.role == MessageRole.ASSISTANT && last.status != MessageStatus.ERROR) {
+                        reconstructed[reconstructed.size - 1] = last.copy(status = MessageStatus.STREAMING)
+                    } else if (last.role == MessageRole.USER) {
+                        reconstructed.add(
+                            ChatMessage(
+                                role = MessageRole.ASSISTANT,
+                                content = "",
+                                status = MessageStatus.STREAMING,
+                                turnStartedAt = System.currentTimeMillis()
+                            )
+                        )
+                    }
+                }
                 _messages.value = reconstructed
 
                 // 更新会话详情中的 model 配置（如果有）
@@ -650,6 +693,30 @@ class ChatRepository(
                             if (!sf.isNullOrEmpty()) {
                                 _currentSessionFile.value = sf
                                 wsClient.updateSession(sf)
+                            }
+                            val isAgentStreaming = (dataObj["isStreaming"] as? JsonPrimitive)?.booleanOrNull
+                                ?: (dataObj["state"] as? JsonPrimitive)?.content.equals("streaming", ignoreCase = true)
+                            if (isAgentStreaming) {
+                                _isStreaming.value = true
+                                startStreamingWatchdog()
+                                val list = _messages.value.toMutableList()
+                                if (list.isNotEmpty()) {
+                                    val last = list.last()
+                                    if (last.role == MessageRole.ASSISTANT && last.status != MessageStatus.ERROR) {
+                                        list[list.size - 1] = last.copy(status = MessageStatus.STREAMING)
+                                        _messages.value = list
+                                    } else if (last.role == MessageRole.USER) {
+                                        list.add(
+                                            ChatMessage(
+                                                role = MessageRole.ASSISTANT,
+                                                content = "",
+                                                status = MessageStatus.STREAMING,
+                                                turnStartedAt = System.currentTimeMillis()
+                                            )
+                                        )
+                                        _messages.value = list
+                                    }
+                                }
                             }
                         }
                     }

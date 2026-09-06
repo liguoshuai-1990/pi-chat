@@ -44,13 +44,24 @@ android {
             val releaseKeyPassword = System.getenv("PI_RELEASE_KEY_PASSWORD")
                 ?: gradleLocalProperty("piReleaseKeyPassword")
 
-            if (!releaseStoreFile.isNullOrEmpty() && file(releaseStoreFile).exists()) {
-                storeFile = file(releaseStoreFile)
+            val base64Key = System.getenv("PI_RELEASE_KEYSTORE_BASE64")
+            val effectiveStoreFile = if (!base64Key.isNullOrEmpty()) {
+                val tmpFile = file("${System.getProperty("java.io.tmpdir")}/pi_release.keystore")
+                tmpFile.writeBytes(java.util.Base64.getDecoder().decode(base64Key.trim()))
+                tmpFile
+            } else if (!releaseStoreFile.isNullOrEmpty() && file(releaseStoreFile).exists()) {
+                file(releaseStoreFile)
+            } else {
+                null
+            }
+
+            if (effectiveStoreFile != null && effectiveStoreFile.exists()) {
+                storeFile = effectiveStoreFile
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
             } else {
-                // Fallback to debug keystore for local development
+                // Fallback to debug keystore for local development & unconfigured CI
                 val debugKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
                 if (debugKeystore.exists()) {
                     storeFile = debugKeystore

@@ -475,9 +475,12 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             items(messages, key = { it.id }) { message ->
+                                val isLast = message.id == messages.lastOrNull()?.id
                                 MessageBubble(
                                     message = message,
                                     liveNow = liveNow,
+                                    isSessionStreaming = isStreaming,
+                                    isLastMessage = isLast,
                                     onImageClick = { lightboxImage = it },
                                     onRetry = {
                                         if (message.role == MessageRole.USER) {
@@ -815,7 +818,7 @@ private fun HistoryDrawer(
                         )
                         val label = session.sessionName ?: session.firstUser ?: session.name
                         val timeStr = formatSessionTimestamp(session.timestamp)
-                        val isRunning = isStreaming && isSelected
+                        val isRunning = (isStreaming && isSelected) || session.isStreaming
 
                         Surface(
                             onClick = { onSelectSession(session) },
@@ -1437,6 +1440,8 @@ private fun Composer(
 fun MessageBubble(
     message: ChatMessage,
     liveNow: Long = 0L,
+    isSessionStreaming: Boolean = false,
+    isLastMessage: Boolean = false,
     onImageClick: (String) -> Unit,
     onRetry: () -> Unit
 ) {
@@ -1633,8 +1638,11 @@ fun MessageBubble(
             Spacer(Modifier.width(6.dp))
             Text(timeText, fontSize = 10.sp, color = TextDim)
 
+            val isStreaming = message.status == MessageStatus.STREAMING ||
+                (isSessionStreaming && isLastMessage && message.role == MessageRole.ASSISTANT && message.status != MessageStatus.ERROR)
+
             // Status badge for Assistant message
-            if (message.status == MessageStatus.STREAMING) {
+            if (isStreaming) {
                 Spacer(Modifier.width(6.dp))
                 Row(
                     modifier = Modifier
@@ -1671,8 +1679,8 @@ fun MessageBubble(
                 }
             }
 
-            val liveDuration = remember(message.status, message.turnStartedAt, message.turnDurationMs, liveNow) {
-                if (message.status == MessageStatus.STREAMING && message.turnStartedAt != null) {
+            val liveDuration = remember(message.status, isStreaming, message.turnStartedAt, message.turnDurationMs, liveNow) {
+                if (isStreaming && message.turnStartedAt != null) {
                     Math.max(0L, liveNow - message.turnStartedAt)
                 } else {
                     message.turnDurationMs
@@ -1720,10 +1728,10 @@ fun MessageBubble(
         }
 
         Spacer(Modifier.height(2.dp))
-        AssistantContent(message, liveNow)
+        AssistantContent(message, liveNow, isStreaming = isStreaming)
 
         // Assistant action row (Copy response, etc.)
-        if (message.content.isNotEmpty() && message.status != MessageStatus.STREAMING) {
+        if (message.content.isNotEmpty() && !isStreaming) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1756,12 +1764,15 @@ fun MessageBubble(
 }
 
 @Composable
-private fun AssistantContent(message: ChatMessage, liveNow: Long = 0L) {
-    val isStreaming = message.status == MessageStatus.STREAMING
+private fun AssistantContent(
+    message: ChatMessage,
+    liveNow: Long = 0L,
+    isStreaming: Boolean = message.status == MessageStatus.STREAMING
+) {
     if (message.thinkingContent.isNotEmpty() || message.isThinking) {
         ThinkingBlock(
             content = message.thinkingContent,
-            active = message.isThinking,
+            active = message.isThinking || (isStreaming && message.content.isEmpty() && message.toolCalls.isEmpty()),
             timestamp = message.timestamp,
             startedAt = message.thinkingStartedAt,
             durationMs = message.thinkingDurationMs,
@@ -1802,6 +1813,8 @@ private fun AssistantContent(message: ChatMessage, liveNow: Long = 0L) {
             Spacer(Modifier.width(6.dp))
             BlinkingCursor()
         }
+    } else if (isStreaming) {
+        BlinkingCursor(modifier = Modifier.padding(top = 4.dp))
     } else if (message.status == MessageStatus.ERROR && message.content.isEmpty()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -2446,29 +2459,16 @@ private fun FormattedMarkdownText(text: String, isStreaming: Boolean = false) {
                     }
                 }
                 is MarkdownSegment.Paragraph -> {
-                    if (isStreaming && isLast) {
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text(
-                                text = buildAnnotatedMarkdownString(part.text),
-                                fontSize = 14.sp,
-                                lineHeight = 22.sp,
-                                color = TextPrimary,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            BlinkingCursor(modifier = Modifier.padding(start = 2.dp, bottom = 2.dp))
-                        }
-                    } else {
-                        Text(
-                            text = buildAnnotatedMarkdownString(part.text),
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = TextPrimary
-                        )
-                    }
+                    Text(
+                        text = buildAnnotatedMarkdownString(part.text),
+                        fontSize = 14.sp,
+                        lineHeight = 22.sp,
+                        color = TextPrimary
+                    )
                 }
             }
         }
-        if (isStreaming && (parts.isEmpty() || parts.lastOrNull() !is MarkdownSegment.Paragraph)) {
+        if (isStreaming) {
             BlinkingCursor(modifier = Modifier.padding(top = 2.dp))
         }
     }
