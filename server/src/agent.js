@@ -254,6 +254,11 @@ export class PiAgent {
     if (this.buffer.length > 50 * 1024 * 1024) {
       console.warn(`[PiAgent] Buffer length exceeded 50MB, truncating`);
       this.buffer = this.buffer.slice(-10 * 1024 * 1024);
+      // Discard the partial first line (up to next newline) to avoid malformed JSON
+      const firstNl = this.buffer.indexOf("
+");
+      if (firstNl >= 0) this.buffer = this.buffer.slice(firstNl + 1);
+      else this.buffer = "";
     }
     while (true) {
       const nl = this.buffer.indexOf("\n");
@@ -583,13 +588,20 @@ export class PiAgent {
     if (this.proc) {
       try { this.proc.kill("SIGTERM"); } catch {}
       const p = this.proc;
-      const killTimer = setTimeout(() => {
-        try { p.kill("SIGKILL"); } catch {}
-      }, 2000);
-      // Note: keep timer ref'd so SIGKILL fires during process exit
       this.proc = null;
+      // Return a promise that resolves when the process actually exits
+      return new Promise((resolve) => {
+        const killTimer = setTimeout(() => {
+          try { p.kill("SIGKILL"); } catch {}
+        }, 2000);
+        p.once("exit", () => {
+          clearTimeout(killTimer);
+          resolve();
+        });
+      });
     }
     this.closeAllListeners();
+    return Promise.resolve();
   }
 
   status() {

@@ -104,9 +104,18 @@ export function setupWebSocketGateway(httpServer) {
       ws.isAlive = true;
     });
 
-    const url = new URL(req.url, "http://localhost");
-    const cwd = normalizeCwd(url.searchParams.get("cwd"));
-    const session = url.searchParams.get("session") || null;
+    let cwd, session;
+    try {
+      const url = new URL(req.url, "http://localhost");
+      cwd = normalizeCwd(url.searchParams.get("cwd"));
+      session = url.searchParams.get("session") || null;
+    } catch (err) {
+      try {
+        ws.send(JSON.stringify(createErrorMessage(ErrorCode.INVALID_MESSAGE, err.message)));
+        ws.close(4400, "Bad request");
+      } catch {}
+      return;
+    }
 
     let agent = null;
     if (ws.isAuthenticated) {
@@ -249,8 +258,8 @@ export function setupWebSocketGateway(httpServer) {
         case ClientMessageType.NEW_SESSION:
           try {
             if (activeAgent.sessionKey || activeAgent.isBusy) {
-              activeAgent.detachWs(ws);
               const newAgent = getOrCreateAgent(activeAgent.cwd || cwd, null);
+              activeAgent.detachWs(ws);
               newAgent.attachWs(ws);
               ws.piAgent = newAgent;
               newAgent.send({ type: "new_session", id: msg.id }).then((res) => {
@@ -287,8 +296,8 @@ export function setupWebSocketGateway(httpServer) {
             const targetKey = `${normalizeCwd(activeAgent.cwd || cwd)}:${normalizePath(msg.sessionPath)}`;
             let targetAgent = activeAgent;
             if (activeAgent.sessionKey !== targetKey) {
-              activeAgent.detachWs(ws);
               targetAgent = getOrCreateAgent(activeAgent.cwd || cwd, msg.sessionPath);
+              activeAgent.detachWs(ws);
               targetAgent.attachWs(ws);
               ws.piAgent = targetAgent;
             }
@@ -353,7 +362,8 @@ export function setupWebSocketGateway(httpServer) {
           break;
 
         default:
-          activeAgent.send(msg);
+          try { ws.send(JSON.stringify(createErrorMessage(ErrorCode.INVALID_MESSAGE, `Unknown message type: ${msg.type}`))); } catch {}
+          return;
       }
     });
 

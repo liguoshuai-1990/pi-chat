@@ -11,7 +11,7 @@ import { shutdownAllAgents } from "./agent.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// --- Lightweight gzip compression middleware (no external dependency) ---
+// --- Lightweight streaming gzip compression middleware (no external dependency) ---
 const COMPRESSIBLE_TYPES = new Set([
   "text/html", "text/css", "text/javascript", "text/plain", "text/xml",
   "application/json", "application/javascript", "application/xml",
@@ -36,53 +36,49 @@ function compressionMiddleware(req, res, next) {
     res.setHeader("Vary", "Accept-Encoding");
   }
 
-  const chunks = [];
-  let capturing = null; // null=unknown, true=capturing, false=passthrough
-
-  function shouldCapture() {
-    if (capturing !== null) return capturing;
-    const ct = (res.getHeader("Content-Type") || "").split(";")[0].trim().toLowerCase();
-    // Skip SSE and non-text types
-    capturing = (ct !== "text/event-stream" && COMPRESSIBLE_TYPES.has(ct));
-    return capturing;
-  }
-
+  // Use streaming gzip to avoid buffering entire response in memory
   const origWrite = res.write;
   const origEnd = res.end;
+  let gzip = null;
+  let decided = false;
+
+  function ensureGzip() {
+    if (decided) return gzip;
+    decided = true;
+    const ct = (res.getHeader("Content-Type") || "").split(";")[0].trim().toLowerCase();
+    // Skip SSE and non-text types
+    if (ct === "text/event-stream" || !COMPRESSIBLE_TYPES.has(ct)) {
+      return null;
+    }
+    // Skip if headers already sent or already encoded
+    if (res.headersSent || res.getHeader("Content-Encoding")) {
+      return null;
+    }
+    gzip = zlib.createGzip({ level: 6 });
+    res.setHeader("Content-Encoding", "gzip");
+    res.removeHeader("Content-Length"); // unknown when streaming
+    res.removeHeader("ETag"); // ETag was for uncompressed body
+    return gzip;
+  }
 
   res.write = function (chunk, ...args) {
-    if (shouldCapture() && chunk) {
-      chunks.push(Buffer.from(chunk));
-      return true;
+    const g = ensureGzip();
+    if (g && chunk) {
+      return g.write(Buffer.from(chunk));
     }
     return origWrite.call(this, chunk, ...args);
   };
 
   res.end = function (chunk, ...args) {
-    if (chunk && shouldCapture()) {
-      chunks.push(Buffer.from(chunk));
+    const g = ensureGzip();
+    if (g) {
+      if (chunk) g.write(Buffer.from(chunk));
+      g.end();
+      g.on("data", (data) => origWrite.call(res, data));
+      g.on("end", () => origEnd.call(res));
+      return;
     }
-    if (!shouldCapture()) {
-      return origEnd.call(this, chunk, ...args);
-    }
-    const body = Buffer.concat(chunks);
-    // Skip small responses or already-encoded
-    if (body.length < MIN_COMPRESS_SIZE || res.getHeader("Content-Encoding")) {
-      return origEnd.call(this, body);
-    }
-    // If headers already sent (streaming started), can't compress — send raw
-    if (res.headersSent) {
-      return origEnd.call(this, body);
-    }
-    zlib.gzip(body, { level: 6 }, (err, compressed) => {
-      if (err) {
-        return origEnd.call(this, body);
-      }
-      res.setHeader("Content-Encoding", "gzip");
-      res.setHeader("Content-Length", compressed.length);
-      res.removeHeader("ETag"); // ETag was for uncompressed body
-      origEnd.call(this, compressed);
-    });
+    return origEnd.call(this, chunk, ...args);
   };
 
   next();
@@ -110,9 +106,8 @@ export function createServer(options = {}) {
           }
         } catch {}
       }
-    } else {
-      res.setHeader("Access-Control-Allow-Origin", "*");
     }
+    // No Origin header: same-origin request or non-browser client — do NOT set ACAO:*
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-token");
     res.setHeader("Access-Control-Max-Age", "86400");

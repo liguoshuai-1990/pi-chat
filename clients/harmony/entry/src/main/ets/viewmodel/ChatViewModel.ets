@@ -4,6 +4,7 @@ import { HttpService } from '../network/HttpService';
 import { PiProtocol } from '../protocol/PiProtocol';
 
 export class ChatViewModel {
+  private static idCounter: number = 0;
   public messages: ChatMessage[] = [];
   public sessions: SessionInfo[] = [];
   public isConnected: boolean = false;
@@ -55,7 +56,11 @@ export class ChatViewModel {
       this.notifyUI();
     };
     this.messageListener = (msg: PiProtocol.ServerMessage) => {
-      this.handleServerMessage(msg);
+      try {
+        this.handleServerMessage(msg);
+      } catch (e) {
+        console.error(`[ChatViewModel] handleServerMessage error for type=${msg?.type}: ${e}`);
+      }
     };
 
     this.wsManager.addStateListener(this.stateListener);
@@ -89,7 +94,7 @@ export class ChatViewModel {
     if (!text.trim() && images.length === 0) return;
 
     const userMsg: ChatMessage = {
-      id: `user_${Date.now()}`,
+      id: this.nextId('user'),
       role: MessageRole.USER,
       content: text,
       thinkingContent: '',
@@ -100,7 +105,7 @@ export class ChatViewModel {
     };
 
     const assistantMsg: ChatMessage = {
-      id: `assistant_${Date.now()}`,
+      id: this.nextId('assistant'),
       role: MessageRole.ASSISTANT,
       content: '',
       thinkingContent: '',
@@ -434,7 +439,7 @@ export class ChatViewModel {
         this.startStreamingWatchdog();
         if (this.messages.length === 0 || this.messages[this.messages.length - 1].role !== MessageRole.ASSISTANT || this.messages[this.messages.length - 1].status !== MessageStatus.STREAMING) {
           this.messages.push({
-            id: `assistant_${Date.now()}`,
+            id: this.nextId('assistant'),
             role: MessageRole.ASSISTANT,
             content: '',
             thinkingContent: '',
@@ -455,7 +460,7 @@ export class ChatViewModel {
           this.startStreamingWatchdog();
           if (this.messages.length === 0 || this.messages[this.messages.length - 1].role !== MessageRole.ASSISTANT || this.messages[this.messages.length - 1].status !== MessageStatus.STREAMING) {
             this.messages.push({
-              id: `assistant_${Date.now()}`,
+              id: this.nextId('assistant'),
               role: MessageRole.ASSISTANT,
               content: '',
               thinkingContent: '',
@@ -527,7 +532,7 @@ export class ChatViewModel {
           this.startStreamingWatchdog();
           if (this.messages.length === 0 || this.messages[this.messages.length - 1].role !== MessageRole.ASSISTANT || this.messages[this.messages.length - 1].status !== MessageStatus.STREAMING) {
             this.messages.push({
-              id: `assistant_${Date.now()}`,
+              id: this.nextId('assistant'),
               role: MessageRole.ASSISTANT,
               content: '',
               thinkingContent: '',
@@ -597,7 +602,7 @@ export class ChatViewModel {
               timestamp: Date.now()
             });
             this.messages.push({
-              id: `assistant_${Date.now()}`,
+              id: this.nextId('assistant'),
               role: MessageRole.ASSISTANT,
               content: '',
               thinkingContent: '',
@@ -693,7 +698,7 @@ export class ChatViewModel {
 
     if (lastIdx === -1) {
       this.messages.push({
-        id: `assistant_${Date.now()}`,
+        id: this.nextId('assistant'),
         role: MessageRole.ASSISTANT,
         content: '',
         thinkingContent: '',

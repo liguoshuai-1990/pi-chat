@@ -5,6 +5,106 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.0] - 2026-09-07
+
+### Security
+- **[P0-1]** Web端认证Token从URL查询参数改为in-band auth消息，防止凭证泄露到代理日志/浏览器历史
+- **[P0-2]** `ALLOWED_CWD_DIRS`默认限制为`process.cwd()`子目录，防止在任意目录生成子进程和写入文件
+- **[P0-5]** CORS无Origin头时不再反射`*`，移除过度宽松的跨域配置
+- **[P0-6]** Web端添加Content-Security-Policy头，提供XSS纵深防御
+- **[P0-9]** WebSocket connection handler添加try-catch，防止normalizeCwd异常导致孤儿连接DoS
+- **[P1-9]** WebSocket `default`分支拒绝未知消息类型而非转发到pi子进程
+- **[P1-13]** `normalizeClientMessage`清理`__proto__`/`constructor`/`prototype`，防止原型污染
+- **[P1-16]** Protocol添加消息大小限制（1MB文本/10张图片），防止超大payload DoS
+
+### Fixed
+- **[P0-3]** 压缩中间件改为流式gzip，避免全量缓冲响应到内存导致OOM
+- **[P0-4]** stdout缓冲区截断对齐到`\n`边界，防止破坏JSON消息边界导致前端永久卡住
+- **[P0-7]** HarmonyOS `handleServerMessage`包裹try-catch，防止单条异常消息永久中断处理
+- **[P0-13]** Web `handlePiMessage`包裹try-catch，异常时重置streaming状态防止永久锁死
+- **[P1-1]** `normalizePath`拒绝`~user`语法，防止路径混淆
+- **[P1-10]** `NEW_SESSION`/`SWITCH_SESSION`修复detach顺序，防止容量错误时孤儿化WebSocket
+- **[P1-12]** `agent.stop()`返回Promise等待进程退出，防止僵尸/孤儿进程
+- **[P1-17]** 构造函数`String(x||"")`改为`String(x??"")`，不再吞掉合法falsy值（如`level:0`）
+
+### Added
+- **[P0-12]** 新增`validateServerMessage()`函数，支持服务端消息验证
+- **[P0-10]** Protocol `types.d.ts`补全所有运行时导出声明（22个构造函数+验证器+常量对象）
+
+### Changed
+- **[P1-14]** `normalizeClientMessage`和`validateClientMessage`拒绝数组输入，防止类型混淆
+- **[P1-15]** `validateClientMessage`的`set_model`改用`typeof`检查，不再接受非字符串provider
+- sessionMetadataCache从FIFO改为LRU淘汰策略
+- **[P1-7]** HarmonyOS消息ID使用单调递增计数器+`Date.now()`，防止ID碰撞
+- **[P1-20]** Web端`--text-dim`从`#6f6f6f`提升至`#848484`，满足WCAG AA对比度要求
+- **[P1-23]** Web端图片附件添加20MB大小限制，防止大文件崩溃标签页
+
+
+## [2.20.0] - 2026-09-07
+
+### Security
+- **[P0-1]** Web端认证Token从URL查询参数改为in-band auth消息，消除凭证泄露到代理日志/浏览器历史的风险
+- **[P0-2]** `normalizeCwd`默认限制为服务器工作目录及其子目录，防止已认证客户端在任意目录生成子进程
+- **[P0-5]** CORS无Origin头时不再反射`*`，移除过度宽松的跨域访问
+- **[P0-6]** Web端添加Content-Security-Policy头作为XSS纵深防御
+- **[P0-9]** WebSocket连接handler添加try-catch，防止`normalizeCwd`异常导致孤儿连接DoS
+- **[P1-9]** WebSocket `default`分支拒绝未知消息类型而非转发给pi子进程
+- **[P1-13]** `normalizeClientMessage`清理`__proto__`/`constructor`/`prototype`防止原型污染
+- **[P1-14]** `normalizeClientMessage`和`validateClientMessage`拒绝数组输入防止类型混淆
+- **[P1-15]** `validateClientMessage`的`set_model`改用`typeof`严格检查而非truthiness
+- **[P1-16]** 添加消息大小限制（message 1MB、images 10张）防止DoS
+
+### Fixed
+- **[P0-3]** 压缩中间件改为流式gzip，不再全量缓冲响应到内存
+- **[P0-4]** stdout缓冲区截断对齐到`\n`边界，防止破坏JSON消息导致前端永久卡住
+- **[P0-7]** HarmonyOS `handleServerMessage`包裹try-catch，防止单条异常消息永久中断处理
+- **[P0-13]** Web `handlePiMessage`包裹try-catch，异常时重置streaming状态防止永久锁死
+- **[P1-1]** `normalizePath`拒绝`~user`语法而非错误展开
+- **[P1-7]** HarmonyOS消息ID改用单调递增计数器，消除`Date.now()`碰撞风险
+- **[P1-10]** `NEW_SESSION`/`SWITCH_SESSION`修复detach/attach顺序，防止容量错误时孤儿化WebSocket
+- **[P1-12]** `agent.stop()`返回Promise等待进程退出，防止僵尸/孤儿进程
+- **[P1-17]** 构造函数`String(x ?? "")`替代`String(x || "")`，不再吞掉合法falsy值（如`level: 0`）
+- **[P1-20]** Web端`--text-dim`从`#6f6f6f`提升至`#848484`，WCAG AA对比度达标
+- **[P1-23]** Web端图片附件添加20MB大小限制，防止大文件崩溃标签页
+- LRU缓存：`sessionMetadataCache`从FIFO改为LRU淘汰策略
+
+### Added
+- **[P0-10]** Protocol `types.d.ts`添加全部运行时导出声明（ClientMessageType、ServerMessageType、ErrorCode、AgentState、22个create*函数、validateClientMessage、normalizeClientMessage）
+- **[P0-12]** 新增`validateServerMessage`函数，支持服务端消息发送前验证
+
+
+## [2.20.0] - 2026-09-07
+
+### Security
+- **[P0-1]** Web端认证Token从URL查询参数改为in-band auth消息，消除凭证泄露风险
+- **[P0-2]** `ALLOWED_CWD_DIRS`默认限制为`process.cwd()`子目录，防止任意目录生成子进程
+- **[P0-5]** CORS无Origin头时不再反射`*`，收紧跨域策略
+- **[P0-6]** Web端添加Content-Security-Policy头，XSS纵深防御
+- **[P0-9]** WebSocket connection handler加try-catch，防止normalizeCwd异常致孤儿连接DoS
+- **[P1-9]** WebSocket `default`分支拒绝未知消息类型，不再转发到pi子进程
+- **[P1-13]** `normalizeClientMessage`清理`__proto__`/`constructor`/`prototype`，防原型污染
+- **[P1-16]** Protocol添加消息大小限制（1MB文本/10张图片），防DoS
+
+### Fixed
+- **[P0-3]** 压缩中间件改为流式gzip，不再全量缓冲响应到内存
+- **[P0-4]** stdout缓冲区截断对齐到`\n`边界，防止破坏JSON消息
+- **[P0-7]** HarmonyOS `handleServerMessage`加try-catch，防单条异常消息永久中断
+- **[P0-13]** Web `handlePiMessage`加try-catch，异常时重置streaming状态
+- **[P1-1]** `normalizePath`拒绝`~user`语法，不再错误展开
+- **[P1-10]** `NEW_SESSION`/`SWITCH_SESSION`修复detach顺序，防止孤儿化WebSocket
+- **[P1-12]** `agent.stop()`返回Promise等待进程退出，防僵尸进程
+- **[P1-14]** `normalizeClientMessage`/`validateClientMessage`拒绝数组输入
+- **[P1-15]** `validateClientMessage`的`set_model`改用`typeof`检查，不再接受非字符串
+- **[P1-17]** 构造函数`String(x||"")`改为`String(x??"")`，不再吞掉合法falsy值
+- **[P1-20]** Web端`--text-dim`对比度从#6f6f6f提升至#848484，符合WCAG AA
+- **[P1-23]** Web端图片附件添加20MB大小限制
+- LRU缓存修复：`sessionMetadataCache`从FIFO改为LRU淘汰策略
+
+### Added
+- **[P0-10]** Protocol `types.d.ts`补全所有运行时导出声明（ClientMessageType、ServerMessageType、ErrorCode、AgentState、22个create*函数、validateClientMessage、normalizeClientMessage）
+- **[P0-12]** 新增`validateServerMessage`函数，支持服务端消息验证
+- **[P1-7]** HarmonyOS消息ID改用单调递增计数器，消除`Date.now()`碰撞风险
+
 ## [2.19.6] - 2026-09-07
 
 ### Changed

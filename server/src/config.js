@@ -51,7 +51,8 @@ export function normalizePath(p) {
   } else if (p.startsWith("~/") || p.startsWith("~\\")) {
     resolved = path.join(home(), p.slice(2));
   } else if (p.startsWith("~")) {
-    resolved = path.join(home(), p.slice(1));
+    // ~user syntax (e.g. ~foo) is not supported — reject to avoid path confusion
+    throw new Error(`Unsupported path: '~user' expansion for '${p}' is not supported. Use '~/...' for home directory.`);
   }
   return path.resolve(resolved);
 }
@@ -68,6 +69,13 @@ export function normalizeCwd(dir) {
     });
     if (!isAllowed) {
       throw new Error(`cwd '${resolved}' is outside allowed directories (ALLOWED_CWD_DIRS=${process.env.ALLOWED_CWD_DIRS})`);
+    }
+  } else {
+    // Default: restrict to server's working directory and its subdirectories
+    // to prevent authenticated clients from spawning pi in arbitrary directories
+    const serverCwd = process.cwd();
+    if (resolved !== serverCwd && !resolved.startsWith(serverCwd + path.sep)) {
+      throw new Error(`cwd '${resolved}' is outside server working directory '${serverCwd}'. Set ALLOWED_CWD_DIRS to allow more directories.`);
     }
   }
   return resolved;
@@ -153,8 +161,8 @@ export const config = {
   idleDropHeap: process.env.IDLE_DROP_HEAP === "1" || process.env.IDLE_DROP_HEAP === "true",
   allowedOrigins: process.env.ALLOWED_ORIGINS || "",
   // Comma-separated list of allowed cwd root dirs. If set, cwd requests outside
-  // these roots are rejected. If empty (default), all cwd values are allowed
-  // (backward-compatible — suitable for local dev / single-user VPS).
+  // these roots are rejected. If empty (default), cwd is restricted to the
+  // server's working directory and its subdirectories for security.
   allowedCwdDirs: process.env.ALLOWED_CWD_DIRS || "",
   // Timeout for long-running commands (prompt, steer, client_send) in ms.
   // 0 = disabled (wait forever). Default: 0 (disabled).
@@ -163,3 +171,9 @@ export const config = {
   // clients. Enable only if you need zombie protection for hung agents.
   longRunningTimeoutMs: parseEnvNum("LONG_RUNNING_TIMEOUT_MS", 0),
 };
+
+// Security warning: if authToken is set but ALLOWED_CWD_DIRS is empty,
+// log a warning (cwd is still restricted to process.cwd() subdirs by default)
+if (config.authToken && !config.allowedCwdDirs) {
+  console.warn("[SECURITY] AUTH_TOKEN is set but ALLOWED_CWD_DIRS is empty — cwd is restricted to the server working directory. Set ALLOWED_CWD_DIRS to allow additional directories.");
+}

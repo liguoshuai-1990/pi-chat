@@ -86,7 +86,7 @@ export function createAbortMessage() {
 export function createAuthMessage(token) {
   return {
     type: ClientMessageType.AUTH,
-    token: String(token || ""),
+    token: String(token ?? ""),
   };
 }
 
@@ -113,22 +113,22 @@ export function createNewSessionMessage() {
 export function createSwitchSessionMessage(sessionPath) {
   return {
     type: ClientMessageType.SWITCH_SESSION,
-    sessionPath: String(sessionPath || ""),
+    sessionPath: String(sessionPath ?? ""),
   };
 }
 
 export function createSetModelMessage(provider, modelId) {
   return {
     type: ClientMessageType.SET_MODEL,
-    provider: String(provider || ""),
-    modelId: String(modelId || ""),
+    provider: String(provider ?? ""),
+    modelId: String(modelId ?? ""),
   };
 }
 
 export function createSetThinkingLevelMessage(level) {
   return {
     type: ClientMessageType.SET_THINKING_LEVEL,
-    level: String(level || ""),
+    level: String(level ?? ""),
   };
 }
 
@@ -147,7 +147,7 @@ export function createCompactMessage() {
 export function createSetSessionNameMessage(name) {
   return {
     type: ClientMessageType.SET_SESSION_NAME,
-    name: String(name || ""),
+    name: String(name ?? ""),
   };
 }
 
@@ -174,14 +174,14 @@ export function createExtensionUiResponseMessage(id, extra = {}) {
   return {
     ...extra,
     type: ClientMessageType.EXTENSION_UI_RESPONSE,
-    id: String(id || ""),
+    id: String(id ?? ""),
   };
 }
 
 export function createRemoteUserPromptMessage(message, images = [], isSteer = false) {
   return {
     type: isSteer ? ServerMessageType.REMOTE_USER_STEER : ServerMessageType.REMOTE_USER_PROMPT,
-    message: String(message || ""),
+    message: String(message ?? ""),
     images: Array.isArray(images) ? images : [],
     ...(isSteer ? { isSteer: true } : {}),
   };
@@ -195,8 +195,8 @@ export function createExtensionUiRequestMessage(id, method, options = {}) {
   return {
     ...options,
     type: ServerMessageType.EXTENSION_UI_REQUEST,
-    id: String(id || ""),
-    method: String(method || ""),
+    id: String(id ?? ""),
+    method: String(method ?? ""),
   };
 }
 
@@ -211,7 +211,7 @@ export function createBackfillEndMessage(streaming = false, state = "idle", over
   return {
     type: ServerMessageType.BACKFILL_END,
     streaming: Boolean(streaming),
-    state: String(state || "idle"),
+    state: String(state ?? "idle"),
     overflowed: Boolean(overflowed),
   };
 }
@@ -239,9 +239,13 @@ export function createAgentStatusMessage(status, extra = {}) {
  * For example, converts client_send -> prompt, heartbeat -> ping.
  */
 export function normalizeClientMessage(msg) {
-  if (!msg || typeof msg !== "object") return null;
+  if (!msg || typeof msg !== "object" || Array.isArray(msg)) return null;
 
   const normalized = { ...msg };
+  // P1-13: Strip dangerous keys to prevent prototype pollution
+  delete normalized.__proto__;
+  delete normalized.constructor;
+  delete normalized.prototype;
 
   if (normalized.type === "client_send") {
     normalized.type = ClientMessageType.PROMPT;
@@ -256,8 +260,15 @@ export function normalizeClientMessage(msg) {
  * Validates whether a client message conforms to the protocol contract.
  */
 export function validateClientMessage(msg) {
-  if (!msg || typeof msg !== "object") {
+  if (!msg || typeof msg !== "object" || Array.isArray(msg)) {
     return { valid: false, error: "Message must be a JSON object" };
+  }
+
+  // P1-13: Reject messages with dangerous prototype-polluting keys
+  if (Object.prototype.hasOwnProperty.call(msg, "__proto__") ||
+      Object.prototype.hasOwnProperty.call(msg, "constructor") ||
+      Object.prototype.hasOwnProperty.call(msg, "prototype")) {
+    return { valid: false, error: "Forbidden property in message" };
   }
 
   const { type } = msg;
@@ -270,6 +281,13 @@ export function validateClientMessage(msg) {
     case "client_send":
       if (typeof msg.message !== "string" && !Array.isArray(msg.images)) {
         return { valid: false, error: "Prompt message requires a string 'message' or 'images' array" };
+      }
+      // P1-16: Enforce size limits to prevent DoS
+      if (typeof msg.message === "string" && msg.message.length > 1000000) {
+        return { valid: false, error: "Message too large (max 1MB)" };
+      }
+      if (Array.isArray(msg.images) && msg.images.length > 10) {
+        return { valid: false, error: "Too many images (max 10)" };
       }
       return { valid: true };
 
@@ -286,8 +304,9 @@ export function validateClientMessage(msg) {
       return { valid: true };
 
     case ClientMessageType.SET_MODEL:
-      if (!msg.provider || !msg.modelId) {
-        return { valid: false, error: "Set model requires 'provider' and 'modelId'" };
+      if (typeof msg.provider !== "string" || !msg.provider.trim() ||
+          typeof msg.modelId !== "string" || !msg.modelId.trim()) {
+        return { valid: false, error: "Set model requires non-empty string 'provider' and 'modelId'" };
       }
       return { valid: true };
 
@@ -329,6 +348,63 @@ export function validateClientMessage(msg) {
     default:
       // Reject unknown message types to prevent arbitrary command forwarding
       return { valid: false, error: `Unknown message type '${type}'` };
+  }
+}
+
+/**
+ * Validates whether a server message conforms to the protocol contract.
+ * Use this before sending messages to clients to prevent malformed data.
+ */
+export function validateServerMessage(msg) {
+  if (!msg || typeof msg !== "object" || Array.isArray(msg)) {
+    return { valid: false, error: "Server message must be a JSON object" };
+  }
+
+  const { type } = msg;
+  if (!type || typeof type !== "string") {
+    return { valid: false, error: "Missing or invalid 'type' field in server message" };
+  }
+
+  const validTypes = Object.values(ServerMessageType);
+  if (!validTypes.includes(type)) {
+    return { valid: false, error: `Unknown server message type '${type}'` };
+  }
+
+  // Type-specific validation
+  switch (type) {
+    case ServerMessageType.ERROR:
+      if (typeof msg.message !== "string") {
+        return { valid: false, error: "Error message requires 'message' string" };
+      }
+      return { valid: true };
+
+    case ServerMessageType.BACKFILL_START:
+      if (typeof msg.count !== "number" || msg.count < 0) {
+        return { valid: false, error: "Backfill start requires non-negative 'count' number" };
+      }
+      return { valid: true };
+
+    case ServerMessageType.BACKFILL_END:
+      if (typeof msg.streaming !== "boolean") {
+        return { valid: false, error: "Backfill end requires 'streaming' boolean" };
+      }
+      return { valid: true };
+
+    case ServerMessageType.REMOTE_USER_PROMPT:
+    case ServerMessageType.REMOTE_USER_STEER:
+      if (typeof msg.message !== "string") {
+        return { valid: false, error: "Remote user prompt requires 'message' string" };
+      }
+      return { valid: true };
+
+    case ServerMessageType.RESPONSE:
+      if (typeof msg.success !== "boolean") {
+        return { valid: false, error: "Response requires 'success' boolean" };
+      }
+      return { valid: true };
+
+    default:
+      return { valid: true };
   }
 }
 

@@ -953,6 +953,11 @@ function detectImageMimeType(file) {
 
 async function processImageFile(file) {
   const mimeType = detectImageMimeType(file);
+  // P1-23: Reject images larger than 20MB to prevent tab crash
+  if (file.size > 20 * 1024 * 1024) {
+    showToast("图片过大（超过 20MB），请压缩后上传");
+    return null;
+  }
   const dataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
@@ -1908,8 +1913,7 @@ function connectWs(opts = {}) {
   }
 
   const token = getAuthToken();
-  const tokParam = token ? `&token=${encodeURIComponent(token)}` : "";
-  const url = `${proto}://${location.host}/ws?cwd=${cwd}${sess}${tokParam}`;
+  const url = `${proto}://${location.host}/ws?cwd=${cwd}${sess}`;
   const ws = new WebSocket(url);
   state.ws = ws;
   ws._gen = myGen;
@@ -1919,6 +1923,11 @@ function connectWs(opts = {}) {
     isConnecting = false;
     setConnStatus("connected");
     startPingInterval();
+
+    // Send auth token via in-band message (not URL query param) for security
+    if (token) {
+      sendWs({ type: "auth", token });
+    }
 
     const isReconnecting = wasDisconnected || reconnectAttempts > 0 || opts.isReconnect;
     if (isReconnecting) {
@@ -1991,7 +2000,19 @@ function connectWs(opts = {}) {
       }
       return;
     }
-    handlePiMessage(obj);
+    try {
+      handlePiMessage(obj);
+    } catch (e) {
+      console.error("[WS] handlePiMessage error:", e, obj);
+      // Reset streaming state on unexpected errors to avoid permanent lockup
+      if (state.streaming) {
+        state.streaming = false;
+        state.streamingItems = [];
+        state.streamingMsg = null;
+        state.activeToolCalls.clear();
+        updateComposer();
+      }
+    }
   };
 }
 

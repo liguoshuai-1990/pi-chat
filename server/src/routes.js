@@ -215,6 +215,8 @@ const MAX_SESSION_CACHE_SIZE = 5000;
 const sessionMetadataCache = new Map();
 
 function setSessionMetadataCache(key, value) {
+  // LRU: delete first to update insertion order if key exists
+  if (sessionMetadataCache.has(key)) sessionMetadataCache.delete(key);
   if (sessionMetadataCache.size >= MAX_SESSION_CACHE_SIZE) {
     const firstKey = sessionMetadataCache.keys().next().value;
     if (firstKey) sessionMetadataCache.delete(firstKey);
@@ -296,6 +298,9 @@ async function getSessionMetadata(file) {
   }
   const cached = sessionMetadataCache.get(file);
   if (cached && cached.mtimeMs === fileStat.mtimeMs) {
+    // LRU: refresh position by re-inserting
+    sessionMetadataCache.delete(file);
+    sessionMetadataCache.set(file, cached);
     return cached;
   }
 
