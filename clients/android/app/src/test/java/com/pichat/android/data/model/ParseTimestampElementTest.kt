@@ -4,6 +4,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.Instant
 
 class ParseTimestampElementTest {
 
@@ -26,10 +27,9 @@ class ParseTimestampElementTest {
 
     @Test
     fun `ISO 8601 string returns epoch millis`() {
-        // 2026-08-23T07:00:42.062Z
         val iso = "2026-08-23T07:00:42.062Z"
-        val result = parseTimestampElement(JsonPrimitive(iso))
-        assertEquals(1756072842062L, result)
+        val expected = Instant.parse(iso).toEpochMilli()
+        assertEquals(expected, parseTimestampElement(JsonPrimitive(iso)))
     }
 
     @Test

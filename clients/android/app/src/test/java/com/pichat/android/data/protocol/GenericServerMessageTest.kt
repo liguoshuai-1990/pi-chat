@@ -7,6 +7,7 @@ import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.Instant
 
 class GenericServerMessageTest {
 
@@ -143,8 +144,10 @@ class GenericServerMessageTest {
 
     @Test
     fun `parsedTimestamp from ISO 8601 string`() {
-        val msg = GenericServerMessage(type = "msg", timestamp = JsonPrimitive("2026-08-23T07:00:42.062Z"))
-        assertEquals(1756072842062L, msg.parsedTimestamp)
+        val iso = "2026-08-23T07:00:42.062Z"
+        val expected = Instant.parse(iso).toEpochMilli()
+        val msg = GenericServerMessage(type = "msg", timestamp = JsonPrimitive(iso))
+        assertEquals(expected, msg.parsedTimestamp)
     }
 
     @Test
