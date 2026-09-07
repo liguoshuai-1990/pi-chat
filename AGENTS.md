@@ -36,6 +36,7 @@
   6. 鸿蒙应用元数据：`clients/harmony/AppScope/app.json5` (`versionName` 与 `versionCode`)
   7. Android 构建脚本：`clients/android/app/build.gradle.kts`（`versionName`/`versionCode` 已动态化，构建时从根 `package.json` 自动读取，无需手动改）
   8. 更新日志：`docs/CHANGELOG.md`（按 Keep a Changelog 格式记录更新说明）
+  9. README 版本徽章与 APK 文件名：已动态化——`README.md` 顶部徽章由 Shields.io 动态读取根 `package.json` 的 `version`，各 README 中的 APK 文件名使用 `<version>` 占位符，均无需手动维护
 
 - **版本号跨端正确展示规范 (Multi-Client UI Display)**：
   - **Web 端**：网关在 `/api/config` 动态输出 `config.version`，前端 `clients/web/public/app.js` 将版本号绑定渲染至侧边栏底部 `#appVersion` 元素（例如 `v2.5.1`）。
