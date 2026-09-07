@@ -1956,6 +1956,13 @@ function connectWs(opts = {}) {
       }
     }
 
+    // If the agent was actively streaming, show a hint so the user knows
+    // the task may still be running on the server — reconnection will either
+    // restore the streaming state via backfill or finalize it via get_state.
+    if (state.streaming) {
+      showToast("连接中断，正在重连…", "warn");
+    }
+
     wasDisconnected = true;
     setConnStatus("disconnected");
     scheduleReconnect();

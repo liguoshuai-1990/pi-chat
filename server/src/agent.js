@@ -541,7 +541,17 @@ export class PiAgent {
         timeoutId = setTimeout(() => {
           console.warn(`[PiAgent] long-running command "${cmd.type}" (id=${id}) timed out after ${config.longRunningTimeoutMs}ms`);
           this.setStreaming(false);
-          this.broadcast({ type: "error", code: "long_running_timeout", message: `任务执行超时（${Math.round(config.longRunningTimeoutMs / 1000)}秒），可能子进程已僵死` });
+          const timeoutErr = { type: "error", code: "long_running_timeout", message: `任务执行超时（${Math.round(config.longRunningTimeoutMs / 1000)}秒），子进程已被终止` };
+          this.broadcast(timeoutErr);
+          this.bufferEvent(timeoutErr);
+          // Gracefully abort the pi subprocess, then force-kill after grace period
+          // to prevent zombie processes that keep running but produce no output.
+          this.sendNoReply({ type: "abort" });
+          if (this.proc) {
+            const p = this.proc;
+            setTimeout(() => { try { p.kill("SIGTERM"); } catch {} }, 3000);
+            setTimeout(() => { try { p.kill("SIGKILL"); } catch {} }, 5000);
+          }
           complete({ type: "response", id, success: false, error: "long_running_timeout" });
         }, config.longRunningTimeoutMs);
       }

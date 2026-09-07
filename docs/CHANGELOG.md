@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.3] - 2026-09-07
+
+### Fixed
+- **长任务超时后 pi 子进程变僵尸问题 (server)**：
+  - LONG_RUNNING_TIMEOUT_MS 默认值从 10 分钟改为 0（禁用），避免免费慢速 LLM 长任务被误杀。
+  - 超时触发时现在正确终止 pi 子进程：先发 abort，3 秒后 SIGTERM，5 秒后 SIGKILL，防止僵尸进程。
+  - 超时 error 事件现在写入 eventBuffer，断线重连的客户端也能收到超时通知。
+- **WebSocket 断线时客户端思考状态卡死 (web)**：
+  - ws.onclose 时若 state.streaming 为 true，显示"连接中断，正在重连…"提示，避免用户无感知地盯着无限转圈。
+
 ## [2.19.2] - 2026-09-06
 
 ### Added

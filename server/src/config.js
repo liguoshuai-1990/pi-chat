@@ -157,8 +157,9 @@ export const config = {
   // (backward-compatible — suitable for local dev / single-user VPS).
   allowedCwdDirs: process.env.ALLOWED_CWD_DIRS || "",
   // Timeout for long-running commands (prompt, steer, client_send) in ms.
-  // 0 = disabled (wait forever). Default: 10 minutes.
-  // When the timeout fires, the pending entry is rejected, streaming state is
-  // reset, and an error event is broadcast — preventing zombie agents.
-  longRunningTimeoutMs: parseEnvNum("LONG_RUNNING_TIMEOUT_MS", 10 * 60 * 1000),
+  // 0 = disabled (wait forever). Default: 0 (disabled).
+  // When enabled and the timeout fires, the pi subprocess is sent abort + SIGTERM
+  // to prevent zombie processes, and the timeout error is buffered for reconnecting
+  // clients. Enable only if you need zombie protection for hung agents.
+  longRunningTimeoutMs: parseEnvNum("LONG_RUNNING_TIMEOUT_MS", 0),
 };
