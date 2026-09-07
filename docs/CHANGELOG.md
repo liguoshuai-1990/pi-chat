@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.3] - 2026-09-07
+
+### Added
+- **[P1-19]** `createBackfillStartMessage`/`createBackfillEndMessage`添加可选`backfillId`参数用于消息关联
+
+### Fixed
+- **[S15]** Web端多处空`catch{}`改为`console.warn`，不再静默吞错（localStorage、recentModels）
+
 ## [2.20.2] - 2026-09-07
 
 ### Fixed
@@ -66,6 +74,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P1-23]** Web端图片附件添加20MB大小限制，防止大文件崩溃标签页
 
 
+## [2.20.3] - 2026-09-07
+
+### Added
+- **[P1-19]** `createBackfillStartMessage`/`createBackfillEndMessage`添加可选`backfillId`参数用于消息关联
+
+### Fixed
+- **[S15]** Web端多处空`catch{}`改为`console.warn`，不再静默吞错（localStorage、recentModels）
+
 ## [2.20.2] - 2026-09-07
 
 ### Fixed
@@ -124,6 +140,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P0-10]** Protocol `types.d.ts`添加全部运行时导出声明（ClientMessageType、ServerMessageType、ErrorCode、AgentState、22个create*函数、validateClientMessage、normalizeClientMessage）
 - **[P0-12]** 新增`validateServerMessage`函数，支持服务端消息发送前验证
 
+
+## [2.20.3] - 2026-09-07
+
+### Added
+- **[P1-19]** `createBackfillStartMessage`/`createBackfillEndMessage`添加可选`backfillId`参数用于消息关联
+
+### Fixed
+- **[S15]** Web端多处空`catch{}`改为`console.warn`，不再静默吞错（localStorage、recentModels）
 
 ## [2.20.2] - 2026-09-07
 

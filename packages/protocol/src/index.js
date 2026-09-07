@@ -200,19 +200,21 @@ export function createExtensionUiRequestMessage(id, method, options = {}) {
   };
 }
 
-export function createBackfillStartMessage(count) {
+export function createBackfillStartMessage(count, backfillId = null) {
   return {
     type: ServerMessageType.BACKFILL_START,
     count: Number(count || 0),
+    ...(backfillId ? { backfillId } : {}),
   };
 }
 
-export function createBackfillEndMessage(streaming = false, state = "idle", overflowed = false) {
+export function createBackfillEndMessage(streaming = false, state = "idle", overflowed = false, backfillId = null) {
   return {
     type: ServerMessageType.BACKFILL_END,
     streaming: Boolean(streaming),
     state: String(state ?? "idle"),
     overflowed: Boolean(overflowed),
+    ...(backfillId ? { backfillId } : {}),
   };
 }
 

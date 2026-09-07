@@ -150,7 +150,7 @@ function saveRecentModel(model) {
   state.recentModels = filtered.slice(0, 4);
   try {
     localStorage.setItem("pi_recent_models", JSON.stringify(state.recentModels));
-  } catch {}
+  } catch (e) { console.warn("[models] localStorage save failed:", e); }
 }
 
 async function loadServerConfig() {
@@ -215,7 +215,7 @@ async function openCwdModal() {
       quicks.push({ label: "服务启动目录", path: state.serverCwd });
     }
     let recents = [];
-    try { recents = JSON.parse(localStorage.getItem("pi_recent_cwds") || "[]"); } catch {}
+    try { recents = JSON.parse(localStorage.getItem("pi_recent_cwds") || "[]"); } catch (e) { console.warn("[cwd] recents parse failed:", e); }
     recents.forEach(r => {
       if (r && r !== state.homeDir && r !== state.serverCwd && !quicks.some(q => q.path === r)) {
         quicks.push({ label: formatCwdDisplay(r), path: r });
@@ -251,7 +251,7 @@ async function confirmCwdChange() {
     const data = await res.json();
     if (data.ok && data.path) {
       let recents = [];
-      try { recents = JSON.parse(localStorage.getItem("pi_recent_cwds") || "[]"); } catch {}
+      try { recents = JSON.parse(localStorage.getItem("pi_recent_cwds") || "[]"); } catch (e) { console.warn("[cwd] recents parse failed:", e); }
       recents = [data.path, ...recents.filter(r => r !== data.path)].slice(0, 8);
       localStorage.setItem("pi_recent_cwds", JSON.stringify(recents));
 
