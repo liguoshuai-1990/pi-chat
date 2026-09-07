@@ -186,7 +186,7 @@ async function loadServerConfig() {
         state.thinkingLevel = data.defaultModel.thinkingLevel;
       }
     }
-  } catch {}
+  } catch (e) { console.warn("[loadServerConfig] failed:", e); }
   if (!state.cwd) {
     state.cwd = state.serverCwd || state.homeDir || "";
   }
@@ -292,8 +292,8 @@ if (typeof renderMarkdown === "undefined") {
 
 // ---- DOM helpers ----
 const $ = (sel, root = document) => root.querySelector(sel);
+const SVG_TAGS = new Set(["svg","rect","path","circle","line","polyline","polygon","ellipse","g","defs","use","text","tspan","linearGradient","radialGradient","stop","clipPath","mask","pattern","filter","feGaussianBlur","feOffset","feMerge","feMergeNode","animate","animateTransform","animateMotion"]);
 const el = (tag, props = {}, children = []) => {
-  const SVG_TAGS = new Set(["svg","rect","path","circle","line","polyline","polygon","ellipse","g","defs","use","text","tspan","linearGradient","radialGradient","stop","clipPath","mask","pattern","filter","feGaussianBlur","feOffset","feMerge","feMergeNode","animate","animateTransform","animateMotion"]);
   const n = SVG_TAGS.has(tag) ? document.createElementNS("http://www.w3.org/2000/svg", tag) : document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
     if (k === "class") n.setAttribute("class", v);
@@ -470,10 +470,15 @@ function renderSidebar(sessions) {
 
     const draftItem = el("div", {
       class: "session-item active draft-session",
+      role: "button",
+      tabindex: "0",
       dataset: { file: state.currentSessionFile || "" },
       title: state.currentSessionFile || "新对话",
       onclick: () => {
         if (state.currentSessionFile) loadSession(state.currentSessionFile);
+      },
+      onkeydown: (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (state.currentSessionFile) loadSession(state.currentSessionFile); }
       },
     }, [
       el("div", { class: "title" }, [
@@ -517,9 +522,14 @@ function renderSidebar(sessions) {
 
     const item = el("div", {
       class: "session-item" + (sameSession(s.file, state.currentSessionFile) ? " active" : ""),
+      role: "button",
+      tabindex: "0",
       dataset: { file: s.file },
       title: s.file,                       // hover tooltip = raw jsonl path
       onclick: () => loadSession(s.file),
+      onkeydown: (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); loadSession(s.file); }
+      },
     }, [
       el("div", { class: "title" }, [
         titleEl,

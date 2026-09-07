@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.2] - 2026-09-07
+
+### Fixed
+- **[P1-21]** Web端会话列表项添加`role="button" tabindex="0"`和keydown处理，键盘可访问
+- **[P1-6]** Android `SettingsStore`添加安全警告注释，建议迁移至EncryptedSharedPreferences
+- **[S15]** Web端`loadServerConfig`空`catch{}`改为`console.warn`，不再静默吞错
+
+### Changed
+- **[P2-2]** Web端`SVG_TAGS` Set提升至模块作用域，避免每次`el()`调用分配
+
 ## [2.20.1] - 2026-09-07
 
 ### Fixed
@@ -56,6 +66,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P1-23]** Web端图片附件添加20MB大小限制，防止大文件崩溃标签页
 
 
+## [2.20.2] - 2026-09-07
+
+### Fixed
+- **[P1-21]** Web端会话列表项添加`role="button" tabindex="0"`和keydown处理，键盘可访问
+- **[P1-6]** Android `SettingsStore`添加安全警告注释，建议迁移至EncryptedSharedPreferences
+- **[S15]** Web端`loadServerConfig`空`catch{}`改为`console.warn`，不再静默吞错
+
+### Changed
+- **[P2-2]** Web端`SVG_TAGS` Set提升至模块作用域，避免每次`el()`调用分配
+
 ## [2.20.1] - 2026-09-07
 
 ### Fixed
@@ -104,6 +124,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P0-10]** Protocol `types.d.ts`添加全部运行时导出声明（ClientMessageType、ServerMessageType、ErrorCode、AgentState、22个create*函数、validateClientMessage、normalizeClientMessage）
 - **[P0-12]** 新增`validateServerMessage`函数，支持服务端消息发送前验证
 
+
+## [2.20.2] - 2026-09-07
+
+### Fixed
+- **[P1-21]** Web端会话列表项添加`role="button" tabindex="0"`和keydown处理，键盘可访问
+- **[P1-6]** Android `SettingsStore`添加安全警告注释，建议迁移至EncryptedSharedPreferences
+- **[S15]** Web端`loadServerConfig`空`catch{}`改为`console.warn`，不再静默吞错
+
+### Changed
+- **[P2-2]** Web端`SVG_TAGS` Set提升至模块作用域，避免每次`el()`调用分配
 
 ## [2.20.1] - 2026-09-07
 

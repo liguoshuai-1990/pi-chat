@@ -7,6 +7,14 @@ import android.content.SharedPreferences
  * Persists user-facing backend configuration (gateway URL + auth token) so the
  * mobile app can point at any Pi Gateway server, matching the web client's
  * ability to switch servers.
+ *
+ * SECURITY NOTE (P1-6): The auth token is stored in plaintext SharedPreferences.
+ * On rooted devices or via backup extraction, this token could be read by malicious apps.
+ * For production use, consider migrating to EncryptedSharedPreferences (Jetpack Security library):
+ *   implementation "androidx.security:security-crypto:1.1.0-alpha06"
+ *   val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+ *   val prefs = EncryptedSharedPreferences.create(context, "pi_chat_settings", masterKey, ...)
+ * For now, this is acceptable for development/LAN use but should be hardened before production.
  */
 class SettingsStore(context: Context) {
 
