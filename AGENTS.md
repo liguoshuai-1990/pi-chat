@@ -17,14 +17,17 @@
 
 ---
 
-### 铁律二：任何修改必须累加版本号，并遵循语义化版本规范 (Semantic Versioning & Multi-Client Display)
+### 铁律二：视情况升级版本号，并遵循语义化版本规范 (Semantic Versioning & Multi-Client Display)
+- **何时需要升级版本号**：仅当改动**对用户或下游可见**时才递增版本号。具体判断标准：
+  - **必须升级**：新增功能 (feat)、影响运行时行为的 Bug 修复 (fix)、协议消息类型或字段变更、UI/UX 变化、API 接口变更、构建产物结构变化等。
+  - **无需升级**：CI/CD 配置调整 (`.github/`)、内部重构无行为变化 (refactor)、文档与规范更新 (docs)、测试用例增改 (test)、代码风格 (style)、Agent 指南更新 (`AGENTS.md`)、`CHANGELOG.md` 格式调整等。
 - **版本规范**：严格遵循业界通用的 **[Semantic Versioning 2.0.0 (SemVer)](https://semver.org/spec/v2.0.0.html)** 格式 `MAJOR.MINOR.PATCH`（如 `2.5.1`）：
-  - **PATCH（补丁版本，如 `2.5.0` -> `2.5.1`）**：日常 Bug 修复 (fix)、微小重构 (refactor)、文档与规范更新 (docs)、代码清理 (chore) 等不破坏向后兼容性的微小修改。
+  - **PATCH（补丁版本，如 `2.5.0` -> `2.5.1`）**：Bug 修复 (fix)、微小重构 (refactor) 等不破坏向后兼容性的微小修改。
   - **MINOR（次版本号，如 `2.5.1` -> `2.6.0`）**：向下兼容的新增功能 (feat)、新增协议消息类型或字段、新增客户端界面功能模块等。
   - **MAJOR（主版本号，如 `2.5.1` -> `3.0.0`）**：不向下兼容的重大架构重写、破坏性协议改造 (breaking change)、底层通信契约不兼容变更等。
 
 - **全仓版本同步清单 (Monorepo Version Lockstep)**：
-  本项目采用 Monorepo 统一版本管理模式。任何功能修改或补丁，必须**同步更新**以下所有子包与移动端清单中的版本号：
+  本项目采用 Monorepo 统一版本管理模式。当需要升级版本号时，必须**同步更新**以下所有子包与移动端清单中的版本号：
   1. 根目录：`package.json` (`version`)
   2. 跨端协议包：`packages/protocol/package.json` (`version`)
   3. VPS 网关服务：`server/package.json` (`version`)

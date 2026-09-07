@@ -9,9 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **CI 门禁耗时优化 (GitHub Actions)**：
-  - Android 构建任务不再构建 Debug APK（`assembleDebug`），仅构建 Release APK（`assembleRelease`）。
-  - 移除 Debug APK 产物上传路径，仅保留 Release APK。
-  - Android job 耗时预计从 ~4 分钟降至 ~2.5 分钟，整体 CI 门禁时间随之缩短。
+  - Android 构建改为条件式：日常 push 仅构建 Debug APK（编译验证，无 R8 混淆，速度快），tag 发版时构建 Release APK（完整产物 + 上传 artifact）。
+  - 日常 push 门禁时间预计从 ~4 分钟降至 ~1-2 分钟。
 
 ## [2.19.4] - 2026-09-07
 

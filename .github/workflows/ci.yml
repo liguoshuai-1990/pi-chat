@@ -133,7 +133,13 @@ jobs:
           fi
           cp -f ~/.android/debug.keystore ~/.config/.android/debug.keystore 2>/dev/null || true
 
-      - name: Build Android APK (Release)
+      - name: Build Debug APK (CI Smoke Test)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        working-directory: clients/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Build Release APK (Distribution)
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         working-directory: clients/android
         run: ./gradlew assembleRelease --no-daemon
         env:
@@ -143,11 +149,11 @@ jobs:
           PI_RELEASE_KEY_PASSWORD: ${{ secrets.PI_RELEASE_KEY_PASSWORD }}
 
       - name: Upload Android APK Artifact
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@v4
         with:
           name: pi-chat-android-apk
-          path: |
-            clients/android/app/build/outputs/apk/release/*.apk
+          path: clients/android/app/build/outputs/apk/release/*.apk
           retention-days: 30
 
   publish-npm:
