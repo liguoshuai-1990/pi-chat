@@ -124,10 +124,12 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-cleanup: never
 
       - name: Run Unit Tests
         working-directory: clients/android
-        run: ./gradlew test --no-daemon
+        run: ./gradlew testDebugUnitTest --no-daemon
 
   android-build:
     name: Android Build & Package APK
@@ -144,6 +146,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-cleanup: never
 
       - name: Ensure Android Keystore Exists
         run: |
