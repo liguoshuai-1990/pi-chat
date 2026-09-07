@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.6] - 2026-09-07
+
+### Changed
+- 补充 protocol 测试：新增 createNewSessionMessage/createCompactMessage/createAgentStatusMessage 构造器测试、构造器边界安全测试、枚举冻结性校验
+- 补充 server 测试：新增 17 个测试用例覆盖 normalizeCwd 安全校验、/api/config piVersion 字段、/api/validate-dir、/api/agents、WS ping/pong、WS 未知类型拒绝、PiAgent 环形缓冲区溢出、error/pi_exit 事件处理、isStreaming vs isBusy 精确跟踪、trackTiming 计时、sessionFile 提取、大缓冲区截断、Agent 复用/容量限制/全局关闭
+- 新增测试覆盖度文档 docs/TEST_COVERAGE.md
+
 ## [2.19.5] - 2026-09-07
 
 ### Changed

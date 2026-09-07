@@ -1,6 +1,6 @@
 {
   "name": "@liguoshuai/pi-chat-protocol",
-  "version": "2.19.5",
+  "version": "2.19.6",
   "description": "Standard communication protocol schema, types, and validators for pi-chat clients (Web, Android, HarmonyOS) and gateway",
   "type": "module",
   "main": "src/index.js",
