@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.6] - 2026-09-07
+
+### Added
+- **[S7]** HarmonyOS消息长按弹出复制菜单（使用bindMenu + pasteboard）
+- **[S8]** HarmonyOS PiProtocol补齐ClientMessageType/ServerMessageType常量 + createAuth函数
+
+### Fixed
+- **[S15]** Web端8处空`catch{}`替换为`console.warn`，仅保留2处故意静默的ws.close/send
+
 ## [2.20.5] - 2026-09-07
 
 ### Fixed
@@ -96,6 +105,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P1-23]** Web端图片附件添加20MB大小限制，防止大文件崩溃标签页
 
 
+## [2.20.6] - 2026-09-07
+
+### Added
+- **[S7]** HarmonyOS消息长按弹出复制菜单（使用bindMenu + pasteboard）
+- **[S8]** HarmonyOS PiProtocol补齐ClientMessageType/ServerMessageType常量 + createAuth函数
+
+### Fixed
+- **[S15]** Web端8处空`catch{}`替换为`console.warn`，仅保留2处故意静默的ws.close/send
+
 ## [2.20.5] - 2026-09-07
 
 ### Fixed
@@ -184,6 +202,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P0-10]** Protocol `types.d.ts`添加全部运行时导出声明（ClientMessageType、ServerMessageType、ErrorCode、AgentState、22个create*函数、validateClientMessage、normalizeClientMessage）
 - **[P0-12]** 新增`validateServerMessage`函数，支持服务端消息发送前验证
 
+
+## [2.20.6] - 2026-09-07
+
+### Added
+- **[S7]** HarmonyOS消息长按弹出复制菜单（使用bindMenu + pasteboard）
+- **[S8]** HarmonyOS PiProtocol补齐ClientMessageType/ServerMessageType常量 + createAuth函数
+
+### Fixed
+- **[S15]** Web端8处空`catch{}`替换为`console.warn`，仅保留2处故意静默的ws.close/send
 
 ## [2.20.5] - 2026-09-07
 

@@ -282,7 +282,7 @@ if (typeof copyToClipboard === "undefined") {
     if (!text) return false;
     try {
       if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; }
-    } catch {}
+    } catch (e) { console.warn("[cwd] save failed:", e); }
     return false;
   };
 }
@@ -420,7 +420,7 @@ function updateUrlSession(sessionFile) {
     const query = params.toString();
     const newUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
     window.history.replaceState({ session: sessionFile }, "", newUrl);
-  } catch {}
+  } catch (e) { console.warn("[config] load failed:", e); }
 }
 
 function sameSession(a, b) {
@@ -589,7 +589,7 @@ function startNewSession() {
     const query = params.toString();
     const newUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
     window.history.replaceState({}, "", newUrl);
-  } catch {}
+  } catch (e) { console.warn("[sidebar] render failed:", e); }
   $("#topSessionName").textContent = "新对话";
   updatePageTitle(null);
   if (wasStreaming) {
@@ -845,7 +845,7 @@ function reconstructFromEntries(entries, timing = null) {
         try {
           const parsed = JSON.parse(errMsg);
           if (parsed.error?.message) errMsg = parsed.error.message;
-        } catch {}
+        } catch (e) { console.warn("[stream] parse failed:", e); }
         content.push({ type: "text", text: `⚠️ **生成失败**: ${errMsg}` });
       }
       out.push({ role: "assistant", content, ts: msgTs, turnDurationMs, usage: m.usage });
@@ -1855,7 +1855,7 @@ function startPingInterval() {
       }
       try {
         state.ws.send(JSON.stringify({ type: "ping" }));
-      } catch {}
+      } catch (e) { console.warn("[ws] close failed:", e); }
     }
   }, 15000);
 }
@@ -1909,7 +1909,7 @@ function connectWs(opts = {}) {
       // while a new socket is opening.
       state.ws._suppressOnclose = true;
       state.ws.close();
-    } catch {}
+    } catch (e) { console.warn("[ws] reconnect failed:", e); }
   }
 
   isConnecting = true;
@@ -2237,7 +2237,7 @@ function handlePiMessage(obj) {
         try {
           const parsed = JSON.parse(errMsg);
           if (parsed.error?.message) errMsg = parsed.error.message;
-        } catch {}
+        } catch (e) { console.warn("[msg] handle failed:", e); }
         state.streamingItems.push({ type: "text", text: `⚠️ **${errMsg}**` });
         refreshStreamingContent();
       }
@@ -3341,7 +3341,7 @@ function initSidebarResize() {
     isDragging = false;
     try {
       resizer.releasePointerCapture(e.pointerId);
-    } catch {}
+    } catch (e) { console.warn("[image] process failed:", e); }
     document.body.classList.remove("is-resizing");
 
     const finalWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--sidebar-width"), 10);

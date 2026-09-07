@@ -601,6 +601,22 @@ struct Index {
             .fontSize(15)
             .fontColor(msg.status === MessageStatus.ERROR ? '#FCA5A5' : '#F3F4F6')
             .lineHeight(22)
+            // S7: Long-press to copy message content
+            .bindMenu([
+              {
+                text: '复制',
+                action: () => {
+                  try {
+                    const pasteboard = require('@ohos.pasteboard');
+                    const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, msg.content);
+                    const systemPasteboard = pasteboard.getSystemPasteboard();
+                    systemPasteboard.setData(pasteData);
+                  } catch (e) {
+                    console.warn('[Index] Copy failed: ' + e);
+                  }
+                }
+              }
+            ])
         }
 
         // Tool calls display
