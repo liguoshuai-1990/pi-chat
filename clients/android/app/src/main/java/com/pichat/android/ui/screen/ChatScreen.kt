@@ -3233,3 +3233,16 @@ private fun decodeBase64Bitmap(dataUrl: String): Bitmap? {
         null
     }
 }
+
+// S10: @Preview composables for Android Studio preview panel
+@Preview(showBackground = true, name = "Chat Screen Preview")
+@Composable
+fun ChatScreenPreview() {
+    PiChatTheme {
+        ChatScreen(
+            serverUrl = "http://localhost:3000",
+            authToken = null,
+            onDisconnect = {}
+        )
+    }
+}

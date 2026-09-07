@@ -1,4 +1,8 @@
 import preferences from '@ohos.data.preferences';
+import { common } from '@kit.AbilityKit';
+
+// S4: Use explicit common.Context type alias instead of bare Context
+type AppContext = common.UIAbilityContext;
 
 export class PreferencesHelper {
   private static readonly STORE_NAME = 'pi_chat_settings';
@@ -7,7 +11,7 @@ export class PreferencesHelper {
   private static readonly KEY_CWD = 'cwd';
   private static readonly DEFAULT_URL = 'http://10.0.2.2:3000';
 
-  public static async getServerUrl(context: Context): Promise<string> {
+  public static async getServerUrl(context: AppContext): Promise<string> {
     try {
       const prefs = await preferences.getPreferences(context, PreferencesHelper.STORE_NAME);
       const url = await prefs.get(PreferencesHelper.KEY_SERVER_URL, PreferencesHelper.DEFAULT_URL);
@@ -17,7 +21,7 @@ export class PreferencesHelper {
     }
   }
 
-  public static async setServerUrl(context: Context, url: string): Promise<void> {
+  public static async setServerUrl(context: AppContext, url: string): Promise<void> {
     try {
       const prefs = await preferences.getPreferences(context, PreferencesHelper.STORE_NAME);
       await prefs.put(PreferencesHelper.KEY_SERVER_URL, url);
@@ -27,7 +31,7 @@ export class PreferencesHelper {
     }
   }
 
-  public static async getAuthToken(context: Context): Promise<string> {
+  public static async getAuthToken(context: AppContext): Promise<string> {
     try {
       const prefs = await preferences.getPreferences(context, PreferencesHelper.STORE_NAME);
       const token = await prefs.get(PreferencesHelper.KEY_AUTH_TOKEN, '');
@@ -37,7 +41,7 @@ export class PreferencesHelper {
     }
   }
 
-  public static async setAuthToken(context: Context, token: string): Promise<void> {
+  public static async setAuthToken(context: AppContext, token: string): Promise<void> {
     try {
       const prefs = await preferences.getPreferences(context, PreferencesHelper.STORE_NAME);
       await prefs.put(PreferencesHelper.KEY_AUTH_TOKEN, token);
@@ -47,7 +51,7 @@ export class PreferencesHelper {
     }
   }
 
-  public static async getCwd(context: Context): Promise<string> {
+  public static async getCwd(context: AppContext): Promise<string> {
     try {
       const prefs = await preferences.getPreferences(context, PreferencesHelper.STORE_NAME);
       const cwd = await prefs.get(PreferencesHelper.KEY_CWD, '');
@@ -57,7 +61,7 @@ export class PreferencesHelper {
     }
   }
 
-  public static async setCwd(context: Context, cwd: string): Promise<void> {
+  public static async setCwd(context: AppContext, cwd: string): Promise<void> {
     try {
       const prefs = await preferences.getPreferences(context, PreferencesHelper.STORE_NAME);
       await prefs.put(PreferencesHelper.KEY_CWD, cwd);

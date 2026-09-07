@@ -2,6 +2,7 @@ import { ChatViewModel } from '../viewmodel/ChatViewModel';
 import { ChatMessage, MessageRole, SessionInfo, MessageStatus } from '../model/ChatModel';
 import { PreferencesHelper } from '../network/PreferencesHelper';
 import { bundleManager } from '@kit.AbilityKit';
+import { mediaquery } from '@kit.ArkUI';
 
 @Entry
 @Component
@@ -13,6 +14,9 @@ struct Index {
   @State isDrawerOpen: boolean = false;
   @State isSettingsOpen: boolean = false;
   @State settingsUrl: string = '';
+  // S9: Respect system reduced-motion preference
+  @State reduceMotion: boolean = false;
+  private reduceMotionListener: mediaquery.MediaQueryListener | null = null;
   @State settingsToken: string = '';
   @State settingsCwd: string = '';
   @State sessionToDelete: SessionInfo | null = null;
@@ -21,6 +25,16 @@ struct Index {
   private scroller: Scroller = new Scroller();
 
   aboutToAppear() {
+    // S9: Detect prefers-reduced-motion
+    try {
+      this.reduceMotionListener = mediaquery.matchMediaSync('(prefers-reduced-motion: reduce)');
+      this.reduceMotion = this.reduceMotionListener.matches;
+      this.reduceMotionListener.on('change', (result) => {
+        this.reduceMotion = result.matches;
+      });
+    } catch (e) {
+      console.warn('[Index] Failed to detect reduced-motion: ' + e);
+    }
     // Read app version from bundle info (single source: AppScope/app.json5)
     try {
       const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);

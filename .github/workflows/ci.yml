@@ -34,8 +34,7 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10.30.1
+        # CI-1: Version auto-detected from package.json "packageManager" field
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -61,8 +60,7 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10.30.1
+        # CI-1: Version auto-detected from package.json "packageManager" field
 
       - name: Setup Node.js 20.x
         uses: actions/setup-node@v4
@@ -202,8 +200,7 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10.30.1
+        # CI-1: Version auto-detected from package.json "packageManager" field
 
       - name: Setup Node.js for NPM Publishing
         uses: actions/setup-node@v4

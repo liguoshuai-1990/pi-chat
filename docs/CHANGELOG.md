@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.5] - 2026-09-07
+
+### Fixed
+- **[CI-1]** CI中pnpm版本改为自动读取`packageManager`字段，不再硬编码
+- **[S4]** HarmonyOS `PreferencesHelper`使用`common.UIAbilityContext`替代裸`Context`类型
+- **[S9]** HarmonyOS添加`prefers-reduced-motion`检测，尊重系统减少动画设置
+- **[S10]** Android添加`@Preview` Composable注解，支持Android Studio预览面板
+
 ## [2.20.4] - 2026-09-07
 
 ### Performance
@@ -88,6 +96,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P1-23]** Web端图片附件添加20MB大小限制，防止大文件崩溃标签页
 
 
+## [2.20.5] - 2026-09-07
+
+### Fixed
+- **[CI-1]** CI中pnpm版本改为自动读取`packageManager`字段，不再硬编码
+- **[S4]** HarmonyOS `PreferencesHelper`使用`common.UIAbilityContext`替代裸`Context`类型
+- **[S9]** HarmonyOS添加`prefers-reduced-motion`检测，尊重系统减少动画设置
+- **[S10]** Android添加`@Preview` Composable注解，支持Android Studio预览面板
+
 ## [2.20.4] - 2026-09-07
 
 ### Performance
@@ -168,6 +184,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P0-10]** Protocol `types.d.ts`添加全部运行时导出声明（ClientMessageType、ServerMessageType、ErrorCode、AgentState、22个create*函数、validateClientMessage、normalizeClientMessage）
 - **[P0-12]** 新增`validateServerMessage`函数，支持服务端消息发送前验证
 
+
+## [2.20.5] - 2026-09-07
+
+### Fixed
+- **[CI-1]** CI中pnpm版本改为自动读取`packageManager`字段，不再硬编码
+- **[S4]** HarmonyOS `PreferencesHelper`使用`common.UIAbilityContext`替代裸`Context`类型
+- **[S9]** HarmonyOS添加`prefers-reduced-motion`检测，尊重系统减少动画设置
+- **[S10]** Android添加`@Preview` Composable注解，支持Android Studio预览面板
 
 ## [2.20.4] - 2026-09-07
 
