@@ -3236,10 +3236,18 @@ private fun decodeBase64Bitmap(dataUrl: String): Bitmap? {
 }
 
 // S10: @Preview composables for Android Studio preview panel
-@Preview(showBackground = true, name = "Chat Screen Preview")
+// Note: ChatScreen requires a ChatViewModel(Application) which can't be instantiated
+// in a @Preview without a real Application context. This preview shows the empty state.
+@Preview(showBackground = true, name = "Empty Chat Preview")
 @Composable
-fun ChatScreenPreview() {
+fun EmptyChatPreview() {
     PiChatTheme {
-        ChatScreen(ChatViewModel("http://localhost:3000", null))
+        // Preview a simple empty state without the full ChatScreen
+        Box(modifier = Modifier.fillMaxSize()) {
+            Text(
+                text = "Preview requires runtime context",
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
     }
 }
