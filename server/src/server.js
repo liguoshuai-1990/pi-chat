@@ -58,6 +58,9 @@ function compressionMiddleware(req, res, next) {
     res.setHeader("Content-Encoding", "gzip");
     res.removeHeader("Content-Length"); // unknown when streaming
     res.removeHeader("ETag"); // ETag was for uncompressed body
+    // Attach data/end listeners immediately to avoid missing events
+    gzip.on("data", (data) => origWrite.call(res, data));
+    gzip.on("end", () => origEnd.call(res));
     return gzip;
   }
 
@@ -74,8 +77,6 @@ function compressionMiddleware(req, res, next) {
     if (g) {
       if (chunk) g.write(Buffer.from(chunk));
       g.end();
-      g.on("data", (data) => origWrite.call(res, data));
-      g.on("end", () => origEnd.call(res));
       return;
     }
     return origEnd.call(this, chunk, ...args);
