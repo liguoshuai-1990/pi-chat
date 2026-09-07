@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.7] - 2026-09-07
+
+### Fixed
+- **[Web/Server]** 恢复静态资源稳定gzip缓冲压缩：此前流式gzip中间件拦截`express.static`文件流时因`Content-Length`与分块事件未对齐导致浏览器请求`/app.js`（带`Accept-Encoding: gzip`）无限挂起，致使前端脚本无法执行、状态一直卡在「连接中…」
+- **[Web]** `connectWs`添加`new WebSocket`同步异常防御（try-catch），避免因CSP或构造异常导致未捕获错误中断生命周期
+- **[Web]** 连接建立前将状态明确设置为「连接中…」（warning色），与初始静态HTML状态平滑衔接
+
 ## [2.20.6] - 2026-09-07
 
 ### Added

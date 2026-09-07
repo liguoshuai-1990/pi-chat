@@ -1938,7 +1938,20 @@ function connectWs(opts = {}) {
 
   const token = getAuthToken();
   const url = `${proto}://${location.host}/ws?cwd=${cwd}${sess}`;
-  const ws = new WebSocket(url);
+  if (!state.wsConnected && !reconnectAttempts) {
+    setConnStatus("reconnecting", "连接中…");
+  }
+  let ws;
+  try {
+    ws = new WebSocket(url);
+  } catch (err) {
+    console.error("[WS] constructor failed:", err);
+    isConnecting = false;
+    wasDisconnected = true;
+    setConnStatus("disconnected", "连接失败");
+    scheduleReconnect();
+    return;
+  }
   state.ws = ws;
   ws._gen = myGen;
 
@@ -3755,10 +3768,10 @@ async function init() {
   initSidebarResize();
 
   refreshSessions();
-  // start in the disconnected state; connectWs will flip to green on open.
+  // start in the connecting state; connectWs will flip to green on open.
   const initDot = $("#connDot");
   const initLabel = $("#connLabel");
-  if (initDot) initDot.style.color = "var(--danger)";
+  if (initDot) initDot.style.color = "var(--warning)";
   if (initLabel) initLabel.textContent = "连接中…";
   $("#sendBtn").disabled = true;
 
