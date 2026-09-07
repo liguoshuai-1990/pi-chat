@@ -642,6 +642,67 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
     config.maxConcurrentAgents = origMax;
   });
 
+  test("Browser static assets with Accept-Encoding: gzip return 200, valid gzip encoding, and complete readable body without hanging", async () => {
+    const serverInstance = createServer();
+    const { httpServer } = await serverInstance.listen(0, "127.0.0.1");
+    const port = httpServer.address().port;
+
+    try {
+      // Static assets >= 1KB must be gzip-encoded and fully readable within 3 seconds
+      const gzippedAssets = ["/", "/app.js", "/markdown.js", "/style.css"];
+      for (const asset of gzippedAssets) {
+        const res = await fetch(`http://127.0.0.1:${port}${asset}`, {
+          headers: { "Accept-Encoding": "gzip, deflate, br" },
+          signal: AbortSignal.timeout(3000),
+        });
+        assert.equal(res.status, 200, `${asset} status should be 200`);
+        assert.equal(res.headers.get("content-encoding"), "gzip", `${asset} should be gzip encoded`);
+        const body = await res.text();
+        assert.ok(body.length > 50, `${asset} body should not be empty`);
+      }
+
+      // Small JSON response (< 1KB) passes uncompressed without hanging
+      const configRes = await fetch(`http://127.0.0.1:${port}/api/config`, {
+        headers: { "Accept-Encoding": "gzip, deflate, br" },
+        signal: AbortSignal.timeout(3000),
+      });
+      assert.equal(configRes.status, 200);
+      const configData = await configRes.json();
+      assert.ok(configData.version);
+    } finally {
+      await serverInstance.close();
+    }
+  });
+
+  test("Browser WebSocket handshake and get_state smoke test", async () => {
+    const serverInstance = createServer();
+    const { httpServer } = await serverInstance.listen(0, "127.0.0.1");
+    const port = httpServer.address().port;
+
+    try {
+      const wsResult = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("WS timeout")), 3000);
+        const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?cwd=`);
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ type: "get_state" }));
+        };
+        ws.onmessage = (ev) => {
+          clearTimeout(timer);
+          const data = JSON.parse(ev.data);
+          ws.close();
+          resolve(data);
+        };
+        ws.onerror = (err) => {
+          clearTimeout(timer);
+          reject(err);
+        };
+      });
+      assert.equal(wsResult.success, true, "get_state should succeed on initial connection");
+    } finally {
+      await serverInstance.close();
+    }
+  });
+
   after(() => {
     shutdownAllAgents("Test cleanup");
   });

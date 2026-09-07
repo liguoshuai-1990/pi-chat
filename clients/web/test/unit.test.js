@@ -178,4 +178,23 @@ describe("pi-web-chat Unit Tests", () => {
     assert.ok(harmonyIndexEts.includes("bundleManager"), "HarmonyOS Index.ets must read version from bundleManager");
     assert.ok(harmonyIndexEts.includes("this.appVersion"), "HarmonyOS Index.ets must use appVersion state for version display");
   });
+
+  test("HTML template contains all DOM elements queried by app.js during init", () => {
+    const appSource = readFileSync(path.resolve(__dirname, "../public/app.js"), "utf8");
+    const htmlSource = readFileSync(path.resolve(__dirname, "../public/index.html"), "utf8");
+
+    const initMatch = appSource.match(/async function init\(\) \{([\s\S]*?)\ndocument\.addEventListener\("DOMContentLoaded", init\);/);
+    assert.ok(initMatch, "app.js must define async function init()");
+
+    const idMatches = [...initMatch[1].matchAll(/\$\(["']#([a-zA-Z0-9_-]+)["']\)/g)].map(m => m[1]);
+    assert.ok(idMatches.length > 0, "init() should query DOM element IDs");
+
+    const missing = [];
+    for (const id of new Set(idMatches)) {
+      if (!htmlSource.includes(`id="${id}"`) && !htmlSource.includes(`id='${id}'`)) {
+        missing.push(id);
+      }
+    }
+    assert.deepEqual(missing, [], `index.html is missing element IDs required by init(): ${missing.join(", ")}`);
+  });
 });
