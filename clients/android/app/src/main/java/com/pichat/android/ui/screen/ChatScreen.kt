@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
+import androidx.compose.ui.tooling.preview.Preview
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -3239,10 +3240,6 @@ private fun decodeBase64Bitmap(dataUrl: String): Bitmap? {
 @Composable
 fun ChatScreenPreview() {
     PiChatTheme {
-        ChatScreen(
-            serverUrl = "http://localhost:3000",
-            authToken = null,
-            onDisconnect = {}
-        )
+        ChatScreen(ChatViewModel("http://localhost:3000", null))
     }
 }
