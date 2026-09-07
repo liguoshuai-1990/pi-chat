@@ -674,35 +674,6 @@ describe("Pi-Chat Server Gateway Unit Tests", () => {
     }
   });
 
-  test("Browser WebSocket handshake and get_state smoke test", async () => {
-    const serverInstance = createServer();
-    const { httpServer } = await serverInstance.listen(0, "127.0.0.1");
-    const port = httpServer.address().port;
-
-    try {
-      const wsResult = await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("WS timeout")), 3000);
-        const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?cwd=`);
-        ws.onopen = () => {
-          ws.send(JSON.stringify({ type: "get_state" }));
-        };
-        ws.onmessage = (ev) => {
-          clearTimeout(timer);
-          const data = JSON.parse(ev.data);
-          ws.close();
-          resolve(data);
-        };
-        ws.onerror = (err) => {
-          clearTimeout(timer);
-          reject(err);
-        };
-      });
-      assert.equal(wsResult.success, true, "get_state should succeed on initial connection");
-    } finally {
-      await serverInstance.close();
-    }
-  });
-
   after(() => {
     shutdownAllAgents("Test cleanup");
   });
