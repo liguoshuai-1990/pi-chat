@@ -252,9 +252,11 @@ export class PiAgent {
 
   onStdout(chunk) {
     this.buffer += this.decoder.write(chunk);
-    if (this.buffer.length > 50 * 1024 * 1024) {
-      console.warn(`[PiAgent] Buffer length exceeded 50MB, truncating`);
-      this.buffer = this.buffer.slice(-10 * 1024 * 1024);
+    const STDOUT_BUFFER_MAX = 50 * 1024 * 1024; // 50MB max buffer size
+    const STDOUT_BUFFER_KEEP = 10 * 1024 * 1024; // 10MB retained after truncation
+    if (this.buffer.length > STDOUT_BUFFER_MAX) {
+      console.warn(`[PiAgent] Buffer length exceeded ${STDOUT_BUFFER_MAX / 1048576}MB, truncating`);
+      this.buffer = this.buffer.slice(-STDOUT_BUFFER_KEEP);
       // Discard the partial first line (up to next newline) to avoid malformed JSON
       const firstNl = this.buffer.indexOf("\n");
       if (firstNl >= 0) this.buffer = this.buffer.slice(firstNl + 1);
@@ -601,7 +603,7 @@ export class PiAgent {
       return new Promise((resolve) => {
         const killTimer = setTimeout(() => {
           try { p.kill("SIGKILL"); } catch {}
-        }, 2000);
+        }, SIGKILL_TIMEOUT_MS);
         p.once("exit", () => {
           clearTimeout(killTimer);
           resolve();

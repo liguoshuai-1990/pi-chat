@@ -224,9 +224,18 @@ function setSessionMetadataCache(key, value) {
   sessionMetadataCache.set(key, value);
 }
 
+// PE-4: Cache resolved sessions dir to avoid repeated normalizePath calls
+let _cachedSessionsDir = null;
+function getResolvedSessionsDir() {
+  if (_cachedSessionsDir === null || _cachedSessionsDir === undefined) {
+    _cachedSessionsDir = normalizePath(config.sessionsDir);
+  }
+  return _cachedSessionsDir;
+}
+
 function resolveSessionPath(file) {
   if (!file || typeof file !== "string") return null;
-  const resolvedSessionsDir = normalizePath(config.sessionsDir);
+  const resolvedSessionsDir = getResolvedSessionsDir();
   const target = file.startsWith("~")
     ? normalizePath(file)
     : (path.isAbsolute(file) ? path.normalize(file) : path.resolve(resolvedSessionsDir, file));

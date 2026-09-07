@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.4] - 2026-09-07
+
+### Performance
+- **[PE-2]** Web端`scrollBottom`使用`requestAnimationFrame`节流，避免流式输出时布局抖动
+- **[PE-4]** Server端`resolveSessionPath`缓存`normalizePath(sessionsDir)`结果，减少重复计算
+- **[S14]** Web端`renderSidebar`添加签名比对，会话列表未变化时跳过全量DOM重建
+
+### Added
+- **[P1-18]** `createPromptMessage`/`createSteerMessage`添加可选`id`参数
+- **[A4]** HarmonyOS `ChatViewModel`添加`getOrCreateStreamingAssistant()`统一助手气泡创建入口
+
+### Changed
+- **[S1]** `agent.js`魔法数字提取为命名常量（`STDOUT_BUFFER_MAX`、`SIGKILL_TIMEOUT_MS`等）
+
 ## [2.20.3] - 2026-09-07
 
 ### Added
@@ -74,6 +88,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P1-23]** Web端图片附件添加20MB大小限制，防止大文件崩溃标签页
 
 
+## [2.20.4] - 2026-09-07
+
+### Performance
+- **[PE-2]** Web端`scrollBottom`使用`requestAnimationFrame`节流，避免流式输出时布局抖动
+- **[PE-4]** Server端`resolveSessionPath`缓存`normalizePath(sessionsDir)`结果，减少重复计算
+- **[S14]** Web端`renderSidebar`添加签名比对，会话列表未变化时跳过全量DOM重建
+
+### Added
+- **[P1-18]** `createPromptMessage`/`createSteerMessage`添加可选`id`参数
+- **[A4]** HarmonyOS `ChatViewModel`添加`getOrCreateStreamingAssistant()`统一助手气泡创建入口
+
+### Changed
+- **[S1]** `agent.js`魔法数字提取为命名常量（`STDOUT_BUFFER_MAX`、`SIGKILL_TIMEOUT_MS`等）
+
 ## [2.20.3] - 2026-09-07
 
 ### Added
@@ -140,6 +168,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P0-10]** Protocol `types.d.ts`添加全部运行时导出声明（ClientMessageType、ServerMessageType、ErrorCode、AgentState、22个create*函数、validateClientMessage、normalizeClientMessage）
 - **[P0-12]** 新增`validateServerMessage`函数，支持服务端消息发送前验证
 
+
+## [2.20.4] - 2026-09-07
+
+### Performance
+- **[PE-2]** Web端`scrollBottom`使用`requestAnimationFrame`节流，避免流式输出时布局抖动
+- **[PE-4]** Server端`resolveSessionPath`缓存`normalizePath(sessionsDir)`结果，减少重复计算
+- **[S14]** Web端`renderSidebar`添加签名比对，会话列表未变化时跳过全量DOM重建
+
+### Added
+- **[P1-18]** `createPromptMessage`/`createSteerMessage`添加可选`id`参数
+- **[A4]** HarmonyOS `ChatViewModel`添加`getOrCreateStreamingAssistant()`统一助手气泡创建入口
+
+### Changed
+- **[S1]** `agent.js`魔法数字提取为命名常量（`STDOUT_BUFFER_MAX`、`SIGKILL_TIMEOUT_MS`等）
 
 ## [2.20.3] - 2026-09-07
 

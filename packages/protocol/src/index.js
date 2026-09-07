@@ -62,18 +62,20 @@ export const AgentState = Object.freeze({
 /**
  * Message Constructors
  */
-export function createPromptMessage(message, images = []) {
+export function createPromptMessage(message, images = [], id = null) {
   return {
     type: ClientMessageType.PROMPT,
     message,
     images: Array.isArray(images) ? images : [],
+    ...(id ? { id } : {}),
   };
 }
 
-export function createSteerMessage(message) {
+export function createSteerMessage(message, id = null) {
   return {
     type: ClientMessageType.STEER,
     message,
+    ...(id ? { id } : {}),
   };
 }
 

@@ -450,6 +450,11 @@ async function refreshSessions() {
 function renderSidebar(sessions) {
   const list = $("#sessionList");
   if (!list) return;
+  // S14: Skip full DOM rebuild if session list hasn't changed (by file+name+count)
+  const sig = sessions.map(s => `${s.file}|${s.sessionName || s.firstUser || ""}|${s.messageCount || 0}|${s.isStreaming ? 1 : 0}`).join("\n");
+  if (list._lastSig === sig && list._lastCurrent === state.currentSessionFile) return;
+  list._lastSig = sig;
+  list._lastCurrent = state.currentSessionFile;
   list.innerHTML = "";
 
   const hasCurrentInSessions = Boolean(state.currentSessionFile && sessions.some(s => sameSession(s.file, state.currentSessionFile)));
@@ -1592,16 +1597,22 @@ function updatePageTitle(title) {
   }
 }
 
+let _scrollRafId = 0;
 function scrollBottom(force = false) {
   // Don't fight the user during a background-event replay (backfill).
   if (state.isBackfilling) return;
-  const chat = $("#chat");
-  if (!chat) return;
-  // If streaming and user manually scrolled up to read history, don't hijack scroll unless forced!
-  if (!force && userScrolledUp && state.streaming) {
-    return;
-  }
-  chat.scrollTop = chat.scrollHeight;
+  // PE-2: Throttle via requestAnimationFrame to avoid layout thrashing on every streaming token
+  if (!force && _scrollRafId) return; // already scheduled
+  if (_scrollRafId) cancelAnimationFrame(_scrollRafId);
+  _scrollRafId = requestAnimationFrame(() => {
+    _scrollRafId = 0;
+    const chat = $("#chat");
+    if (!chat) return;
+    if (!force && userScrolledUp && state.streaming) {
+      return;
+    }
+    chat.scrollTop = chat.scrollHeight;
+  });
 }
 
 function getStreamingFullText() {
