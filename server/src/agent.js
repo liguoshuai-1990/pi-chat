@@ -256,8 +256,7 @@ export class PiAgent {
       console.warn(`[PiAgent] Buffer length exceeded 50MB, truncating`);
       this.buffer = this.buffer.slice(-10 * 1024 * 1024);
       // Discard the partial first line (up to next newline) to avoid malformed JSON
-      const firstNl = this.buffer.indexOf("
-");
+      const firstNl = this.buffer.indexOf("\n");
       if (firstNl >= 0) this.buffer = this.buffer.slice(firstNl + 1);
       else this.buffer = "";
     }
