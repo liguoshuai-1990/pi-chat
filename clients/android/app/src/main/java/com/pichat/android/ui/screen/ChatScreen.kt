@@ -1298,9 +1298,10 @@ private fun Composer(
                                 .border(1.dp, Border, RoundedCornerShape(8.dp))
                                 .clickable { onImageClick(item.data) }
                         ) {
-                            if (bitmap != null) {
+                            val bmp = bitmap
+                            if (bmp != null) {
                                 Image(
-                                    bitmap = bitmap.asImageBitmap(),
+                                    bitmap = bmp.asImageBitmap(),
                                     contentDescription = "附件缩略图",
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
@@ -1519,9 +1520,10 @@ fun MessageBubble(
                         val bitmap by produceState<Bitmap?>(null, img.data) {
                             value = withContext(Dispatchers.IO) { decodeBase64Bitmap(img.data) }
                         }
-                        if (bitmap != null) {
+                        val bmp = bitmap
+                        if (bmp != null) {
                             Image(
-                                bitmap = bitmap.asImageBitmap(),
+                                bitmap = bmp.asImageBitmap(),
                                 contentDescription = "发送的图片",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
@@ -3099,6 +3101,7 @@ private fun LightboxModal(imageDataUrl: String, onDismiss: () -> Unit) {
     val bitmap by produceState<Bitmap?>(null, imageDataUrl) {
         value = withContext(Dispatchers.IO) { decodeBase64Bitmap(imageDataUrl) }
     }
+    val bmp = bitmap
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -3109,9 +3112,10 @@ private fun LightboxModal(imageDataUrl: String, onDismiss: () -> Unit) {
                 .background(Color.Black.copy(alpha = 0.9f)),
             contentAlignment = Alignment.Center
         ) {
-            if (bitmap != null) {
+            val bmp = bitmap
+            if (bmp != null) {
                 Image(
-                    bitmap = bitmap.asImageBitmap(),
+                    bitmap = bmp.asImageBitmap(),
                     contentDescription = "全屏预览",
                     modifier = Modifier
                         .fillMaxWidth()
