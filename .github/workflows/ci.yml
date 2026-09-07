@@ -133,6 +133,10 @@ jobs:
           fi
           cp -f ~/.android/debug.keystore ~/.config/.android/debug.keystore 2>/dev/null || true
 
+      - name: Run Unit Tests
+        working-directory: clients/android
+        run: ./gradlew test --no-daemon
+
       - name: Build Debug APK (CI Smoke Test)
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         working-directory: clients/android
