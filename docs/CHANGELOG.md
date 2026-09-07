@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.4] - 2026-09-07
+
+### Fixed
+- **无听众时孤儿 agent 僵尸防护 (server)**：
+  - MAX_AGENT_LIFETIME_MS 默认值从 0（禁用）改为 3 小时，作为僵尸进程的后备防线。
+  - maybeScheduleLifetimeKill 逻辑修正：无听众时即使 agent 处于 busy 状态也强制 stop，不再无限 defer。有听众时仍 defer，确保用户在线时不会误杀长任务。
+  - 修复 send() 方法中过时注释（"default 10 min" → "default 0 = disabled"）。
+
 ## [2.19.3] - 2026-09-07
 
 ### Fixed

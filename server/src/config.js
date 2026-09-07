@@ -147,7 +147,7 @@ export const config = {
   piBin: resolvePiBin(),
   version: PKG_VERSION,
   idleTimeoutMs: parseEnvNum("IDLE_TIMEOUT_MS", 30 * 60 * 1000),
-  maxAgentLifetimeMs: parseEnvNum("MAX_AGENT_LIFETIME_MS", 0),
+  maxAgentLifetimeMs: parseEnvNum("MAX_AGENT_LIFETIME_MS", 3 * 60 * 60 * 1000),
   eventBufferSize: parseEnvNum("EVENT_BUFFER_SIZE", 5000, { integer: true }),
   maxConcurrentAgents: parseEnvNum("MAX_CONCURRENT_AGENTS", 0, { integer: true }),
   idleDropHeap: process.env.IDLE_DROP_HEAP === "1" || process.env.IDLE_DROP_HEAP === "true",

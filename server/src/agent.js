@@ -151,12 +151,15 @@ export class PiAgent {
     this.lifetimeTimer = setTimeout(() => {
       this.lifetimeTimer = null;
       if (!this.alive) return;
-      if (this.isBusy || this.hasListeners) {
-        console.log(`[PiAgent] Max lifetime reached for ${this.sessionKey || "unkeyed"}, but agent is busy or active. Deferring stop.`);
+      // If users are actively listening, defer — never kill an agent someone is watching.
+      if (this.hasListeners) {
+        console.log(`[PiAgent] Max lifetime reached for ${this.sessionKey || "unkeyed"}, but has active listeners. Deferring stop.`);
         this.maybeScheduleLifetimeKill();
         return;
       }
-      console.warn(`[PiAgent] Max lifetime reached and idle for ${this.sessionKey || "unkeyed"}, stopping`);
+      // No listeners: force-stop even if busy. This prevents orphaned zombie agents
+      // (e.g. pi hung on a slow LLM call, user disconnected, nobody watching).
+      console.warn(`[PiAgent] Max lifetime reached for ${this.sessionKey || "unkeyed"}, no listeners — force-stopping (busy=${this.isBusy})`);
       this.stop();
     }, config.maxAgentLifetimeMs);
   }
@@ -535,9 +538,9 @@ export class PiAgent {
         }, 15000);
       } else if (config.longRunningTimeoutMs > 0) {
         // Long-running commands (prompt, steer, client_send) get a configurable
-        // timeout (default 10 min). Without this, a hung pi subprocess leaves the
+        // timeout (default 0 = disabled). Without this, a hung pi subprocess leaves the
         // pending entry forever, making isBusy permanently true and the agent
-        // becomes an unreclaimable zombie.
+        // becomes an unreclaimable zombie. MAX_AGENT_LIFETIME_MS is the backstop.
         timeoutId = setTimeout(() => {
           console.warn(`[PiAgent] long-running command "${cmd.type}" (id=${id}) timed out after ${config.longRunningTimeoutMs}ms`);
           this.setStreaming(false);
