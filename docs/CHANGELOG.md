@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.5] - 2026-09-07
+
+### Changed
+- **CI 门禁耗时优化 (GitHub Actions)**：
+  - Android 构建任务不再构建 Debug APK（`assembleDebug`），仅构建 Release APK（`assembleRelease`）。
+  - 移除 Debug APK 产物上传路径，仅保留 Release APK。
+  - Android job 耗时预计从 ~4 分钟降至 ~2.5 分钟，整体 CI 门禁时间随之缩短。
+
 ## [2.19.4] - 2026-09-07
 
 ### Fixed

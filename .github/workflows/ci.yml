@@ -133,9 +133,9 @@ jobs:
           fi
           cp -f ~/.android/debug.keystore ~/.config/.android/debug.keystore 2>/dev/null || true
 
-      - name: Build Android APK (Release & Debug)
+      - name: Build Android APK (Release)
         working-directory: clients/android
-        run: ./gradlew assembleRelease assembleDebug --no-daemon
+        run: ./gradlew assembleRelease --no-daemon
         env:
           PI_RELEASE_KEYSTORE_BASE64: ${{ secrets.PI_RELEASE_KEYSTORE_BASE64 }}
           PI_RELEASE_STORE_PASSWORD: ${{ secrets.PI_RELEASE_STORE_PASSWORD }}
@@ -148,7 +148,6 @@ jobs:
           name: pi-chat-android-apk
           path: |
             clients/android/app/build/outputs/apk/release/*.apk
-            clients/android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
   publish-npm:
