@@ -70,9 +70,11 @@ export function normalizeCwd(dir) {
     if (!isAllowed) {
       throw new Error(`cwd '${resolved}' is outside allowed directories (ALLOWED_CWD_DIRS=${process.env.ALLOWED_CWD_DIRS})`);
     }
-  } else {
-    // Default: restrict to server's working directory and its subdirectories
-    // to prevent authenticated clients from spawning pi in arbitrary directories
+  } else if (config.authToken) {
+    // Security: when authToken is set (production), restrict cwd to the server's
+    // working directory and its subdirectories to prevent authenticated clients
+    // from spawning pi in arbitrary directories (e.g. /root/.ssh, /etc).
+    // In dev mode (no authToken), allow any cwd for backward compatibility.
     const serverCwd = process.cwd();
     if (resolved !== serverCwd && !resolved.startsWith(serverCwd + path.sep)) {
       throw new Error(`cwd '${resolved}' is outside server working directory '${serverCwd}'. Set ALLOWED_CWD_DIRS to allow more directories.`);
