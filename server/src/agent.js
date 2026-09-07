@@ -5,6 +5,8 @@ import path from "path";
 import { config, normalizeCwd, normalizePath } from "./config.js";
 import { createBackfillStartMessage, createBackfillEndMessage } from "@liguoshuai/pi-chat-protocol";
 
+const SIGKILL_TIMEOUT_MS = 2000; // Wait 2s after SIGTERM before SIGKILL
+
 export const activeAgents = new Map();
 export const allAgents = new Set();
 
