@@ -5,6 +5,8 @@ import { PiProtocol } from '../protocol/PiProtocol';
 
 export class ChatViewModel {
   private static idCounter: number = 0;
+  private loadSessionsReqId: number = 0;
+  private loadHistoryReqId: number = 0;
   public messages: ChatMessage[] = [];
   public sessions: SessionInfo[] = [];
   public isConnected: boolean = false;
@@ -85,7 +87,10 @@ export class ChatViewModel {
   }
 
   public async loadSessions() {
+    const reqId = ++this.loadSessionsReqId;
     const list = await this.httpService.getSessions(this.cwd);
+    // Stale check: discard result if a newer request was started
+    if (reqId !== this.loadSessionsReqId) return;
     this.sessions = list;
     this.notifyUI();
   }
@@ -227,7 +232,10 @@ export class ChatViewModel {
   }
 
   public async loadSessionHistory(sessionPath: string) {
+    const reqId = ++this.loadHistoryReqId;
     const detail = await this.httpService.getSession(sessionPath);
+    // Stale check: discard result if a newer request was started
+    if (reqId !== this.loadHistoryReqId) return;
     if (detail && Array.isArray(detail.entries)) {
       const reconstructed: ChatMessage[] = [];
       let lastUserTs: number = 0;

@@ -148,17 +148,16 @@ export class WebSocketManager {
     });
   }
 
-  public send(data: string): boolean {
+  public send(data: string): Promise<boolean> {
     if (this.ws && this.isConnected) {
-      // ws.send() returns a Promise<boolean> in HarmonyOS API.
-      // We return true optimistically (the data was queued for send),
-      // but catch any rejection to avoid unhandled promise rejection.
-      this.ws.send(data).catch((e: Error) => {
+      // Return the actual Promise from ws.send() so callers can await
+      // and handle failures instead of getting a false optimistic true.
+      return this.ws.send(data).then((_: boolean) => true).catch((e: Error) => {
         console.error(`[WebSocketManager] WebSocket send failed: ${e}`);
+        return false;
       });
-      return true;
     }
-    return false;
+    return Promise.resolve(false);
   }
 
   public addMessageListener(cb: MessageCallback) {

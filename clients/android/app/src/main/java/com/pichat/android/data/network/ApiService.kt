@@ -24,18 +24,22 @@ class ApiService(
     private val token: String? = null
 ) {
     private val baseUrl: String = baseUrl.removeSuffix("/")
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
+    // PE-5: Use shared client instance to avoid connection pool/thread pool leaks
+    private val client = Companion.sharedClient
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
     fun close() {
-        try {
-            client.dispatcher.executorService.shutdown()
-            client.connectionPool.evictAll()
-        } catch (_: Exception) {}
+        // PE-5: Don't shut down the shared client — it's reused across instances
+    }
+
+    companion object {
+        // PE-5: Single shared OkHttpClient to avoid per-instance thread/connection pool leaks
+        private val sharedClient = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .pingInterval(25, TimeUnit.SECONDS)
+            .build()
     }
 
     suspend fun getConfig(): Result<ServerConfig> = withContext(Dispatchers.IO) {

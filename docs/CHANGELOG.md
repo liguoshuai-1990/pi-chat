@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.1] - 2026-09-07
+
+### Fixed
+- **[P1-2]** HarmonyOS `WebSocketManager.send()` 返回Promise<boolean>而非乐观true，防止消息静默丢失
+- **[P1-3]** Android `_messages` StateFlow使用`.update{}`原子操作，防止并发读改写丢消息
+- **[P1-5]** Android Base64图片解码移至`Dispatchers.IO`，防止主线程ANR
+- **[P1-8]** HarmonyOS `loadSessions`/`loadSessionHistory`添加请求ID追踪，旧请求结果被丢弃
+- **[P1-11]** `saveTimingData`添加写锁串行化并发写入，防止JSON文件损坏
+- **[P1-22]** Web端toast添加`role="status" aria-live="polite"`，屏幕阅读器可播报状态
+- **[P1-24]** Web端`el()`helper的`on*`非函数属性静默忽略，防止内联事件处理器注入
+- **[P1-25]** Web端`el()`helper的`class`属性改用`setAttribute`，兼容SVG元素
+
+### Changed
+- **[PE-3]** Web端定时器DOM扫描从5次/秒降至1次/秒，使用缓存元素列表
+- **[PE-5]** Android `ApiService`使用共享`OkHttpClient`实例，避免连接池/线程池泄漏
+
 ## [2.20.0] - 2026-09-07
 
 ### Security
@@ -40,6 +56,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P1-23]** Web端图片附件添加20MB大小限制，防止大文件崩溃标签页
 
 
+## [2.20.1] - 2026-09-07
+
+### Fixed
+- **[P1-2]** HarmonyOS `WebSocketManager.send()` 返回Promise<boolean>而非乐观true，防止消息静默丢失
+- **[P1-3]** Android `_messages` StateFlow使用`.update{}`原子操作，防止并发读改写丢消息
+- **[P1-5]** Android Base64图片解码移至`Dispatchers.IO`，防止主线程ANR
+- **[P1-8]** HarmonyOS `loadSessions`/`loadSessionHistory`添加请求ID追踪，旧请求结果被丢弃
+- **[P1-11]** `saveTimingData`添加写锁串行化并发写入，防止JSON文件损坏
+- **[P1-22]** Web端toast添加`role="status" aria-live="polite"`，屏幕阅读器可播报状态
+- **[P1-24]** Web端`el()`helper的`on*`非函数属性静默忽略，防止内联事件处理器注入
+- **[P1-25]** Web端`el()`helper的`class`属性改用`setAttribute`，兼容SVG元素
+
+### Changed
+- **[PE-3]** Web端定时器DOM扫描从5次/秒降至1次/秒，使用缓存元素列表
+- **[PE-5]** Android `ApiService`使用共享`OkHttpClient`实例，避免连接池/线程池泄漏
+
 ## [2.20.0] - 2026-09-07
 
 ### Security
@@ -72,6 +104,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[P0-10]** Protocol `types.d.ts`添加全部运行时导出声明（ClientMessageType、ServerMessageType、ErrorCode、AgentState、22个create*函数、validateClientMessage、normalizeClientMessage）
 - **[P0-12]** 新增`validateServerMessage`函数，支持服务端消息发送前验证
 
+
+## [2.20.1] - 2026-09-07
+
+### Fixed
+- **[P1-2]** HarmonyOS `WebSocketManager.send()` 返回Promise<boolean>而非乐观true，防止消息静默丢失
+- **[P1-3]** Android `_messages` StateFlow使用`.update{}`原子操作，防止并发读改写丢消息
+- **[P1-5]** Android Base64图片解码移至`Dispatchers.IO`，防止主线程ANR
+- **[P1-8]** HarmonyOS `loadSessions`/`loadSessionHistory`添加请求ID追踪，旧请求结果被丢弃
+- **[P1-11]** `saveTimingData`添加写锁串行化并发写入，防止JSON文件损坏
+- **[P1-22]** Web端toast添加`role="status" aria-live="polite"`，屏幕阅读器可播报状态
+- **[P1-24]** Web端`el()`helper的`on*`非函数属性静默忽略，防止内联事件处理器注入
+- **[P1-25]** Web端`el()`helper的`class`属性改用`setAttribute`，兼容SVG元素
+
+### Changed
+- **[PE-3]** Web端定时器DOM扫描从5次/秒降至1次/秒，使用缓存元素列表
+- **[PE-5]** Android `ApiService`使用共享`OkHttpClient`实例，避免连接池/线程池泄漏
 
 ## [2.20.0] - 2026-09-07
 

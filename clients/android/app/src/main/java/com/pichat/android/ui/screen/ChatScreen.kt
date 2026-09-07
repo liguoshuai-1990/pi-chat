@@ -79,6 +79,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private data class SuggestionPrompt(val icon: String, val label: String, val prompt: String)
 
@@ -1286,7 +1288,9 @@ private fun Composer(
                 ) {
                     items(attachments.size) { idx ->
                         val item = attachments[idx]
-                        val bitmap = remember(item.data) { decodeBase64Bitmap(item.data) }
+                        val bitmap by produceState<Bitmap?>(null, item.data) {
+                            value = withContext(Dispatchers.IO) { decodeBase64Bitmap(item.data) }
+                        }
                         Box(
                             modifier = Modifier
                                 .size(56.dp)
@@ -1512,7 +1516,9 @@ fun MessageBubble(
                     modifier = Modifier.padding(bottom = 6.dp)
                 ) {
                     items(message.images) { img ->
-                        val bitmap = remember(img.data) { decodeBase64Bitmap(img.data) }
+                        val bitmap by produceState<Bitmap?>(null, img.data) {
+                            value = withContext(Dispatchers.IO) { decodeBase64Bitmap(img.data) }
+                        }
                         if (bitmap != null) {
                             Image(
                                 bitmap = bitmap.asImageBitmap(),
@@ -3089,7 +3095,10 @@ private fun SettingsDialog(
 
 @Composable
 private fun LightboxModal(imageDataUrl: String, onDismiss: () -> Unit) {
-    val bitmap = remember(imageDataUrl) { decodeBase64Bitmap(imageDataUrl) }
+    // P1-5: Decode Base64 on IO dispatcher to avoid ANR on main thread
+    val bitmap by produceState<Bitmap?>(null, imageDataUrl) {
+        value = withContext(Dispatchers.IO) { decodeBase64Bitmap(imageDataUrl) }
+    }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)

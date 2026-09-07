@@ -296,10 +296,11 @@ const el = (tag, props = {}, children = []) => {
   const SVG_TAGS = new Set(["svg","rect","path","circle","line","polyline","polygon","ellipse","g","defs","use","text","tspan","linearGradient","radialGradient","stop","clipPath","mask","pattern","filter","feGaussianBlur","feOffset","feMerge","feMergeNode","animate","animateTransform","animateMotion"]);
   const n = SVG_TAGS.has(tag) ? document.createElementNS("http://www.w3.org/2000/svg", tag) : document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
-    if (k === "class") n.className = v;
+    if (k === "class") n.setAttribute("class", v);
     else if (k === "html") n.innerHTML = v;
     else if (k === "text") n.textContent = v;
     else if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k.startsWith("on")) { /* non-function on* — silently ignore to prevent inline handler injection */ }
     else if (k === "dataset") Object.assign(n.dataset, v);
     else n.setAttribute(k, v);
   }
@@ -367,16 +368,18 @@ function formatDuration(ms) {
 let liveTimerInterval = null;
 function startStreamingTimer() {
   if (liveTimerInterval) return;
+  let tickCount = 0;
   liveTimerInterval = setInterval(() => {
     const now = Date.now();
+    // Refresh cache once per second (every 5th tick) instead of every 200ms
+    if (++tickCount % 5 === 0) refreshLiveDurationCache();
     if (state.turnStartedAt && state.streamingMsgDurationEl) {
       state.streamingMsgDurationEl.textContent = formatDuration(now - state.turnStartedAt);
     }
-    // Single combined query instead of two separate querySelectorAll calls.
-    // Interval at 200ms (5 scans/sec) is still smooth for duration display.
-    const liveEls = document.querySelectorAll(".thinking-duration.live, .tool-duration.live");
+    // PE-3: Use cached live elements instead of querySelectorAll every 200ms
+    const liveEls = state._cachedLiveDurations || [];
     liveEls.forEach((el) => {
-      if (el._startedAt) {
+      if (el._startedAt && el.isConnected) {
         el.textContent = formatDuration(now - el._startedAt);
         el.style.display = "";
       }

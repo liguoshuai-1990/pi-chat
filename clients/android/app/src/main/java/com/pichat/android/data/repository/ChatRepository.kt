@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.cancel
@@ -310,7 +311,7 @@ class ChatRepository(
             turnStartedAt = System.currentTimeMillis()
         )
 
-        _messages.value = _messages.value + userMsg + assistantMsg
+        _messages.update { it + userMsg + assistantMsg }
         _isStreaming.value = true
         startStreamingWatchdog()
 
@@ -356,7 +357,7 @@ class ChatRepository(
             status = MessageStatus.DONE,
             timestamp = System.currentTimeMillis()
         )
-        _messages.value = _messages.value + steerMsg
+        _messages.update { it + steerMsg }
 
         val payload = buildJsonObject {
             put("type", "steer")

@@ -36,6 +36,7 @@ export class PiAgent {
     this.thinkingStart = null;
     this.toolStarts = new Map();
     this.timingData = null;
+    this._saveTimingLock = null;
   }
 
   get hasListeners() {
@@ -383,26 +384,34 @@ export class PiAgent {
 
   async saveTimingData() {
     if (!this.timingData || !this.sessionKey) return;
-    try {
-      // sessionKey is "cwd:sessionPath" — extract sessionPath
-      const idx = this.sessionKey.indexOf(":");
-      if (idx < 0) return;
-      const sessionPath = this.sessionKey.slice(idx + 1);
-      const timingPath = sessionPath + ".timing.json";
-      // Read existing timing data (array of turns)
-      let turns = [];
+    // P1-11: Serialize concurrent writes to prevent JSON corruption
+    if (this._saveTimingLock) {
+      // Another save is in progress — chain after it
+      return this._saveTimingLock.then(() => this.saveTimingData());
+    }
+    this._saveTimingLock = (async () => {
       try {
-        const existing = await readFile(timingPath, "utf8");
-        turns = JSON.parse(existing);
-        if (!Array.isArray(turns)) turns = [];
-      } catch {}
-      // Append current turn timing
-      turns.push(this.timingData);
-      // Keep last 1000 turns to avoid unbounded growth
-      if (turns.length > 1000) turns = turns.slice(-1000);
-      await writeFile(timingPath, JSON.stringify(turns), "utf8");
-    } catch (e) {
-      console.warn("[PiAgent] Failed to save timing data:", e.message);
+        const idx = this.sessionKey.indexOf(":");
+        if (idx < 0) return;
+        const sessionPath = this.sessionKey.slice(idx + 1);
+        const timingPath = sessionPath + ".timing.json";
+        let turns = [];
+        try {
+          const existing = await readFile(timingPath, "utf8");
+          turns = JSON.parse(existing);
+          if (!Array.isArray(turns)) turns = [];
+        } catch {}
+        turns.push(this.timingData);
+        if (turns.length > 1000) turns = turns.slice(-1000);
+        await writeFile(timingPath, JSON.stringify(turns), "utf8");
+      } catch (e) {
+        console.warn("[PiAgent] Failed to save timing data:", e.message);
+      }
+    })();
+    try {
+      await this._saveTimingLock;
+    } finally {
+      this._saveTimingLock = null;
     }
   }
 
