@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * bump-version.mjs — 单命令递增全仓版本号（单一真源 → 5 处同步）
+ * bump-version.mjs — 单命令递增全仓版本号（单一真源 → 6 处同步）
  *
  * Usage:
  *   node scripts/bump-version.mjs 2.17.9          # 指定完整版本号
@@ -8,7 +8,7 @@
  *   node scripts/bump-version.mjs minor            # 2.17.8 → 2.18.0
  *   node scripts/bump-version.mjs major            # 2.17.8 → 3.0.0
  *
- * 更新的 5 处版本源（Android 与 HarmonyOS Index.ets 已动态化，无需手动维护）：
+ * 更新的 6 处版本源（Android 与 HarmonyOS Index.ets 已动态化，无需手动维护）：
  *   1.  package.json (root)                        ← 唯一真源
  *   2.  packages/protocol/package.json
  *   3.  server/package.json
@@ -132,5 +132,5 @@ console.log(`  ✓ clients/harmony/AppScope/app.json5 (versionName=${newVersion}
 updateChangelog(r("docs/CHANGELOG.md"), newVersion);
 console.log(`  ✓ docs/CHANGELOG.md (placeholder entry added)`);
 
-console.log(`\nDone. All 5 version sources synced to ${newVersion}.\n(Android & Index.ets are dynamic — no manual update needed.)`);
+console.log(`\nDone. All 6 version sources synced to ${newVersion}.\n(Android & Index.ets are dynamic — no manual update needed.)`);
 console.log(`Remember to fill in the CHANGELOG entry before committing.`);
