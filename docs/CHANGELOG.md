@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.8] - 2026-09-08
+
+### Fixed
+- **[Server]** `PiAgent.stop()` 对已退出的子进程会返回永不 resolve 的 Promise；新增 `exitCode`/`signalCode` 预判，已退出时立即 resolve，避免调用方永久挂起（#50）
+- **[Server]** `config.port` 增加合法端口范围校验（1..65535），`PORT=0`/负数/NaN/越界一律回退 3000，避免透传给 `listen()` 导致运行期报错（#56）
+- **[Server]** `POST /api/abort` 改为按 session key 查已存活的 Agent 再 abort，不再为新请求 spawn 一个 pi 进程，避免资源浪费与可被滥用的进程爆破面（#55）
+
 ## [2.20.7] - 2026-09-07
 
 ### Fixed

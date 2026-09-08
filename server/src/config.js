@@ -150,7 +150,12 @@ function parseEnvNum(name, defaultValue, { integer = false } = {}) {
 }
 
 export const config = {
-  port: Number(process.env.PORT) || 3000,
+  port: (() => {
+    const p = Number(process.env.PORT);
+    // Only accept a valid TCP port range; fall back to 3000 for 0, negative,
+    // NaN, or out-of-range values instead of passing them to listen().
+    return Number.isInteger(p) && p > 0 && p <= 65535 ? p : 3000;
+  })(),
   host: process.env.HOST || (process.env.AUTH_TOKEN || process.env.PI_AUTH_TOKEN ? "0.0.0.0" : "127.0.0.1"),
   authToken: process.env.AUTH_TOKEN || process.env.PI_AUTH_TOKEN || "",
   sessionsDir: process.env.PI_SESSIONS_DIR || path.join(home(), ".pi", "agent", "sessions"),

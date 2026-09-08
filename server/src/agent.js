@@ -601,6 +601,12 @@ export class PiAgent {
       try { this.proc.kill("SIGTERM"); } catch {}
       const p = this.proc;
       this.proc = null;
+      // An already-exited process never fires 'exit' again, so resolve immediately
+      // rather than returning a promise that would hang forever.
+      if (p.exitCode !== null || p.signalCode !== null) {
+        this.closeAllListeners();
+        return Promise.resolve();
+      }
       // Return a promise that resolves when the process actually exits
       return new Promise((resolve) => {
         const killTimer = setTimeout(() => {

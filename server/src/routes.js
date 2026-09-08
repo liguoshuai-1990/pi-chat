@@ -638,8 +638,13 @@ router.post("/api/chat", authMiddleware, async (req, res) => {
 router.post("/api/abort", authMiddleware, (req, res) => {
   const { cwd, session } = req.body || {};
   try {
-    const agent = getOrCreateAgent(cwd, session);
-    agent.sendNoReply({ type: "abort" });
+    // Look up an existing active agent by its session key instead of spawning a
+    // fresh pi process just to abort it (which wasted resources and could be abused).
+    const key = session ? `${normalizeCwd(cwd)}:${normalizePath(session)}` : null;
+    const agent = key ? activeAgents.get(key) : null;
+    if (agent) {
+      agent.sendNoReply({ type: "abort" });
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
